@@ -330,11 +330,11 @@ class AdMobModule(reactContext: ReactApplicationContext) :
 
         scope.launch {
             withContext(Dispatchers.Main) {
-                UserMessagingPlatform.loadAndShowConsentMessageIfRequired(
+                UserMessagingPlatform.loadAndShowConsentFormIfRequired(
                     activity
-                ) { error ->
-                    if (error != null) {
-                        promise.reject("CONSENT_FORM_ERROR", error.message)
+                ) { formError ->
+                    if (formError != null) {
+                        promise.reject("CONSENT_FORM_ERROR", formError.message)
                     } else {
                         promise.resolve(consentStatusToString(info.consentStatus))
                     }
