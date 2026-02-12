@@ -1,0 +1,77 @@
+# Dependencies
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# React Native
+.metro-health-check*
+*.jsbundle
+
+# Android
+android/app/debug.keystore
+.bundle/
+.claude/
+android/app/build/
+android/.gradle/
+android/build/
+android/captures/
+dist/
+*.apk
+*.aab
+*.keystore
+!debug.keystore
+signing.properties
+local.properties
+.cxx/
+.kotlin/
+*.hprof
+*.jks
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment - NEVER commit secrets
+.env
+.env.*
+.env.local
+.env.development
+.env.production
+
+# Logs
+*.log
+
+# Testing
+coverage/
+
+# TypeScript
+*.tsbuildinfo
+
+# Temporary
+tmp/
+temp/
+
+# Bundle artifacts
+build/
+
+# Fastlane
+**/fastlane/report.xml
+**/fastlane/Preview.html
+**/fastlane/screenshots
+**/fastlane/test_output
+
+# Ruby (Android build)
+/vendor/bundle/
+
+# Yarn
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions

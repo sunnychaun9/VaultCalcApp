@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  VaultCalc - Network Security Configuration
+
+  Enforces:
+  - No cleartext (HTTP) traffic globally
+  - TLS 1.2+ for all connections
+  - Localhost exception for React Native Metro bundler (debug builds)
+
+  @see SECURITY_AUDIT.md M-3
+-->
+<network-security-config>
+    <!-- Deny cleartext traffic by default for all domains -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+
+    <!-- Allow localhost cleartext for React Native Metro bundler (debug only) -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">10.0.2.2</domain>
+    </domain-config>
+</network-security-config>

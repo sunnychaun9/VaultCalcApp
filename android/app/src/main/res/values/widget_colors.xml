@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="widget_bg">#FAFAFA</color>
+    <color name="widget_display_bg">#FFFFFF</color>
+    <color name="widget_display_text">#1A1A1A</color>
+    <color name="widget_btn_number">#F5F5F5</color>
+    <color name="widget_btn_operator">#E8E8E8</color>
+    <color name="widget_btn_equals">#1A1A1A</color>
+    <color name="widget_btn_function">#F0F0F0</color>
+    <color name="widget_btn_text">#1A1A1A</color>
+    <color name="widget_btn_text_operator">#1A1A1A</color>
+    <color name="widget_btn_text_equals">#FFFFFF</color>
+</resources>

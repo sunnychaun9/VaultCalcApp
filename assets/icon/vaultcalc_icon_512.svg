@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <mask id="m">
+      <rect width="512" height="512" fill="white"/>
+      <polygon points="256,225 287,256 256,287 225,256" fill="black"/>
+    </mask>
+  </defs>
+  <rect width="512" height="512" rx="114" fill="#1C1C1E"/>
+  <g mask="url(#m)">
+    <rect x="102" y="194" width="308" height="41" rx="12" fill="#E5E5EA"/>
+    <rect x="102" y="277" width="308" height="41" rx="12" fill="#E5E5EA"/>
+  </g>
+</svg>
