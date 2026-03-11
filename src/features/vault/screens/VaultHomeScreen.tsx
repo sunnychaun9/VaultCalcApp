@@ -38,6 +38,7 @@ import { deleteMediaItems } from '@services/deletion';
 import { shareMediaItems, shareNoteAsText } from '@services/share';
 import { unhideMediaItems } from '@services/unhide';
 import { requestGalleryPermissions, hasGalleryPermissions, type GalleryMediaType } from '@services/gallery';
+import { hasCameraPermissions, requestCameraPermissions } from '@services/camera';
 import { alert } from '@store/alertStore';
 import { sanitizeUserInput } from '@shared/utils/formatters';
 
@@ -160,6 +161,19 @@ export function VaultHomeScreen(): React.JSX.Element {
       setTimeout(() => noteNameInputRef.current?.focus(), 100);
     }
   }, [showCreateNote]);
+
+  /**
+   * Handle camera button press — opens private vault camera
+   */
+  const handleCameraPress = useCallback(async () => {
+    onActivity();
+    const hasPerms = await hasCameraPermissions();
+    if (!hasPerms) {
+      const granted = await requestCameraPermissions();
+      if (!granted) return;
+    }
+    navigation.navigate('Camera');
+  }, [onActivity, navigation]);
 
   /**
    * Handle settings button press
@@ -889,11 +903,34 @@ export function VaultHomeScreen(): React.JSX.Element {
           isSharing={isSharing}
         />
       ) : (
-        <FloatingAddButton
-          onPress={handleAddPress}
-          label={isImporting ? 'Importing...' : activeTab === 'albums' ? '+ New Album' : activeTab === 'notes' ? (isPremium ? '+ New Note' : '🔒 Premium') : '+ Add Files'}
-          disabled={isImporting}
-        />
+        <>
+          {(activeTab === 'images' || activeTab === 'videos') && (
+            <Pressable
+              onPress={handleCameraPress}
+              style={{
+                position: 'absolute',
+                bottom: 88,
+                alignSelf: 'center',
+                backgroundColor: themeColors.surfaceContainerHigh,
+                width: 48,
+                height: 48,
+                borderRadius: 24,
+                alignItems: 'center',
+                justifyContent: 'center',
+                elevation: 4,
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Open camera"
+            >
+              <Text style={{ fontSize: 20 }}>C</Text>
+            </Pressable>
+          )}
+          <FloatingAddButton
+            onPress={handleAddPress}
+            label={isImporting ? 'Importing...' : activeTab === 'albums' ? '+ New Album' : activeTab === 'notes' ? (isPremium ? '+ New Note' : '🔒 Premium') : '+ Add Files'}
+            disabled={isImporting}
+          />
+        </>
       )}
       {/* Import Progress Overlay (FILE-010) */}
       {importProgress !== null && (

@@ -1,0 +1,20 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="512"
+    android:viewportHeight="512">
+  <!-- Sun circle -->
+  <path
+      android:fillColor="#E5E5EA"
+      android:pathData="M256,196 A60,60 0 1 1 256,316 A60,60 0 1 1 256,196 Z" />
+  <!-- Sun rays -->
+  <path android:fillColor="#E5E5EA" android:pathData="M248,112 L264,112 L264,160 L248,160 Z" />
+  <path android:fillColor="#E5E5EA" android:pathData="M248,352 L264,352 L264,400 L248,400 Z" />
+  <path android:fillColor="#E5E5EA" android:pathData="M112,248 L160,248 L160,264 L112,264 Z" />
+  <path android:fillColor="#E5E5EA" android:pathData="M352,248 L400,248 L400,264 L352,264 Z" />
+  <!-- Diagonal rays -->
+  <path android:fillColor="#E5E5EA" android:pathData="M160,160 L171.3,148.7 L205,182.4 L193.7,193.7 Z" />
+  <path android:fillColor="#E5E5EA" android:pathData="M307,318.3 L318.3,307 L352,340.7 L340.7,352 Z" />
+  <path android:fillColor="#E5E5EA" android:pathData="M340.7,160 L352,171.3 L318.3,205 L307,193.7 Z" />
+  <path android:fillColor="#E5E5EA" android:pathData="M193.7,318.3 L205,307 L171.3,340.7 L160,352 Z" />
+</vector>

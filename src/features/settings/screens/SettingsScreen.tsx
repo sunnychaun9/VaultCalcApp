@@ -33,6 +33,8 @@ import { BackupProgressOverlay } from '../components/BackupProgressOverlay';
 import { RestoreProgressOverlay } from '../components/RestoreProgressOverlay';
 import { useThemeColors, type ColorTokens, typography, spacing, layout } from '@shared/theme';
 import { alert } from '@store/alertStore';
+import { enableStealth, disableStealth } from '@services/security/stealth';
+import { setAppIcon as nativeSetAppIcon, type AppIconAlias } from '@services/appicon';
 
 /** Format bytes to human-readable string */
 function formatBytes(bytes: number): string {
@@ -114,8 +116,16 @@ export function SettingsScreen(): React.JSX.Element {
     setDeleteOriginalsAfterImport,
     panicButtonEnabled,
     setPanicButtonEnabled,
+    panicTriggerVolume,
+    setPanicTriggerVolume,
+    panicTriggerPower,
+    setPanicTriggerPower,
     intruderDetectionEnabled,
     setIntruderDetectionEnabled,
+    stealthModeEnabled,
+    setStealthModeEnabled,
+    appIcon,
+    setAppIcon,
     googleDriveEmail,
     googleDriveDisplayName,
     setGoogleDriveConnection,
@@ -270,10 +280,71 @@ export function SettingsScreen(): React.JSX.Element {
     setPanicButtonEnabled(value);
   }, [onActivity, setPanicButtonEnabled]);
 
+  const handleTogglePanicVolume = useCallback((value: boolean) => {
+    onActivity();
+    setPanicTriggerVolume(value);
+  }, [onActivity, setPanicTriggerVolume]);
+
+  const handleTogglePanicPower = useCallback((value: boolean) => {
+    onActivity();
+    setPanicTriggerPower(value);
+  }, [onActivity, setPanicTriggerPower]);
+
   const handleToggleIntruderDetection = useCallback((value: boolean) => {
     onActivity();
     setIntruderDetectionEnabled(value);
   }, [onActivity, setIntruderDetectionEnabled]);
+
+  const handleToggleStealth = useCallback(async (value: boolean) => {
+    onActivity();
+    if (value) {
+      // Enabling stealth — show confirmation dialog first
+      alert(
+        'Enable Stealth Mode?',
+        'The VaultCalc icon will be hidden from your launcher.\n\nTo reopen the app, tap the "Calculator" notification in your notification shade.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Enable',
+            onPress: async () => {
+              const result = await enableStealth();
+              if (result.success) {
+                setStealthModeEnabled(true);
+                alert(
+                  'Stealth Mode Enabled',
+                  'VaultCalc icon is now hidden.\n\nTo reopen the app:\nTap the "Calculator" notification in your notification shade.',
+                );
+              } else {
+                alert('Error', result.error ?? 'Failed to enable stealth mode.');
+              }
+            },
+          },
+        ],
+      );
+    } else {
+      const result = await disableStealth();
+      if (result.success) {
+        setStealthModeEnabled(false);
+      } else {
+        alert('Error', result.error ?? 'Failed to disable stealth mode.');
+      }
+    }
+  }, [onActivity, setStealthModeEnabled]);
+
+  const handleChangeAppIcon = useCallback(async (alias: AppIconAlias) => {
+    onActivity();
+    if (alias === appIcon) return;
+    const result = await nativeSetAppIcon(alias);
+    if (result.success) {
+      setAppIcon(alias);
+      alert(
+        'App icon changed',
+        'You may need to return to the home screen to see the change.',
+      );
+    } else {
+      alert('Error', result.error ?? 'Failed to change app icon.');
+    }
+  }, [onActivity, appIcon, setAppIcon]);
 
   const handleIntruderLogs = useCallback(() => {
     onActivity();
@@ -456,13 +527,13 @@ export function SettingsScreen(): React.JSX.Element {
             />
           </View>
 
-          {/* Shake to lock — hidden in decoy mode (ENH-005) */}
+          {/* Panic Mode — hidden in decoy mode (ENH-005) */}
           {!isDecoyMode && (
             <>
               <View style={styles.rowDivider} />
 
               <View style={styles.row}>
-                <Text style={styles.rowLabel}>Shake to lock</Text>
+                <Text style={styles.rowLabel}>Panic mode</Text>
                 <Switch
                   value={panicButtonEnabled}
                   onValueChange={handleTogglePanicButton}
@@ -470,6 +541,49 @@ export function SettingsScreen(): React.JSX.Element {
                   thumbColor={themeColors.surface}
                 />
               </View>
+
+              <View style={styles.storageDetailRow}>
+                <Text style={styles.storageDetailText}>
+                  Instantly hides your vault if someone sees your phone.
+                </Text>
+              </View>
+
+              {panicButtonEnabled && (
+                <>
+                  <View style={styles.rowDivider} />
+                  <View style={styles.row}>
+                    <Text style={styles.rowLabel}>  Shake device</Text>
+                    <Switch
+                      value={true}
+                      disabled
+                      trackColor={{ false: themeColors.surfaceContainerHigh, true: themeColors.accent }}
+                      thumbColor={themeColors.surface}
+                    />
+                  </View>
+
+                  <View style={styles.rowDivider} />
+                  <View style={styles.row}>
+                    <Text style={styles.rowLabel}>  Triple press volume down</Text>
+                    <Switch
+                      value={panicTriggerVolume}
+                      onValueChange={handleTogglePanicVolume}
+                      trackColor={{ false: themeColors.surfaceContainerHigh, true: themeColors.accent }}
+                      thumbColor={themeColors.surface}
+                    />
+                  </View>
+
+                  <View style={styles.rowDivider} />
+                  <View style={styles.row}>
+                    <Text style={styles.rowLabel}>  Triple press power button</Text>
+                    <Switch
+                      value={panicTriggerPower}
+                      onValueChange={handleTogglePanicPower}
+                      trackColor={{ false: themeColors.surfaceContainerHigh, true: themeColors.accent }}
+                      thumbColor={themeColors.surface}
+                    />
+                  </View>
+                </>
+              )}
             </>
           )}
 
@@ -494,6 +608,23 @@ export function SettingsScreen(): React.JSX.Element {
                   </Text>
                 </View>
               )}
+            </>
+          )}
+
+          {/* App Lock — hidden in decoy mode */}
+          {!isDecoyMode && (
+            <>
+              <View style={styles.rowDivider} />
+
+              <Pressable
+                onPress={() => navigation.navigate('AppLock')}
+                style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+                accessibilityRole="button"
+                accessibilityLabel="App Lock"
+              >
+                <Text style={styles.rowLabel}>App Lock</Text>
+                <Text style={styles.rowChevron}>→</Text>
+              </Pressable>
             </>
           )}
 
@@ -549,7 +680,65 @@ export function SettingsScreen(): React.JSX.Element {
               </Pressable>
             </>
           )}
+
+          {/* Stealth mode — hidden in decoy mode (STEALTH-001) */}
+          {!isDecoyMode && (
+            <>
+              <View style={styles.rowDivider} />
+
+              <View style={styles.row}>
+                <Text style={styles.rowLabel}>Hide app icon</Text>
+                <Switch
+                  value={stealthModeEnabled}
+                  onValueChange={handleToggleStealth}
+                  trackColor={{ false: themeColors.surfaceContainerHigh, true: themeColors.accent }}
+                  thumbColor={themeColors.surface}
+                />
+              </View>
+
+              <View style={styles.storageDetailRow}>
+                <Text style={styles.storageDetailText}>
+                  {stealthModeEnabled
+                    ? 'App is hidden. Tap notification to open.'
+                    : 'Hide from launcher. Open via notification.'}
+                </Text>
+              </View>
+            </>
+          )}
         </View>
+
+        {/* APP APPEARANCE Section — hidden in decoy mode and stealth mode */}
+        {!isDecoyMode && !stealthModeEnabled && (
+          <>
+            <Text style={styles.sectionHeader}>APP APPEARANCE</Text>
+            <View style={styles.sectionCard}>
+              {(['default', 'calculator', 'weather', 'notes'] as const).map((alias, idx) => {
+                const labels: Record<AppIconAlias, string> = {
+                  default: 'Default (VaultCalc)',
+                  calculator: 'Calculator',
+                  weather: 'Weather',
+                  notes: 'Notes',
+                };
+                return (
+                  <React.Fragment key={alias}>
+                    {idx > 0 && <View style={styles.rowDivider} />}
+                    <Pressable
+                      onPress={() => handleChangeAppIcon(alias)}
+                      style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected: appIcon === alias }}
+                    >
+                      <Text style={styles.rowLabel}>{labels[alias]}</Text>
+                      {appIcon === alias && (
+                        <Text style={[styles.rowValue, { color: themeColors.accent }]}>Selected</Text>
+                      )}
+                    </Pressable>
+                  </React.Fragment>
+                );
+              })}
+            </View>
+          </>
+        )}
 
         {/* CLOUD BACKUP Section — hidden in decoy mode (CLOUD-001, PREMIUM-004) */}
         {!isDecoyMode && (

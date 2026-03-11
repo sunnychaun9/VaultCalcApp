@@ -73,8 +73,20 @@ interface SettingsState {
   /** Vault item count at time of last successful backup (CLOUD-006) */
   lastBackupItemCount: number | null;
 
+  /** Whether stealth mode (hidden launcher icon) is enabled (STEALTH-001) */
+  stealthModeEnabled: boolean;
+
+  /** Currently selected disguised app icon alias */
+  appIcon: 'default' | 'calculator' | 'weather' | 'notes';
+
   /** Whether shake-to-lock panic button is enabled (ENH-005) */
   panicButtonEnabled: boolean;
+
+  /** Panic trigger: triple volume-down press */
+  panicTriggerVolume: boolean;
+
+  /** Panic trigger: triple power button press */
+  panicTriggerPower: boolean;
 
   /** Premium subscription status (PREMIUM-002) */
   premiumStatus: 'free' | 'trial' | 'premium';
@@ -141,8 +153,20 @@ interface SettingsActions {
   /** Set last backup item count (CLOUD-006) */
   setLastBackupItemCount: (count: number | null) => void;
 
+  /** Toggle stealth mode (STEALTH-001) */
+  setStealthModeEnabled: (enabled: boolean) => void;
+
+  /** Set disguised app icon */
+  setAppIcon: (icon: 'default' | 'calculator' | 'weather' | 'notes') => void;
+
   /** Toggle shake-to-lock panic button (ENH-005) */
   setPanicButtonEnabled: (enabled: boolean) => void;
+
+  /** Toggle panic trigger: volume down */
+  setPanicTriggerVolume: (enabled: boolean) => void;
+
+  /** Toggle panic trigger: power button */
+  setPanicTriggerPower: (enabled: boolean) => void;
 
   /** Set premium subscription status (PREMIUM-002) */
   setPremiumStatus: (status: 'free' | 'trial' | 'premium') => void;
@@ -179,7 +203,11 @@ const defaultSettings: SettingsState = {
   decoyVaultConfigured: false,
   hapticEnabled: true,
   deleteOriginalsAfterImport: false,
+  stealthModeEnabled: false,
+  appIcon: 'default',
   panicButtonEnabled: false,
+  panicTriggerVolume: true,
+  panicTriggerPower: false,
   googleDriveEmail: null,
   googleDriveDisplayName: null,
   lastBackupAt: null,
@@ -244,8 +272,24 @@ export const useSettingsStore = create<SettingsState & SettingsActions>()(
         set({ deleteOriginalsAfterImport: enabled });
       },
 
+      setStealthModeEnabled: (enabled) => {
+        set({ stealthModeEnabled: enabled });
+      },
+
+      setAppIcon: (icon) => {
+        set({ appIcon: icon });
+      },
+
       setPanicButtonEnabled: (enabled) => {
         set({ panicButtonEnabled: enabled });
+      },
+
+      setPanicTriggerVolume: (enabled) => {
+        set({ panicTriggerVolume: enabled });
+      },
+
+      setPanicTriggerPower: (enabled) => {
+        set({ panicTriggerPower: enabled });
       },
 
       setGoogleDriveConnection: (email, displayName) => {
@@ -311,7 +355,11 @@ export const useSettingsStore = create<SettingsState & SettingsActions>()(
         decoyVaultConfigured: state.decoyVaultConfigured,
         hapticEnabled: state.hapticEnabled,
         deleteOriginalsAfterImport: state.deleteOriginalsAfterImport,
+        stealthModeEnabled: state.stealthModeEnabled,
+        appIcon: state.appIcon,
         panicButtonEnabled: state.panicButtonEnabled,
+        panicTriggerVolume: state.panicTriggerVolume,
+        panicTriggerPower: state.panicTriggerPower,
         googleDriveEmail: state.googleDriveEmail,
         googleDriveDisplayName: state.googleDriveDisplayName,
         lastBackupAt: state.lastBackupAt,

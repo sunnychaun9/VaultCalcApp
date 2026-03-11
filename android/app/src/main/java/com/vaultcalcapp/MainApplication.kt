@@ -17,6 +17,11 @@ import com.vaultcalcapp.modules.pdf.PdfPackage
 import com.vaultcalcapp.modules.security.AppSecurityPackage
 import com.vaultcalcapp.modules.shake.ShakeDetectorPackage
 import com.vaultcalcapp.modules.share.SharePackage
+import com.vaultcalcapp.modules.appicon.AppIconPackage
+import com.vaultcalcapp.modules.applock.AppLockPackage
+import com.vaultcalcapp.modules.camera.VaultCameraPackage
+import com.vaultcalcapp.modules.panic.PanicPackage
+import com.vaultcalcapp.modules.stealth.StealthPackage
 import expo.modules.ApplicationLifecycleDispatcher
 
 class MainApplication : Application(), ReactApplication {
@@ -38,6 +43,11 @@ class MainApplication : Application(), ReactApplication {
           add(AppSecurityPackage())
           add(ShakeDetectorPackage())
           add(SharePackage())
+          add(AppIconPackage())
+          add(AppLockPackage())
+          add(VaultCameraPackage())
+          add(PanicPackage())
+          add(StealthPackage())
         },
     )
   }

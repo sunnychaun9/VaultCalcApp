@@ -14,7 +14,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import type { VaultStackParamList } from '@typedefs/navigation';
 import { AuthGuard, ChangePinScreen, DecoyPinSetupScreen } from '@features/auth';
 import { VaultHomeScreen } from '@features/vault';
-import { MediaViewerScreen, AlbumViewScreen, NoteEditorScreen, GalleryAlbumListScreen, GalleryMediaSelectScreen } from '@features/vault/screens';
+import { MediaViewerScreen, AlbumViewScreen, NoteEditorScreen, GalleryAlbumListScreen, GalleryMediaSelectScreen, CameraScreen, AppLockScreen } from '@features/vault/screens';
 import { SettingsScreen, AboutScreen, IntruderLogsScreen, SubscriptionScreen } from '@features/settings';
 
 const Stack = createNativeStackNavigator<VaultStackParamList>();
@@ -107,6 +107,25 @@ export function VaultNavigator(): React.JSX.Element {
         <Stack.Screen
           name="GalleryMediaSelect"
           component={GalleryMediaSelectScreen}
+          options={{
+            animation: 'slide_from_right',
+          }}
+        />
+
+        {/* Private Camera */}
+        <Stack.Screen
+          name="Camera"
+          component={CameraScreen}
+          options={{
+            animation: 'slide_from_bottom',
+            presentation: 'fullScreenModal',
+          }}
+        />
+
+        {/* App Lock */}
+        <Stack.Screen
+          name="AppLock"
+          component={AppLockScreen}
           options={{
             animation: 'slide_from_right',
           }}

@@ -10,3 +10,5 @@ export { AlbumViewScreen } from './AlbumViewScreen';
 export { NoteEditorScreen } from './NoteEditorScreen';
 export { GalleryAlbumListScreen } from './GalleryAlbumListScreen';
 export { GalleryMediaSelectScreen } from './GalleryMediaSelectScreen';
+export { CameraScreen } from './CameraScreen';
+export { AppLockScreen } from './AppLockScreen';

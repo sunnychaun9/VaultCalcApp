@@ -1,3 +1,4 @@
 <resources>
     <string name="widget_description">A calculator widget for your home screen</string>
+    <string name="applock_service_description">Monitors app launches to protect locked apps with authentication.</string>
 </resources>

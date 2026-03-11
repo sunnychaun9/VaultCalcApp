@@ -1,0 +1,19 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="512"
+    android:viewportHeight="512">
+  <!-- Notepad body -->
+  <path
+      android:fillColor="#E5E5EA"
+      android:pathData="M152,88 L360,88 A16,16 0 0 1 376,104 L376,408 A16,16 0 0 1 360,424 L152,424 A16,16 0 0 1 136,408 L136,104 A16,16 0 0 1 152,88 Z" />
+  <!-- Lines -->
+  <path android:fillColor="#1C1C1E" android:pathData="M176,168 L336,168 L336,180 L176,180 Z" />
+  <path android:fillColor="#1C1C1E" android:pathData="M176,212 L336,212 L336,224 L176,224 Z" />
+  <path android:fillColor="#1C1C1E" android:pathData="M176,256 L336,256 L336,268 L176,268 Z" />
+  <path android:fillColor="#1C1C1E" android:pathData="M176,300 L280,300 L280,312 L176,312 Z" />
+  <!-- Fold corner -->
+  <path
+      android:fillColor="#C7C7CC"
+      android:pathData="M328,376 L376,376 L376,408 A16,16 0 0 1 360,424 L328,424 Z" />
+</vector>

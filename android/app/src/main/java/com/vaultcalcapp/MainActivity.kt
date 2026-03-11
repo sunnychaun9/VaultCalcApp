@@ -1,12 +1,14 @@
 package com.vaultcalcapp
 
 import android.os.Bundle
+import android.view.KeyEvent
 import android.view.WindowManager
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnabled
 import com.facebook.react.defaults.DefaultReactActivityDelegate
+import com.vaultcalcapp.modules.panic.PanicModule
 
 class MainActivity : ReactActivity() {
 
@@ -42,5 +44,18 @@ class MainActivity : ReactActivity() {
       WindowManager.LayoutParams.FLAG_SECURE,
       WindowManager.LayoutParams.FLAG_SECURE
     )
+  }
+
+  /**
+   * Intercept key events to detect volume-down triple press for panic mode.
+   * Only ACTION_DOWN events are tracked. If PanicManager doesn't consume
+   * the event, it passes through to the default handler (volume change).
+   */
+  override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+    if (event.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN && event.action == KeyEvent.ACTION_DOWN) {
+      val consumed = PanicModule.instance?.onVolumeDownPressed() ?: false
+      if (consumed) return true
+    }
+    return super.dispatchKeyEvent(event)
   }
 }

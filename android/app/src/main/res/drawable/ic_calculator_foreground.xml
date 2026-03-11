@@ -1,0 +1,28 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="512"
+    android:viewportHeight="512">
+  <!-- Calculator body -->
+  <path
+      android:fillColor="#E5E5EA"
+      android:pathData="M152,96 L360,96 A24,24 0 0 1 384,120 L384,392 A24,24 0 0 1 360,416 L152,416 A24,24 0 0 1 128,392 L128,120 A24,24 0 0 1 152,96 Z" />
+  <!-- Screen -->
+  <path
+      android:fillColor="#1C1C1E"
+      android:pathData="M160,120 L352,120 A8,8 0 0 1 360,128 L360,192 A8,8 0 0 1 352,200 L160,200 A8,8 0 0 1 152,192 L152,128 A8,8 0 0 1 160,120 Z" />
+  <!-- Button row 1 -->
+  <path android:fillColor="#1C1C1E" android:pathData="M164,228 A16,16 0 1 1 196,228 A16,16 0 1 1 164,228 Z" />
+  <path android:fillColor="#1C1C1E" android:pathData="M240,228 A16,16 0 1 1 272,228 A16,16 0 1 1 240,228 Z" />
+  <path android:fillColor="#1C1C1E" android:pathData="M316,228 A16,16 0 1 1 348,228 A16,16 0 1 1 316,228 Z" />
+  <!-- Button row 2 -->
+  <path android:fillColor="#1C1C1E" android:pathData="M164,284 A16,16 0 1 1 196,284 A16,16 0 1 1 164,284 Z" />
+  <path android:fillColor="#1C1C1E" android:pathData="M240,284 A16,16 0 1 1 272,284 A16,16 0 1 1 240,284 Z" />
+  <path android:fillColor="#1C1C1E" android:pathData="M316,284 A16,16 0 1 1 348,284 A16,16 0 1 1 316,284 Z" />
+  <!-- Button row 3 -->
+  <path android:fillColor="#1C1C1E" android:pathData="M164,340 A16,16 0 1 1 196,340 A16,16 0 1 1 164,340 Z" />
+  <path android:fillColor="#1C1C1E" android:pathData="M240,340 A16,16 0 1 1 272,340 A16,16 0 1 1 240,340 Z" />
+  <path android:fillColor="#1C1C1E" android:pathData="M316,340 A16,16 0 1 1 348,340 A16,16 0 1 1 316,340 Z" />
+  <!-- Bottom wide button -->
+  <path android:fillColor="#1C1C1E" android:pathData="M164,388 L348,388 A8,8 0 0 1 356,396 L356,396 A8,8 0 0 1 348,404 L164,404 A8,8 0 0 1 156,396 L156,396 A8,8 0 0 1 164,388 Z" />
+</vector>

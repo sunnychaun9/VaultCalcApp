@@ -60,6 +60,10 @@ export type VaultStackParamList = {
   GalleryAlbumList: { mediaType: GalleryMediaType };
   /** Gallery media selection grid (GALLERY-001) */
   GalleryMediaSelect: { bucketId: string; bucketName: string; mediaType: GalleryMediaType };
+  /** Private vault camera */
+  Camera: undefined;
+  /** App Lock settings */
+  AppLock: undefined;
 };
 
 /**

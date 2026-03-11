@@ -12,6 +12,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useAuthStore } from '@store/authStore';
 import { useAuthSession } from '../hooks/useAuthSession';
 import { useShakeLock } from '../hooks/useShakeLock';
+import { usePanicMode } from '../hooks/usePanicMode';
 
 interface AuthGuardProps {
   /** Child components to render when authenticated */
@@ -36,6 +37,9 @@ export function AuthGuard({ children }: AuthGuardProps): React.JSX.Element | nul
 
   // Initialize shake-to-lock panic button (ENH-005)
   useShakeLock();
+
+  // Initialize volume/power button panic triggers
+  usePanicMode();
 
   // Redirect to calculator if not authenticated
   useEffect(() => {
