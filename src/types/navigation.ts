@@ -64,6 +64,8 @@ export type VaultStackParamList = {
   Camera: undefined;
   /** App Lock settings */
   AppLock: undefined;
+  /** Notification Privacy settings */
+  NotificationPrivacy: undefined;
 };
 
 /**

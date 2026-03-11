@@ -628,6 +628,23 @@ export function SettingsScreen(): React.JSX.Element {
             </>
           )}
 
+          {/* Notification Privacy — hidden in decoy mode */}
+          {!isDecoyMode && (
+            <>
+              <View style={styles.rowDivider} />
+
+              <Pressable
+                onPress={() => navigation.navigate('NotificationPrivacy')}
+                style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+                accessibilityRole="button"
+                accessibilityLabel="Notification Privacy"
+              >
+                <Text style={styles.rowLabel}>Notification Privacy</Text>
+                <Text style={styles.rowChevron}>→</Text>
+              </Pressable>
+            </>
+          )}
+
           {/* Decoy vault — hidden in decoy mode (DECOY-005) */}
           {!isDecoyMode && (
             <>

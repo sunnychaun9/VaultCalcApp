@@ -15,7 +15,7 @@ import type { VaultStackParamList } from '@typedefs/navigation';
 import { AuthGuard, ChangePinScreen, DecoyPinSetupScreen } from '@features/auth';
 import { VaultHomeScreen } from '@features/vault';
 import { MediaViewerScreen, AlbumViewScreen, NoteEditorScreen, GalleryAlbumListScreen, GalleryMediaSelectScreen, CameraScreen, AppLockScreen } from '@features/vault/screens';
-import { SettingsScreen, AboutScreen, IntruderLogsScreen, SubscriptionScreen } from '@features/settings';
+import { SettingsScreen, AboutScreen, IntruderLogsScreen, SubscriptionScreen, NotificationPrivacyScreen } from '@features/settings';
 
 const Stack = createNativeStackNavigator<VaultStackParamList>();
 
@@ -126,6 +126,15 @@ export function VaultNavigator(): React.JSX.Element {
         <Stack.Screen
           name="AppLock"
           component={AppLockScreen}
+          options={{
+            animation: 'slide_from_right',
+          }}
+        />
+
+        {/* Notification Privacy */}
+        <Stack.Screen
+          name="NotificationPrivacy"
+          component={NotificationPrivacyScreen}
           options={{
             animation: 'slide_from_right',
           }}
