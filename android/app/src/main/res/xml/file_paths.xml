@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
-    <!-- Only expose the temporary share directory, not the entire app directory -->
-    <files-path name="share_temp" path="share_temp/" />
+    <!-- Expose the temporary share directory inside the vault dir.
+         getVaultDirectory() returns {filesDir}/vault, so share_temp
+         lives at {filesDir}/vault/share_temp/. -->
+    <files-path name="share_temp" path="vault/share_temp/" />
 </paths>

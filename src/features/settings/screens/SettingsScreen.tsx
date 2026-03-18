@@ -16,6 +16,7 @@ import {
   ScrollView,
   Switch,
   StyleSheet,
+  PermissionsAndroid,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -24,7 +25,7 @@ import type { VaultStackParamList } from '@typedefs/navigation';
 import { useSettingsStore } from '@store/settingsStore';
 import { useFeatureGate } from '@services/billing';
 import { useAuthStore } from '@store/authStore';
-import { useActivityTracker } from '@features/auth';
+import { useActivityTracker, isPatternConfigured } from '@features/auth';
 import { mediaItems } from '@services/storage/database';
 import { checkBiometricAvailability, getBiometricStatusMessage, type BiometricStatus } from '@services/biometric';
 import { signInToGoogle, signOutFromGoogle } from '@services/googleDrive';
@@ -135,6 +136,9 @@ export function SettingsScreen(): React.JSX.Element {
     setAutoBackupEnabled,
     lastBackupItemCount,
     setLastBackupItemCount,
+    unlockMethod,
+    showPatternPath,
+    setShowPatternPath,
   } = useSettingsStore();
 
   const isDecoyMode = useAuthStore(s => s.isDecoyMode);
@@ -290,8 +294,33 @@ export function SettingsScreen(): React.JSX.Element {
     setPanicTriggerPower(value);
   }, [onActivity, setPanicTriggerPower]);
 
-  const handleToggleIntruderDetection = useCallback((value: boolean) => {
+  const handleToggleIntruderDetection = useCallback(async (value: boolean) => {
     onActivity();
+    if (value) {
+      // Request camera + location permissions for intruder intelligence
+      try {
+        const results = await PermissionsAndroid.requestMultiple([
+          PermissionsAndroid.PERMISSIONS.CAMERA,
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+        ]);
+        const camGranted = results[PermissionsAndroid.PERMISSIONS.CAMERA] === 'granted';
+        const locGranted = results[PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION] === 'granted';
+        if (!camGranted) {
+          alert(
+            'Camera Permission Needed',
+            'Camera access is required to capture intruder photos. Please grant camera permission in app settings.',
+          );
+        }
+        if (!locGranted) {
+          alert(
+            'Location Permission (Optional)',
+            'Location access allows intruder reports to include the location. You can enable it later in app settings.',
+          );
+        }
+      } catch {
+        // Permission request failed — still enable the feature
+      }
+    }
     setIntruderDetectionEnabled(value);
   }, [onActivity, setIntruderDetectionEnabled]);
 
@@ -350,6 +379,38 @@ export function SettingsScreen(): React.JSX.Element {
     onActivity();
     navigation.navigate('IntruderLogs');
   }, [onActivity, navigation]);
+
+  const handleCycleUnlockMethod = useCallback(() => {
+    onActivity();
+    const { unlockMethod: current, setUnlockMethod } = useSettingsStore.getState();
+    if (current === 'pin') {
+      // Switch to pattern — if pattern not configured, navigate to setup
+      if (isPatternConfigured()) {
+        setUnlockMethod('pattern');
+      } else {
+        // Navigate to pattern setup which will set the method on completion
+        navigation.navigate('PatternSetup');
+      }
+    } else {
+      // Switch back to PIN (PIN is always configured since it's the initial auth)
+      setUnlockMethod('pin');
+    }
+  }, [onActivity, navigation]);
+
+  const handlePatternSetup = useCallback(() => {
+    onActivity();
+    navigation.navigate('PatternSetup');
+  }, [onActivity, navigation]);
+
+  const handleChangePattern = useCallback(() => {
+    onActivity();
+    navigation.navigate('ChangePattern');
+  }, [onActivity, navigation]);
+
+  const handleToggleShowPatternPath = useCallback((value: boolean) => {
+    onActivity();
+    setShowPatternPath(value);
+  }, [onActivity, setShowPatternPath]);
 
   const handleGoogleDriveConnect = useCallback(async () => {
     if (isConnecting) return;
@@ -500,6 +561,82 @@ export function SettingsScreen(): React.JSX.Element {
               </Pressable>
 
               <View style={styles.rowDivider} />
+            </>
+          )}
+
+          {/* Unlock method — hidden in decoy mode (AUTH-009) */}
+          {!isDecoyMode && (
+            <>
+              <Pressable
+                onPress={handleCycleUnlockMethod}
+                style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+                accessibilityRole="button"
+                accessibilityLabel={`Unlock method: ${unlockMethod === 'pattern' ? 'Pattern' : 'PIN'}`}
+              >
+                <Text style={styles.rowLabel}>Unlock method</Text>
+                <Text style={styles.rowValue}>
+                  {unlockMethod === 'pattern' ? 'Pattern' : 'PIN'}
+                </Text>
+              </Pressable>
+
+              <View style={styles.rowDivider} />
+
+              {/* Pattern setup / change */}
+              {unlockMethod === 'pattern' && isPatternConfigured() ? (
+                <>
+                  <Pressable
+                    onPress={handleChangePattern}
+                    style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Change pattern"
+                  >
+                    <Text style={styles.rowLabel}>Change pattern</Text>
+                    <Text style={styles.rowChevron}>→</Text>
+                  </Pressable>
+
+                  <View style={styles.rowDivider} />
+
+                  <View style={styles.row}>
+                    <Text style={styles.rowLabel}>Show pattern path</Text>
+                    <Switch
+                      value={showPatternPath}
+                      onValueChange={handleToggleShowPatternPath}
+                      trackColor={{ false: themeColors.surfaceContainerHigh, true: themeColors.accent }}
+                      thumbColor={themeColors.surface}
+                    />
+                  </View>
+
+                  <View style={styles.rowDivider} />
+                </>
+              ) : unlockMethod !== 'pattern' ? (
+                <>
+                  <Pressable
+                    onPress={handlePatternSetup}
+                    style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Set up pattern lock"
+                  >
+                    <Text style={styles.rowLabel}>Set up pattern lock</Text>
+                    <Text style={styles.rowChevron}>→</Text>
+                  </Pressable>
+
+                  <View style={styles.rowDivider} />
+                </>
+              ) : (
+                <>
+                  <Pressable
+                    onPress={handlePatternSetup}
+                    style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Set up pattern"
+                  >
+                    <Text style={styles.rowLabel}>Set up pattern</Text>
+                    <Text style={[styles.rowValue, { color: themeColors.warning }]}>Not set</Text>
+                  </Pressable>
+
+                  <View style={styles.rowDivider} />
+                </>
+              )}
             </>
           )}
 

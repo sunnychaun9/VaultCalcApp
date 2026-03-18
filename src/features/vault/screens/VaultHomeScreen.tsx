@@ -22,7 +22,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { VaultStackParamList } from '@typedefs/navigation';
-import { VaultHeader, EmptyState, FloatingAddButton, MediaGrid, DocumentList, SelectionBar, ImportProgressOverlay, AlbumList, AddToAlbumModal, NoteList, PremiumUpsell, SelectionOverflowMenu, RenameModal, PropertiesModal } from '../components';
+import { VaultHeader, EmptyState, FloatingAddButton, MediaGrid, MediaList, DocumentList, SelectionBar, ImportProgressOverlay, AlbumList, AddToAlbumModal, NoteList, PremiumUpsell, SelectionOverflowMenu, RenameModal, PropertiesModal, SearchBar } from '../components';
 import { useMediaQuery, useAlbumsQuery, useNotesQuery, type TabType } from '../hooks';
 import { useActivityTracker } from '@features/auth';
 import { useVaultStore } from '@store/vaultStore';
@@ -84,6 +84,8 @@ export function VaultHomeScreen(): React.JSX.Element {
   const [showOverflowMenu, setShowOverflowMenu] = useState(false);
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [showPropertiesModal, setShowPropertiesModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showSearch, setShowSearch] = useState(false);
 
   // Track user activity to prevent auto-lock (AUTH-008)
   const { onActivity } = useActivityTracker();
@@ -99,6 +101,15 @@ export function VaultHomeScreen(): React.JSX.Element {
   const sortOrder = useVaultStore(s => s.sortOrder);
   const setSortBy = useVaultStore(s => s.setSortBy);
   const toggleSortOrder = useVaultStore(s => s.toggleSortOrder);
+  const viewMode = useVaultStore(s => s.viewMode);
+  const setViewMode = useVaultStore(s => s.setViewMode);
+
+  // Search filter — applied client-side on top of the React Query data
+  const filteredItems = useMemo(() => {
+    if (!searchQuery.trim()) return items;
+    const q = searchQuery.toLowerCase();
+    return items.filter(i => i.originalName.toLowerCase().includes(q));
+  }, [items, searchQuery]);
   const isDecoyMode = useAuthStore(s => s.isDecoyMode);
   const setSuppressAutoLock = useAuthStore(s => s.setSuppressAutoLock);
   const deleteOriginalsAfterImport = useSettingsStore(s => s.deleteOriginalsAfterImport);
@@ -403,7 +414,10 @@ export function VaultHomeScreen(): React.JSX.Element {
 
     const mediaType = TAB_TO_MEDIA_TYPE[activeTab];
 
-    // Optimistic cache update — apply immediately before the DB write
+    // Optimistic cache update — apply immediately before the DB write.
+    // No invalidateQueries afterward: the optimistic update is authoritative
+    // for this field, and a redundant refetch causes FlashList to re-layout
+    // and recycle cells, which briefly blanks decrypted thumbnails.
     if (mediaType !== null) {
       queryClient.setQueryData<MediaItem[]>(
         ['media', mediaType, isDecoyMode],
@@ -412,11 +426,6 @@ export function VaultHomeScreen(): React.JSX.Element {
     }
 
     await mediaItemsDb.setFavorite(ids, newValue);
-
-    // Refetch to reconcile with DB in case the optimistic update missed anything
-    if (mediaType !== null) {
-      await queryClient.invalidateQueries({ queryKey: ['media', mediaType, isDecoyMode] });
-    }
     clearSelection();
   }, [onActivity, selectedIds, items, activeTab, queryClient, isDecoyMode, clearSelection]);
 
@@ -655,6 +664,8 @@ export function VaultHomeScreen(): React.JSX.Element {
     onActivity();
     setActiveTab(tab);
     setShowFavoritesOnly(false);
+    setSearchQuery('');
+    setShowSearch(false);
   }, [onActivity]);
 
   /**
@@ -758,13 +769,13 @@ export function VaultHomeScreen(): React.JSX.Element {
    */
   const handleSelectAll = useCallback(() => {
     onActivity();
-    const allSelected = items.length > 0 && selectedIds.size === items.length;
+    const allSelected = filteredItems.length > 0 && selectedIds.size === filteredItems.length;
     if (allSelected) {
       clearSelection();
     } else {
-      selectAll(items.map(item => item.id));
+      selectAll(filteredItems.map(item => item.id));
     }
-  }, [onActivity, items, selectedIds.size, clearSelection, selectAll]);
+  }, [onActivity, filteredItems, selectedIds.size, clearSelection, selectAll]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -775,7 +786,7 @@ export function VaultHomeScreen(): React.JSX.Element {
         onSettingsPress={handleSettingsPress}
         isSelectionMode={isSelectionMode}
         selectedCount={selectedIds.size}
-        totalCount={items.length}
+        totalCount={filteredItems.length}
         onClearSelection={clearSelection}
         onSelectAll={handleSelectAll}
       />
@@ -804,9 +815,33 @@ export function VaultHomeScreen(): React.JSX.Element {
             {activeTab === tab.key && <View style={styles.tabIndicator} />}
           </Pressable>
         ))}
-        {/* Sort + Favorites filter toggles (ENH-002, ENH-003) — media tabs only */}
+        {/* Sort + Favorites + View toggle + Search — media tabs only */}
         {(activeTab === 'images' || activeTab === 'videos' || activeTab === 'documents') && (
           <>
+            {/* Search toggle */}
+            <Pressable
+              onPress={() => { setShowSearch(s => !s); if (showSearch) setSearchQuery(''); }}
+              style={styles.sortFilterButton}
+              accessibilityRole="button"
+              accessibilityLabel="Search"
+            >
+              <Text style={[styles.sortFilterIcon, showSearch && styles.sortFilterIconActive]}>
+                {'\u{1F50D}'}
+              </Text>
+            </Pressable>
+            {/* View mode toggle (grid/list) */}
+            {(activeTab === 'images' || activeTab === 'videos') && (
+              <Pressable
+                onPress={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
+                style={styles.sortFilterButton}
+                accessibilityRole="button"
+                accessibilityLabel={viewMode === 'grid' ? 'Switch to list view' : 'Switch to grid view'}
+              >
+                <Text style={styles.sortFilterIcon}>
+                  {viewMode === 'grid' ? '\u2630' : '\u2637'}
+                </Text>
+              </Pressable>
+            )}
             <Pressable
               onPress={() => setShowSortModal(true)}
               style={styles.sortFilterButton}
@@ -833,6 +868,15 @@ export function VaultHomeScreen(): React.JSX.Element {
           </>
         )}
       </View>
+
+      {/* Search bar — shown for media tabs when search is active */}
+      {showSearch && (activeTab === 'images' || activeTab === 'videos' || activeTab === 'documents') && (
+        <SearchBar
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          placeholder={`Search ${activeTab}...`}
+        />
+      )}
 
       {/* Content Area */}
       <View style={styles.content}>
@@ -864,22 +908,31 @@ export function VaultHomeScreen(): React.JSX.Element {
           ) : (
             <PremiumUpsell feature="Secure Notes" onUpgrade={handleSubscription} />
           )
-        ) : items.length > 0 ? (
+        ) : filteredItems.length > 0 ? (
           activeTab === 'documents' ? (
             <DocumentList
-              items={items}
+              items={filteredItems}
+              isLoading={isLoading}
+              onItemPress={handleItemPress}
+              onItemLongPress={handleItemLongPress}
+            />
+          ) : viewMode === 'list' ? (
+            <MediaList
+              items={filteredItems}
               isLoading={isLoading}
               onItemPress={handleItemPress}
               onItemLongPress={handleItemLongPress}
             />
           ) : (
             <MediaGrid
-              items={items}
+              items={filteredItems}
               isLoading={isLoading}
               onItemPress={handleItemPress}
               onItemLongPress={handleItemLongPress}
             />
           )
+        ) : searchQuery.trim() ? (
+          <EmptyState contentType="search" />
         ) : showFavoritesOnly ? (
           <EmptyState contentType="favorites" />
         ) : (

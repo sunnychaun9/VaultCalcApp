@@ -7,3 +7,6 @@
 export { PinSetupScreen } from './PinSetupScreen';
 export { ChangePinScreen } from './ChangePinScreen';
 export { DecoyPinSetupScreen } from './DecoyPinSetupScreen';
+export { PatternSetupScreen } from './PatternSetupScreen';
+export { ChangePatternScreen } from './ChangePatternScreen';
+export { PatternUnlockScreen } from './PatternUnlockScreen';

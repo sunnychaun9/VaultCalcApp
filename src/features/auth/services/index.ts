@@ -38,3 +38,20 @@ export {
   getRemainingLockoutTime,
 } from './failedAttempts';
 export type { WarningLevel } from './failedAttempts';
+
+export {
+  isPatternConfigured,
+  storePatternHash,
+  verifyPattern,
+  clearPatternCredentials,
+} from './patternStorage';
+
+export {
+  validatePattern,
+  setupPattern,
+  attemptPatternAuth,
+  changePattern,
+  MIN_PATTERN_LENGTH,
+  MAX_PATTERN_LENGTH,
+} from './patternManager';
+export type { PatternValidation } from './patternManager';

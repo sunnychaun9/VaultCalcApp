@@ -17,8 +17,8 @@ import {
 import { useThemeColors, type ColorTokens, typography, spacing, layout } from '@shared/theme';
 
 interface EmptyStateProps {
-  /** Type of content (images, videos, docs, albums, notes, favorites) */
-  contentType: 'images' | 'videos' | 'documents' | 'albums' | 'notes' | 'favorites';
+  /** Type of content (images, videos, docs, albums, notes, favorites, search) */
+  contentType: 'images' | 'videos' | 'documents' | 'albums' | 'notes' | 'favorites' | 'search';
   /** Handler for add button press */
   onAddPress?: () => void;
 }
@@ -58,6 +58,12 @@ const EMPTY_STATE_CONFIG = {
     icon: '\u2B50',
     title: 'No favorites yet',
     description: 'Star items to find them quickly',
+    buttonText: '',
+  },
+  search: {
+    icon: '\u{1F50D}',
+    title: 'No results found',
+    description: 'Try a different search term',
     buttonText: '',
   },
 } as const;

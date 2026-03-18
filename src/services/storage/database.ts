@@ -84,6 +84,11 @@ export interface Note {
 }
 
 /**
+ * Risk level for intruder reports
+ */
+export type RiskLevel = 'LOW' | 'MEDIUM' | 'HIGH';
+
+/**
  * Intruder log entry interface
  */
 export interface IntruderLog {
@@ -92,6 +97,11 @@ export interface IntruderLog {
   timestamp: number;
   failedPinHash: string | null;
   deviceInfo: Record<string, unknown> | null;
+  latitude: number | null;
+  longitude: number | null;
+  cityName: string | null;
+  riskLevel: RiskLevel;
+  failedAttempts: number;
 }
 
 /**
@@ -166,7 +176,12 @@ export async function initializeDatabase(): Promise<void> {
       photo_path TEXT,
       timestamp INTEGER NOT NULL,
       failed_pin_hash TEXT,
-      device_info TEXT
+      device_info TEXT,
+      latitude REAL,
+      longitude REAL,
+      city_name TEXT,
+      risk_level TEXT NOT NULL DEFAULT 'LOW',
+      failed_attempts INTEGER NOT NULL DEFAULT 1
     );
 
     -- Notes table
@@ -196,7 +211,7 @@ export async function initializeDatabase(): Promise<void> {
   );
 
   if (versionResult === null) {
-    await database.runAsync('INSERT INTO schema_version (version) VALUES (?)', [3]);
+    await database.runAsync('INSERT INTO schema_version (version) VALUES (?)', [4]);
   } else {
     let currentVersion = versionResult.version;
 
@@ -214,7 +229,14 @@ export async function initializeDatabase(): Promise<void> {
     if (currentVersion < 3) {
       // Migration v2 → v3: encrypt sensitive metadata columns (SECURITY_DEEP_AUDIT C-3)
       await migrateV2ToV3(database);
+      currentVersion = 3;
       await database.runAsync('UPDATE schema_version SET version = 3');
+    }
+
+    if (currentVersion < 4) {
+      // Migration v3 → v4: add intruder intelligence columns (SEC-005)
+      await migrateV3ToV4(database);
+      await database.runAsync('UPDATE schema_version SET version = 4');
     }
   }
 }
@@ -275,6 +297,27 @@ async function migrateV2ToV3(database: SQLite.SQLiteDatabase): Promise<void> {
         );
       }
     }
+  }
+}
+
+/**
+ * Migration v3 → v4: Add intruder intelligence columns.
+ *
+ * Adds location, risk level, and failed attempt count to intruder_logs.
+ */
+async function migrateV3ToV4(database: SQLite.SQLiteDatabase): Promise<void> {
+  const alterStatements = [
+    'ALTER TABLE intruder_logs ADD COLUMN latitude REAL',
+    'ALTER TABLE intruder_logs ADD COLUMN longitude REAL',
+    'ALTER TABLE intruder_logs ADD COLUMN city_name TEXT',
+    "ALTER TABLE intruder_logs ADD COLUMN risk_level TEXT NOT NULL DEFAULT 'LOW'",
+    'ALTER TABLE intruder_logs ADD COLUMN failed_attempts INTEGER NOT NULL DEFAULT 1',
+  ];
+
+  for (const sql of alterStatements) {
+    await database.execAsync(sql).catch(() => {
+      // Column may already exist
+    });
   }
 }
 
@@ -345,13 +388,7 @@ async function decryptMediaItemRow(row: MediaItemRow): Promise<MediaItem> {
 /**
  * Decrypt an intruder_logs row, decrypting the encrypted device_info column.
  */
-async function decryptIntruderLogRow(row: {
-  id: string;
-  photo_path: string | null;
-  timestamp: number;
-  failed_pin_hash: string | null;
-  device_info: string | null;
-}): Promise<IntruderLog> {
+async function decryptIntruderLogRow(row: IntruderLogRow): Promise<IntruderLog> {
   const log = mapRowToIntruderLog(row);
   if (row.device_info !== null) {
     const decrypted = await decryptField(row.device_info, `intruder_info:${row.id}`);
@@ -526,14 +563,19 @@ export const intruderLogs = {
     }
 
     await database.runAsync(
-      `INSERT INTO intruder_logs (id, photo_path, timestamp, failed_pin_hash, device_info)
-       VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO intruder_logs (id, photo_path, timestamp, failed_pin_hash, device_info, latitude, longitude, city_name, risk_level, failed_attempts)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         log.id,
         log.photoPath,
         log.timestamp,
         log.failedPinHash,
         storedDeviceInfo,
+        log.latitude,
+        log.longitude,
+        log.cityName,
+        log.riskLevel,
+        log.failedAttempts,
       ]
     );
   },
@@ -543,13 +585,9 @@ export const intruderLogs = {
    */
   async getAll(): Promise<IntruderLog[]> {
     const database = await getDatabase();
-    const rows = await database.getAllAsync<{
-      id: string;
-      photo_path: string | null;
-      timestamp: number;
-      failed_pin_hash: string | null;
-      device_info: string | null;
-    }>('SELECT * FROM intruder_logs ORDER BY timestamp DESC');
+    const rows = await database.getAllAsync<IntruderLogRow>(
+      'SELECT * FROM intruder_logs ORDER BY timestamp DESC'
+    );
     return Promise.all(rows.map(decryptIntruderLogRow));
   },
 
@@ -939,23 +977,38 @@ function mapRowToAlbum(row: {
 }
 
 /**
- * Map database row to IntruderLog interface.
- * Note: device_info is returned as-is (encrypted ciphertext).
- * Use decryptIntruderLogRow() for full decryption.
+ * Intruder log database row type
  */
-function mapRowToIntruderLog(row: {
+type IntruderLogRow = {
   id: string;
   photo_path: string | null;
   timestamp: number;
   failed_pin_hash: string | null;
   device_info: string | null;
-}): IntruderLog {
+  latitude: number | null;
+  longitude: number | null;
+  city_name: string | null;
+  risk_level: string;
+  failed_attempts: number;
+};
+
+/**
+ * Map database row to IntruderLog interface.
+ * Note: device_info is returned as-is (encrypted ciphertext).
+ * Use decryptIntruderLogRow() for full decryption.
+ */
+function mapRowToIntruderLog(row: IntruderLogRow): IntruderLog {
   return {
     id: row.id,
     photoPath: row.photo_path,
     timestamp: row.timestamp,
     failedPinHash: row.failed_pin_hash,
     deviceInfo: null, // Decrypted separately by decryptIntruderLogRow
+    latitude: row.latitude,
+    longitude: row.longitude,
+    cityName: row.city_name,
+    riskLevel: (row.risk_level as RiskLevel) || 'LOW',
+    failedAttempts: row.failed_attempts || 1,
   };
 }
 

@@ -13,7 +13,7 @@ import type { RootStackParamList } from '@typedefs/navigation';
 
 // Feature screens
 import { CalculatorScreen } from '@features/calculator/screens';
-import { PinSetupScreen } from '@features/auth';
+import { PinSetupScreen, PatternUnlockScreen } from '@features/auth';
 import { WelcomeScreen, HowItWorksScreen, FirstImportScreen } from '@features/onboarding';
 import { VaultNavigator } from './VaultNavigator';
 import { useSettingsStore } from '@store/settingsStore';
@@ -67,6 +67,16 @@ export function RootNavigator(): React.JSX.Element {
         options={{
           animation: 'slide_from_bottom',
           presentation: 'modal',
+        }}
+      />
+
+      {/* Pattern Unlock Screen (AUTH-009) */}
+      <Stack.Screen
+        name="PatternUnlock"
+        component={PatternUnlockScreen}
+        options={{
+          animation: 'fade',
+          gestureEnabled: false,
         }}
       />
 

@@ -127,6 +127,7 @@ dependencies {
 
     // Coroutines for async crypto operations
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
 
     // AndroidX Biometric - Fingerprint/face auth (BIO-001)
     implementation("androidx.biometric:biometric:1.1.0")
@@ -141,6 +142,9 @@ dependencies {
     // Guava - provides ListenableFuture required by CameraX's ProcessCameraProvider
     // (Tink also depends on Guava but doesn't expose it on compile classpath)
     implementation("com.google.guava:guava:32.1.3-android")
+
+    // Google Play Services Location — FusedLocationProviderClient (SEC-005)
+    implementation("com.google.android.gms:play-services-location:21.2.0")
 
     // Google Sign-In / Play Services Auth (CLOUD-001)
     implementation("com.google.android.gms:play-services-auth:21.2.0")

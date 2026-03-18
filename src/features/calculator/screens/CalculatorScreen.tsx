@@ -12,9 +12,12 @@
 import React, { useCallback, useMemo } from 'react';
 import { View, Text, Pressable, StyleSheet, StatusBar } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '@typedefs/navigation';
 import { CalcDisplay, CalcKeypad } from '../components';
 import { useCalculator, type PinCheckCallback } from '../hooks';
-import { usePinAuth, useBiometricAuth, useFailedAttempts } from '@features/auth';
+import { usePinAuth, useBiometricAuth, useFailedAttempts, isPatternConfigured } from '@features/auth';
 import { useSettingsStore } from '@store/settingsStore';
 import { recordIntruderAttempt } from '@services/intruderCamera';
 import { colors, useThemeColors, type ColorTokens } from '@shared/theme';
@@ -36,9 +39,11 @@ export function CalculatorScreen(): React.JSX.Element {
   const themeColors = useThemeColors();
   const isDark = themeColors === colors.dark;
   const styles = useMemo(() => createStyles(themeColors), [themeColors]);
+  const rootNav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
   const { checkAndAuthenticate } = usePinAuth();
   const { triggerBiometric, showBiometricButton } = useBiometricAuth();
+  const unlockMethod = useSettingsStore(s => s.unlockMethod);
   const intruderDetectionEnabled = useSettingsStore(s => s.intruderDetectionEnabled);
   const {
     warningMessage,
@@ -46,6 +51,7 @@ export function CalculatorScreen(): React.JSX.Element {
     lockoutTimeRemaining,
     isLockedOut,
     onFailedAttempt,
+    failedAttempts,
   } = useFailedAttempts();
 
   // Create PIN check callback for calculator
@@ -63,7 +69,7 @@ export function CalculatorScreen(): React.JSX.Element {
         onFailedAttempt();
         // Silently capture intruder photo if enabled (SEC-001)
         if (intruderDetectionEnabled) {
-          recordIntruderAttempt().catch(() => {});
+          recordIntruderAttempt(failedAttempts + 1).catch(() => {});
         }
       }
 
@@ -72,8 +78,15 @@ export function CalculatorScreen(): React.JSX.Element {
         authenticated: result.authenticated,
       };
     },
-    [checkAndAuthenticate, isLockedOut, onFailedAttempt, intruderDetectionEnabled]
+    [checkAndAuthenticate, isLockedOut, onFailedAttempt, intruderDetectionEnabled, failedAttempts]
   );
+
+  // Auto-navigate to pattern unlock when pattern is the active method
+  const navigateToPatternUnlock = useCallback(() => {
+    if (unlockMethod === 'pattern' && isPatternConfigured()) {
+      rootNav.navigate('PatternUnlock');
+    }
+  }, [unlockMethod, rootNav]);
 
   const { display, expression, memoryHasValue, handleButtonPress, history } = useCalculator({
     onPinCheck: handlePinCheck,
@@ -96,6 +109,21 @@ export function CalculatorScreen(): React.JSX.Element {
           warningLevel={warningLevel}
           lockoutTime={isLockedOut ? lockoutTimeRemaining : undefined}
         />
+        {/* Pattern unlock trigger button (AUTH-009) */}
+        {unlockMethod === 'pattern' && isPatternConfigured() && (
+          <Pressable
+            onPress={navigateToPatternUnlock}
+            style={({ pressed }) => [
+              styles.bioButton,
+              { right: 8, left: undefined },
+              pressed && styles.bioButtonPressed,
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Unlock with pattern"
+          >
+            <Text style={styles.bioButtonIcon}>{'\u229E'}</Text>
+          </Pressable>
+        )}
         {/* Biometric re-trigger button (BIO-004) */}
         {showBiometricButton && (
           <Pressable

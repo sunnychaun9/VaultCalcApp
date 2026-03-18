@@ -15,7 +15,11 @@ import com.facebook.react.uimanager.ViewManager
 
 class IntruderCameraPackage : ReactPackage {
     override fun createNativeModules(reactContext: ReactApplicationContext): List<NativeModule> =
-        listOf(IntruderCameraModule(reactContext))
+        listOf(
+            IntruderCameraModule(reactContext),
+            IntruderLocationModule(reactContext),
+            IntruderNotificationModule(reactContext),
+        )
 
     override fun createViewManagers(reactContext: ReactApplicationContext): List<ViewManager<*, *>> =
         emptyList()

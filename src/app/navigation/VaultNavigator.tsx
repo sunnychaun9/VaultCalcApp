@@ -12,10 +12,10 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import type { VaultStackParamList } from '@typedefs/navigation';
-import { AuthGuard, ChangePinScreen, DecoyPinSetupScreen } from '@features/auth';
+import { AuthGuard, ChangePinScreen, DecoyPinSetupScreen, PatternSetupScreen, ChangePatternScreen } from '@features/auth';
 import { VaultHomeScreen } from '@features/vault';
 import { MediaViewerScreen, AlbumViewScreen, NoteEditorScreen, GalleryAlbumListScreen, GalleryMediaSelectScreen, CameraScreen, AppLockScreen } from '@features/vault/screens';
-import { SettingsScreen, AboutScreen, IntruderLogsScreen, SubscriptionScreen, NotificationPrivacyScreen } from '@features/settings';
+import { SettingsScreen, AboutScreen, IntruderLogsScreen, IntruderDetailScreen, SubscriptionScreen, NotificationPrivacyScreen } from '@features/settings';
 
 const Stack = createNativeStackNavigator<VaultStackParamList>();
 
@@ -140,6 +140,24 @@ export function VaultNavigator(): React.JSX.Element {
           }}
         />
 
+        {/* Pattern Setup - AUTH-009 */}
+        <Stack.Screen
+          name="PatternSetup"
+          component={PatternSetupScreen}
+          options={{
+            animation: 'slide_from_right',
+          }}
+        />
+
+        {/* Change Pattern - AUTH-009 */}
+        <Stack.Screen
+          name="ChangePattern"
+          component={ChangePatternScreen}
+          options={{
+            animation: 'slide_from_right',
+          }}
+        />
+
         {/* Settings - SETTINGS-001 */}
         <Stack.Screen
           name="Settings"
@@ -158,10 +176,19 @@ export function VaultNavigator(): React.JSX.Element {
           }}
         />
 
-        {/* Intruder Logs - SEC-003 */}
+        {/* Intruder Reports Dashboard - SEC-003/SEC-005 */}
         <Stack.Screen
           name="IntruderLogs"
           component={IntruderLogsScreen}
+          options={{
+            animation: 'slide_from_right',
+          }}
+        />
+
+        {/* Intruder Detail Report - SEC-005 */}
+        <Stack.Screen
+          name="IntruderDetail"
+          component={IntruderDetailScreen}
           options={{
             animation: 'slide_from_right',
           }}

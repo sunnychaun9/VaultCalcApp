@@ -1,20 +1,23 @@
 /**
  * VaultCalc - Intruder Log Service
  *
- * Orchestrates intruder photo capture, encryption, and database logging.
+ * Orchestrates intruder photo capture, location capture, encryption,
+ * risk scoring, notification, and database logging.
  * Called on failed PIN attempts when intruder detection is enabled.
  *
- * Always logs the attempt even if photo capture fails.
+ * Always logs the attempt even if photo/location capture fails.
  * Never throws — returns a result object.
  *
- * @see FEATURE_INDEX.md SEC-002
+ * @see FEATURE_INDEX.md SEC-002, SEC-005
  */
 
-import { Platform } from 'react-native';
+import { Platform, NativeModules } from 'react-native';
 import { captureIntruderPhoto } from './intruderCameraService';
 import { encryptFile, generateKey, getVaultDirectory } from '@services/crypto';
 import { deleteFile } from '@services/media';
-import { intruderLogs, type IntruderLog } from '@services/storage';
+import { intruderLogs, type IntruderLog, type RiskLevel } from '@services/storage';
+
+const { IntruderLocationModule, IntruderNotificationModule } = NativeModules;
 
 /**
  * Result of recording an intruder attempt
@@ -47,19 +50,80 @@ function base64ToHex(b64: string): string {
 }
 
 /**
- * Record an intruder attempt: capture photo, encrypt it, and log to DB.
+ * Compute risk level from failed attempt count.
+ */
+function computeRiskLevel(attempts: number): RiskLevel {
+  if (attempts >= 3) return 'HIGH';
+  if (attempts === 2) return 'MEDIUM';
+  return 'LOW';
+}
+
+/**
+ * Fetch device location silently. Never throws.
+ */
+async function fetchLocation(): Promise<{
+  latitude: number | null;
+  longitude: number | null;
+  cityName: string | null;
+}> {
+  try {
+    if (!IntruderLocationModule) {
+      return { latitude: null, longitude: null, cityName: null };
+    }
+    const hasPermission = await IntruderLocationModule.hasPermission();
+    if (!hasPermission) {
+      return { latitude: null, longitude: null, cityName: null };
+    }
+    const loc = await IntruderLocationModule.getLocation();
+    if (!loc || (loc.latitude === 0 && loc.longitude === 0)) {
+      return { latitude: null, longitude: null, cityName: loc?.cityName || null };
+    }
+    return {
+      latitude: loc.latitude,
+      longitude: loc.longitude,
+      cityName: loc.cityName || null,
+    };
+  } catch {
+    return { latitude: null, longitude: null, cityName: null };
+  }
+}
+
+/**
+ * Show intruder notification. Never throws.
+ */
+async function showNotification(riskLevel: RiskLevel, attempts: number): Promise<void> {
+  try {
+    if (!IntruderNotificationModule) return;
+    await IntruderNotificationModule.showIntruderAlert(riskLevel, attempts);
+  } catch {
+    // Notification is optional — don't block logging
+  }
+}
+
+/**
+ * Record an intruder attempt: capture photo + location, encrypt, score risk, and log to DB.
+ *
+ * @param failedAttempts - Current number of consecutive failed PIN attempts
  *
  * 1. Captures a photo via the front camera (may fail silently)
- * 2. Generates a unique ID for the log entry
- * 3. If photo was captured, encrypts it and removes the raw JPEG
- * 4. Inserts a database record (always, even without a photo)
+ * 2. Fetches device location (may fail silently)
+ * 3. Generates a unique ID for the log entry
+ * 4. If photo was captured, encrypts it and removes the raw JPEG
+ * 5. Computes risk level from attempt count
+ * 6. Inserts a database record (always, even without a photo/location)
+ * 7. Fires a notification alert
  *
  * Never throws — returns { success, error? }.
  */
-export async function recordIntruderAttempt(): Promise<IntruderLogResult> {
+export async function recordIntruderAttempt(
+  failedAttempts: number = 1,
+): Promise<IntruderLogResult> {
   try {
-    // 1. Attempt photo capture (may fail — that's OK)
-    const captureResult = await captureIntruderPhoto();
+    // 1. Capture photo and location in parallel (both may fail — that's OK)
+    const [captureResult, location] = await Promise.all([
+      captureIntruderPhoto(),
+      fetchLocation(),
+    ]);
 
     // 2. Generate unique 16-byte hex ID
     const keyResult = await generateKey(16);
@@ -96,16 +160,27 @@ export async function recordIntruderAttempt(): Promise<IntruderLogResult> {
       osVersion: Platform.Version,
     };
 
-    // 5. Insert DB record (always — even if photo failed)
+    // 5. Compute risk level
+    const riskLevel = computeRiskLevel(failedAttempts);
+
+    // 6. Insert DB record (always — even if photo/location failed)
     const log: IntruderLog = {
       id: logId,
       photoPath: encryptedPhotoPath,
       timestamp: Date.now(),
       failedPinHash: null,
       deviceInfo,
+      latitude: location.latitude,
+      longitude: location.longitude,
+      cityName: location.cityName,
+      riskLevel,
+      failedAttempts,
     };
 
     await intruderLogs.insert(log);
+
+    // 7. Fire notification (fire-and-forget)
+    showNotification(riskLevel, failedAttempts);
 
     return { success: true };
   } catch {

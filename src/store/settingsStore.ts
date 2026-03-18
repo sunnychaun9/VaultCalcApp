@@ -23,6 +23,11 @@ import { mmkvStorage } from '@services/storage/mmkv';
 type ThemeMode = 'light' | 'dark' | 'system';
 
 /**
+ * Unlock method options
+ */
+export type UnlockMethod = 'pin' | 'pattern';
+
+/**
  * Lock timeout options (in milliseconds)
  */
 type LockTimeout = 30000 | 60000 | 120000 | 300000; // 30s, 1m, 2m, 5m
@@ -108,6 +113,12 @@ interface SettingsState {
 
   /** UMP consent status cached for synchronous access (ADS-002) */
   consentStatus: 'REQUIRED' | 'NOT_REQUIRED' | 'OBTAINED' | 'UNKNOWN';
+
+  /** Current unlock method: PIN or pattern (AUTH-009) */
+  unlockMethod: UnlockMethod;
+
+  /** Whether to show pattern path while drawing (AUTH-009) */
+  showPatternPath: boolean;
 }
 
 /**
@@ -186,6 +197,12 @@ interface SettingsActions {
   /** Set cached UMP consent status (ADS-002) */
   setConsentStatus: (status: 'REQUIRED' | 'NOT_REQUIRED' | 'OBTAINED' | 'UNKNOWN') => void;
 
+  /** Set unlock method: PIN or pattern (AUTH-009) */
+  setUnlockMethod: (method: UnlockMethod) => void;
+
+  /** Toggle pattern path visibility (AUTH-009) */
+  setShowPatternPath: (show: boolean) => void;
+
   /** Reset all settings to defaults */
   resetToDefaults: () => void;
 }
@@ -220,6 +237,8 @@ const defaultSettings: SettingsState = {
   totalInterstitialsShown: 0,
   vaultUnlockCount: 0,
   consentStatus: 'UNKNOWN' as const,
+  unlockMethod: 'pin' as UnlockMethod,
+  showPatternPath: true,
 };
 
 /**
@@ -337,6 +356,14 @@ export const useSettingsStore = create<SettingsState & SettingsActions>()(
         set({ consentStatus: status });
       },
 
+      setUnlockMethod: (method) => {
+        set({ unlockMethod: method });
+      },
+
+      setShowPatternPath: (show) => {
+        set({ showPatternPath: show });
+      },
+
       resetToDefaults: () => {
         set(defaultSettings);
       },
@@ -372,6 +399,8 @@ export const useSettingsStore = create<SettingsState & SettingsActions>()(
         totalInterstitialsShown: state.totalInterstitialsShown,
         vaultUnlockCount: state.vaultUnlockCount,
         consentStatus: state.consentStatus,
+        unlockMethod: state.unlockMethod,
+        showPatternPath: state.showPatternPath,
       }),
     },
   ),

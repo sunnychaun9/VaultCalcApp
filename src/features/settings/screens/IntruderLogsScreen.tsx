@@ -1,10 +1,11 @@
 /**
- * VaultCalc - Intruder Logs Screen
+ * VaultCalc - Intruder Dashboard Screen
  *
- * Lists all intruder detection attempts with timestamps and decrypted photos.
- * Supports clearing the log and viewing full-screen photos.
+ * Premium Intruder Intelligence dashboard with card-based timeline UI.
+ * Groups intruder reports by Today / Yesterday / Older.
+ * Each card shows photo, time, location, risk badge, and attempt count.
  *
- * @see FEATURE_INDEX.md SEC-003
+ * @see FEATURE_INDEX.md SEC-003, SEC-005
  */
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -12,46 +13,97 @@ import {
   View,
   Text,
   Pressable,
-  FlatList,
+  SectionList,
   Image,
-  Modal,
   StyleSheet,
-  type ListRenderItemInfo,
+  type SectionListRenderItemInfo,
+  type SectionListData,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { VaultStackParamList } from '@typedefs/navigation';
 import { useActivityTracker } from '@features/auth';
-import { intruderLogs, type IntruderLog } from '@services/storage';
+import { intruderLogs, type IntruderLog, type RiskLevel } from '@services/storage';
 import { decryptFile, getVaultDirectory } from '@services/crypto';
 import { deleteFile } from '@services/media';
 import { useThemeColors, type ColorTokens, typography, spacing, layout } from '@shared/theme';
 import { alert } from '@store/alertStore';
 
-/** Format a timestamp to a locale-aware date+time string */
-function formatTimestamp(ms: number): string {
-  return new Date(ms).toLocaleString();
+type NavProp = NativeStackNavigationProp<VaultStackParamList>;
+
+// ── Helpers ──────────────────────────────────────────────────────────────
+
+function getRiskColor(level: RiskLevel): string {
+  switch (level) {
+    case 'HIGH': return '#EF4444';
+    case 'MEDIUM': return '#EAB308';
+    case 'LOW': return '#22C55E';
+  }
 }
 
-/** Format device info object to a readable string */
-function formatDeviceInfo(info: Record<string, unknown> | null): string | null {
-  if (!info) return null;
-  const parts: string[] = [];
-  if (info.model) parts.push(String(info.model));
-  if (info.os) parts.push(String(info.os));
-  return parts.length > 0 ? parts.join(' · ') : null;
+function getRiskEmoji(level: RiskLevel): string {
+  switch (level) {
+    case 'HIGH': return '\uD83D\uDD34';
+    case 'MEDIUM': return '\uD83D\uDFE1';
+    case 'LOW': return '\uD83D\uDFE2';
+  }
 }
 
-/**
- * Individual intruder log item with decrypt-on-demand thumbnail
- */
-function IntruderLogItem({
+function formatTime(ms: number): string {
+  return new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function isToday(ms: number): boolean {
+  const now = new Date();
+  const date = new Date(ms);
+  return date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate();
+}
+
+function isYesterday(ms: number): boolean {
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const date = new Date(ms);
+  return date.getFullYear() === yesterday.getFullYear() &&
+    date.getMonth() === yesterday.getMonth() &&
+    date.getDate() === yesterday.getDate();
+}
+
+type GroupedSection = {
+  title: string;
+  data: IntruderLog[];
+};
+
+function groupLogs(logs: IntruderLog[]): GroupedSection[] {
+  const today: IntruderLog[] = [];
+  const yesterday: IntruderLog[] = [];
+  const older: IntruderLog[] = [];
+
+  for (const log of logs) {
+    if (isToday(log.timestamp)) today.push(log);
+    else if (isYesterday(log.timestamp)) yesterday.push(log);
+    else older.push(log);
+  }
+
+  const sections: GroupedSection[] = [];
+  if (today.length > 0) sections.push({ title: 'Today', data: today });
+  if (yesterday.length > 0) sections.push({ title: 'Yesterday', data: yesterday });
+  if (older.length > 0) sections.push({ title: 'Older', data: older });
+  return sections;
+}
+
+// ── Intruder Card Component ─────────────────────────────────────────────
+
+function IntruderCard({
   log,
   themeColors,
-  onPhotoPress,
+  onPress,
 }: {
   log: IntruderLog;
   themeColors: ColorTokens;
-  onPhotoPress: (log: IntruderLog) => void;
+  onPress: (log: IntruderLog) => void;
 }): React.JSX.Element {
   const styles = useMemo(() => createStyles(themeColors), [themeColors]);
   const [thumbnailUri, setThumbnailUri] = useState<string | null>(null);
@@ -62,75 +114,120 @@ function IntruderLogItem({
 
     async function decryptThumbnail() {
       if (!log.photoPath) return;
-
       const vaultDirResult = await getVaultDirectory();
       if (!vaultDirResult.success || !vaultDirResult.data || cancelled) return;
-
       tempPath = `${vaultDirResult.data}/temp_intruder_${log.id}.jpg`;
       const result = await decryptFile(log.photoPath, tempPath, log.id);
-
       if (!cancelled && result.success) {
         setThumbnailUri(`file://${tempPath}`);
       }
     }
-
     decryptThumbnail();
 
     return () => {
       cancelled = true;
-      if (tempPath) {
-        deleteFile(tempPath);
-      }
+      if (tempPath) deleteFile(tempPath);
     };
   }, [log.photoPath, log.id]);
 
-  const deviceInfo = formatDeviceInfo(log.deviceInfo);
-
-  const handlePress = useCallback(() => {
-    if (log.photoPath) {
-      onPhotoPress(log);
-    }
-  }, [log, onPhotoPress]);
+  const riskColor = getRiskColor(log.riskLevel);
 
   return (
     <Pressable
-      onPress={handlePress}
-      style={({ pressed }) => [styles.logRow, pressed && log.photoPath ? styles.logRowPressed : null]}
-      disabled={!log.photoPath}
+      onPress={() => onPress(log)}
+      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
     >
-      <View style={styles.thumbnail}>
+      {/* Photo area */}
+      <View style={styles.cardImageContainer}>
         {thumbnailUri ? (
-          <Image source={{ uri: thumbnailUri }} style={styles.thumbnailImage} />
+          <Image source={{ uri: thumbnailUri }} style={styles.cardImage} />
         ) : (
-          <Text style={styles.thumbnailPlaceholder}>{log.photoPath ? '...' : '⊘'}</Text>
+          <View style={styles.cardImagePlaceholder}>
+            <Text style={styles.cardImagePlaceholderText}>
+              {log.photoPath ? '...' : 'No Photo'}
+            </Text>
+          </View>
         )}
+        {/* Risk badge overlay */}
+        <View style={[styles.riskBadge, { backgroundColor: riskColor }]}>
+          <Text style={styles.riskBadgeText}>{log.riskLevel}</Text>
+        </View>
       </View>
-      <View style={styles.logInfo}>
-        <Text style={styles.logTimestamp}>{formatTimestamp(log.timestamp)}</Text>
-        {deviceInfo && <Text style={styles.logDevice}>{deviceInfo}</Text>}
+
+      {/* Info area */}
+      <View style={styles.cardInfo}>
+        <View style={styles.cardInfoRow}>
+          <Text style={styles.cardInfoLabel}>Time</Text>
+          <Text style={styles.cardInfoValue}>{formatTime(log.timestamp)}</Text>
+        </View>
+        <View style={styles.cardInfoRow}>
+          <Text style={styles.cardInfoLabel}>Location</Text>
+          <Text style={styles.cardInfoValue} numberOfLines={1}>
+            {log.cityName || 'Unknown'}
+          </Text>
+        </View>
+        <View style={styles.cardInfoRow}>
+          <Text style={styles.cardInfoLabel}>Risk</Text>
+          <Text style={[styles.cardInfoValue, { color: riskColor }]}>
+            {log.riskLevel} {getRiskEmoji(log.riskLevel)}
+          </Text>
+        </View>
+        <View style={styles.cardInfoRow}>
+          <Text style={styles.cardInfoLabel}>Attempts</Text>
+          <Text style={styles.cardInfoValue}>{log.failedAttempts}</Text>
+        </View>
       </View>
     </Pressable>
   );
 }
 
-/**
- * Intruder Logs Screen Component
- *
- * Displays a list of intruder attempts with:
- * - Decrypted photo thumbnails (on-demand)
- * - Timestamps and device info
- * - Full-screen photo modal on tap
- * - Clear All functionality
- */
+// ── Stats Header ────────────────────────────────────────────────────────
+
+function StatsHeader({
+  logs,
+  themeColors,
+}: {
+  logs: IntruderLog[];
+  themeColors: ColorTokens;
+}): React.JSX.Element {
+  const styles = useMemo(() => createStyles(themeColors), [themeColors]);
+
+  const highRisk = logs.filter(l => l.riskLevel === 'HIGH').length;
+  const medRisk = logs.filter(l => l.riskLevel === 'MEDIUM').length;
+  const todayCount = logs.filter(l => isToday(l.timestamp)).length;
+
+  return (
+    <View style={styles.statsContainer}>
+      <View style={styles.statCard}>
+        <Text style={styles.statNumber}>{logs.length}</Text>
+        <Text style={styles.statLabel}>Total</Text>
+      </View>
+      <View style={styles.statCard}>
+        <Text style={styles.statNumber}>{todayCount}</Text>
+        <Text style={styles.statLabel}>Today</Text>
+      </View>
+      <View style={styles.statCard}>
+        <Text style={[styles.statNumber, { color: '#EF4444' }]}>{highRisk}</Text>
+        <Text style={styles.statLabel}>High Risk</Text>
+      </View>
+      <View style={styles.statCard}>
+        <Text style={[styles.statNumber, { color: '#EAB308' }]}>{medRisk}</Text>
+        <Text style={styles.statLabel}>Medium</Text>
+      </View>
+    </View>
+  );
+}
+
+// ── Main Screen ─────────────────────────────────────────────────────────
+
 export function IntruderLogsScreen(): React.JSX.Element {
   const themeColors = useThemeColors();
   const styles = useMemo(() => createStyles(themeColors), [themeColors]);
-  const navigation = useNavigation();
+  const navigation = useNavigation<NavProp>();
   const { onActivity } = useActivityTracker();
 
   const [logs, setLogs] = useState<IntruderLog[]>([]);
-  const [selectedLog, setSelectedLog] = useState<IntruderLog | null>(null);
-  const [fullPhotoUri, setFullPhotoUri] = useState<string | null>(null);
+  const sections = useMemo(() => groupLogs(logs), [logs]);
 
   const loadLogs = useCallback(async () => {
     const allLogs = await intruderLogs.getAll();
@@ -141,32 +238,6 @@ export function IntruderLogsScreen(): React.JSX.Element {
     loadLogs();
   }, [loadLogs]);
 
-  // Clean up full-screen photo temp file on dismiss
-  const dismissFullPhoto = useCallback(() => {
-    if (fullPhotoUri) {
-      const filePath = fullPhotoUri.replace('file://', '');
-      deleteFile(filePath);
-    }
-    setFullPhotoUri(null);
-    setSelectedLog(null);
-  }, [fullPhotoUri]);
-
-  const handlePhotoPress = useCallback(async (log: IntruderLog) => {
-    onActivity();
-    if (!log.photoPath) return;
-
-    const vaultDirResult = await getVaultDirectory();
-    if (!vaultDirResult.success || !vaultDirResult.data) return;
-
-    const tempPath = `${vaultDirResult.data}/temp_intruder_full_${log.id}.jpg`;
-    const result = await decryptFile(log.photoPath, tempPath, log.id);
-
-    if (result.success) {
-      setSelectedLog(log);
-      setFullPhotoUri(`file://${tempPath}`);
-    }
-  }, [onActivity]);
-
   const handleBack = useCallback(() => {
     onActivity();
     navigation.goBack();
@@ -175,19 +246,16 @@ export function IntruderLogsScreen(): React.JSX.Element {
   const handleClearAll = useCallback(() => {
     onActivity();
     alert(
-      'Clear Intruder Log',
-      'Delete all intruder log entries and photos? This cannot be undone.',
+      'Clear All Reports',
+      'Delete all intruder reports and photos? This cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Clear All',
           style: 'destructive',
           onPress: async () => {
-            // Delete encrypted photo files
             for (const log of logs) {
-              if (log.photoPath) {
-                await deleteFile(log.photoPath);
-              }
+              if (log.photoPath) await deleteFile(log.photoPath);
             }
             await intruderLogs.deleteAll();
             setLogs([]);
@@ -197,25 +265,37 @@ export function IntruderLogsScreen(): React.JSX.Element {
     );
   }, [onActivity, logs]);
 
-  const renderItem = useCallback(({ item }: ListRenderItemInfo<IntruderLog>) => (
-    <IntruderLogItem
-      log={item}
-      themeColors={themeColors}
-      onPhotoPress={handlePhotoPress}
-    />
-  ), [themeColors, handlePhotoPress]);
+  const handleCardPress = useCallback((log: IntruderLog) => {
+    onActivity();
+    navigation.navigate('IntruderDetail', { logId: log.id });
+  }, [onActivity, navigation]);
+
+  const renderItem = useCallback(({ item }: SectionListRenderItemInfo<IntruderLog>) => (
+    <IntruderCard log={item} themeColors={themeColors} onPress={handleCardPress} />
+  ), [themeColors, handleCardPress]);
+
+  const renderSectionHeader = useCallback(({ section }: {
+    section: SectionListData<IntruderLog, GroupedSection>;
+  }) => (
+    <Text style={styles.sectionHeader}>{section.title}</Text>
+  ), [styles.sectionHeader]);
 
   const keyExtractor = useCallback((item: IntruderLog) => item.id, []);
 
-  const renderSeparator = useCallback(() => (
-    <View style={styles.rowDivider} />
-  ), [styles.rowDivider]);
-
   const renderEmpty = useCallback(() => (
     <View style={styles.emptyContainer}>
-      <Text style={styles.emptyText}>No intruder attempts recorded</Text>
+      <Text style={styles.emptyIcon}>&#x1F6E1;&#xFE0F;</Text>
+      <Text style={styles.emptyTitle}>No Intruder Reports</Text>
+      <Text style={styles.emptyText}>
+        When someone enters a wrong PIN, a detailed report will appear here.
+      </Text>
     </View>
-  ), [styles.emptyContainer, styles.emptyText]);
+  ), [styles]);
+
+  const renderListHeader = useCallback(() => {
+    if (logs.length === 0) return null;
+    return <StatsHeader logs={logs} themeColors={themeColors} />;
+  }, [logs, themeColors]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
@@ -227,15 +307,15 @@ export function IntruderLogsScreen(): React.JSX.Element {
           accessibilityRole="button"
           accessibilityLabel="Go back"
         >
-          <Text style={styles.backButtonText}>←</Text>
+          <Text style={styles.backButtonText}>&#x2190;</Text>
         </Pressable>
-        <Text style={styles.title}>Intruder Log</Text>
+        <Text style={styles.title}>Intruder Reports</Text>
         {logs.length > 0 ? (
           <Pressable
             onPress={handleClearAll}
             style={styles.clearButton}
             accessibilityRole="button"
-            accessibilityLabel="Clear all intruder logs"
+            accessibilityLabel="Clear all reports"
           >
             <Text style={styles.clearButtonText}>Clear</Text>
           </Pressable>
@@ -244,54 +324,23 @@ export function IntruderLogsScreen(): React.JSX.Element {
         )}
       </View>
 
-      {/* Log list */}
-      <FlatList
-        data={logs}
+      {/* Report list */}
+      <SectionList
+        sections={sections}
         renderItem={renderItem}
+        renderSectionHeader={renderSectionHeader}
         keyExtractor={keyExtractor}
-        ItemSeparatorComponent={renderSeparator}
+        ListHeaderComponent={renderListHeader}
         ListEmptyComponent={renderEmpty}
-        contentContainerStyle={logs.length === 0 ? styles.emptyListContent : undefined}
+        contentContainerStyle={logs.length === 0 ? styles.emptyListContent : styles.listContent}
+        stickySectionHeadersEnabled={false}
+        showsVerticalScrollIndicator={false}
       />
-
-      {/* Full-screen photo modal */}
-      <Modal
-        visible={fullPhotoUri !== null}
-        transparent
-        animationType="fade"
-        onRequestClose={dismissFullPhoto}
-      >
-        <Pressable style={styles.modalBackdrop} onPress={dismissFullPhoto}>
-          <SafeAreaView style={styles.modalContainer} edges={['top', 'bottom']}>
-            <View style={styles.modalHeader}>
-              <Pressable
-                onPress={dismissFullPhoto}
-                style={styles.backButton}
-                accessibilityRole="button"
-                accessibilityLabel="Close photo"
-              >
-                <Text style={styles.modalCloseText}>✕</Text>
-              </Pressable>
-              {selectedLog && (
-                <Text style={styles.modalTimestamp}>
-                  {formatTimestamp(selectedLog.timestamp)}
-                </Text>
-              )}
-              <View style={styles.placeholder} />
-            </View>
-            {fullPhotoUri && (
-              <Image
-                source={{ uri: fullPhotoUri }}
-                style={styles.fullPhoto}
-                resizeMode="contain"
-              />
-            )}
-          </SafeAreaView>
-        </Pressable>
-      </Modal>
     </SafeAreaView>
   );
 }
+
+// ── Styles ──────────────────────────────────────────────────────────────
 
 const createStyles = (c: ColorTokens) => StyleSheet.create({
   container: {
@@ -321,7 +370,7 @@ const createStyles = (c: ColorTokens) => StyleSheet.create({
     color: c.textPrimary,
   },
   placeholder: {
-    width: 40,
+    width: 50,
   },
   clearButton: {
     paddingHorizontal: spacing.sm,
@@ -331,86 +380,128 @@ const createStyles = (c: ColorTokens) => StyleSheet.create({
     ...typography.bodyMedium,
     color: c.error,
   },
-  logRow: {
+
+  // Stats
+  statsContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.base,
-    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    gap: spacing.sm,
   },
-  logRowPressed: {
-    backgroundColor: c.surfaceContainerHigh,
-  },
-  thumbnail: {
-    width: 48,
-    height: 48,
-    borderRadius: 8,
-    backgroundColor: c.surfaceContainer,
-    justifyContent: 'center',
-    alignItems: 'center',
-    overflow: 'hidden',
-  },
-  thumbnailImage: {
-    width: 48,
-    height: 48,
-  },
-  thumbnailPlaceholder: {
-    ...typography.bodyLarge,
-    color: c.textTertiary,
-  },
-  logInfo: {
+  statCard: {
     flex: 1,
-    marginLeft: spacing.md,
+    backgroundColor: c.surfaceContainer,
+    borderRadius: 12,
+    paddingVertical: spacing.md,
+    alignItems: 'center',
   },
-  logTimestamp: {
-    ...typography.bodyLarge,
+  statNumber: {
+    ...typography.titleLarge,
     color: c.textPrimary,
+    fontWeight: '700',
   },
-  logDevice: {
+  statLabel: {
     ...typography.bodySmall,
     color: c.textSecondary,
     marginTop: 2,
   },
-  rowDivider: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: c.border,
-    marginLeft: spacing.base,
+
+  // Section headers
+  sectionHeader: {
+    ...typography.labelLarge,
+    color: c.textSecondary,
+    paddingHorizontal: spacing.base,
+    paddingTop: spacing.base,
+    paddingBottom: spacing.sm,
   },
-  emptyContainer: {
+
+  // Card
+  card: {
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.md,
+    backgroundColor: c.surfaceContainer,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  cardPressed: {
+    opacity: 0.85,
+  },
+  cardImageContainer: {
+    width: '100%',
+    height: 180,
+    backgroundColor: c.surfaceContainerHigh,
+  },
+  cardImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  cardImagePlaceholder: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  emptyListContent: {
-    flexGrow: 1,
-  },
-  emptyText: {
+  cardImagePlaceholderText: {
     ...typography.bodyLarge,
     color: c.textTertiary,
   },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+  riskBadge: {
+    position: 'absolute',
+    top: spacing.sm,
+    right: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: 8,
   },
-  modalContainer: {
-    flex: 1,
+  riskBadgeText: {
+    ...typography.labelMedium,
+    color: '#FFFFFF',
+    fontWeight: '700',
   },
-  modalHeader: {
+  cardInfo: {
+    padding: spacing.md,
+    gap: spacing.xs,
+  },
+  cardInfoRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    height: layout.topBarHeight,
+    alignItems: 'center',
   },
-  modalCloseText: {
-    fontSize: 20,
-    color: '#FFFFFF',
+  cardInfoLabel: {
+    ...typography.bodySmall,
+    color: c.textSecondary,
   },
-  modalTimestamp: {
+  cardInfoValue: {
     ...typography.bodyMedium,
-    color: '#FFFFFF',
+    color: c.textPrimary,
+    fontWeight: '600',
   },
-  fullPhoto: {
+
+  // Empty state
+  emptyContainer: {
     flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: spacing['2xl'],
+  },
+  emptyListContent: {
+    flexGrow: 1,
+  },
+  listContent: {
+    paddingBottom: spacing['2xl'],
+  },
+  emptyIcon: {
+    fontSize: 48,
+    marginBottom: spacing.base,
+  },
+  emptyTitle: {
+    ...typography.titleMedium,
+    color: c.textPrimary,
+    marginBottom: spacing.sm,
+  },
+  emptyText: {
+    ...typography.bodyMedium,
+    color: c.textSecondary,
+    textAlign: 'center',
   },
 });

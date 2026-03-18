@@ -1,10 +1,15 @@
 /**
  * VaultCalc - App Lock Accessibility Service
  *
- * Monitors foreground app changes via TYPE_WINDOW_STATE_CHANGED events.
- * When a locked app is detected, launches LockScreenActivity.
+ * Monitors foreground app changes and launches LockScreenActivity
+ * when a locked app is detected.
  *
- * Only reacts to window state changes — no polling, minimal CPU usage.
+ * Also manages a black overlay that hides locked app content
+ * in the Android recents/task switcher.
+ *
+ * Detection strategy:
+ * - TYPE_WINDOW_STATE_CHANGED: fires on new activity / window focus changes
+ * - TYPE_WINDOWS_CHANGED: fires on window list changes (app resume from bg)
  *
  * @see App Lock feature
  */
@@ -23,25 +28,32 @@ import android.view.accessibility.AccessibilityEvent
 class AppLockAccessibilityService : AccessibilityService() {
 
     private var lockManager: AppLockManager? = null
+    private var recentsCover: RecentsCoverManager? = null
     private var screenOffReceiver: BroadcastReceiver? = null
+
+    /** The package that is currently in the foreground. */
+    private var currentForegroundPackage: String? = null
 
     override fun onServiceConnected() {
         super.onServiceConnected()
         lockManager = AppLockManager.getInstance(this)
+        recentsCover = RecentsCoverManager(this)
 
-        // Configure to receive only window state changes
         serviceInfo = serviceInfo.apply {
-            eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
+            eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED or
+                AccessibilityEvent.TYPE_WINDOWS_CHANGED
             feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC
-            flags = AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS
+            flags = AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS or
+                AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
             notificationTimeout = 100
         }
 
-        // Register for screen off to clear cooldowns
         screenOffReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
                 if (intent.action == Intent.ACTION_SCREEN_OFF) {
                     lockManager?.clearAllCooldowns()
+                    currentForegroundPackage = null
+                    recentsCover?.hideCover()
                 }
             }
         }
@@ -54,14 +66,46 @@ class AppLockAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        if (event?.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
-
+        val ev = event ?: return
         val manager = lockManager ?: return
         if (!manager.isEnabled) return
 
-        val packageName = event.packageName?.toString() ?: return
+        // Resolve the foreground package from the event
+        val packageName: String? = when (ev.eventType) {
+            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> ev.packageName?.toString()
+            AccessibilityEvent.TYPE_WINDOWS_CHANGED -> {
+                try { rootInActiveWindow?.packageName?.toString() } catch (_: Exception) { null }
+            }
+            else -> null
+        }
 
-        // Skip our own app and system UI
+        if (packageName.isNullOrEmpty()) return
+
+        // Skip if same package as before (no transition happened)
+        if (packageName == currentForegroundPackage) return
+        val previousPackage = currentForegroundPackage
+        currentForegroundPackage = packageName
+
+        // ── Recents cover logic ──────────────────────────────────────
+        // If the user just left a locked app, show the black cover
+        // so the recents thumbnail captures the black screen.
+        if (previousPackage != null && manager.isAppLocked(previousPackage)) {
+            manager.onNavigatedAway()
+            recentsCover?.showCover()
+        }
+
+        // If the user is switching to any real app (not systemui/recents),
+        // remove the cover so they can see the app normally.
+        // Keep cover up while in systemui (recents view) or launcher.
+        val isSystemTransition = packageName == "com.android.systemui" ||
+            packageName.contains("launcher")
+
+        if (!isSystemTransition) {
+            recentsCover?.hideCover()
+        }
+        // ─────────────────────────────────────────────────────────────
+
+        // Skip our own app and system UI for lock detection
         if (packageName == applicationContext.packageName) return
         if (packageName == "com.android.systemui") return
         if (packageName == "com.android.launcher") return
@@ -70,8 +114,11 @@ class AppLockAccessibilityService : AccessibilityService() {
         // Check if this app is locked
         if (!manager.isAppLocked(packageName)) return
 
-        // Check cooldown — don't re-lock if recently unlocked
+        // Check one-shot skip (consumes it — only skips once after unlock)
         if (manager.isInCooldown(packageName)) return
+
+        // Remove cover before showing lock screen
+        recentsCover?.hideCover()
 
         // Launch lock screen
         launchLockScreen(packageName)
@@ -90,6 +137,7 @@ class AppLockAccessibilityService : AccessibilityService() {
     }
 
     override fun onDestroy() {
+        recentsCover?.destroy()
         screenOffReceiver?.let {
             try {
                 unregisterReceiver(it)

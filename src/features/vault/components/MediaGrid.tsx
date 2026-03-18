@@ -61,14 +61,26 @@ export function MediaGrid({
 
   const keyExtractor = useCallback((item: MediaItem) => item.id, []);
 
+  // Provide overrideItemLayout to give FlashList deterministic item sizes,
+  // reducing unnecessary cell recycling when data updates (e.g. favorite toggle).
+  const overrideItemLayout = useCallback(
+    (layout: { span?: number; size?: number }, _item: MediaItem) => {
+      if (itemSize > 0) {
+        layout.size = itemSize + GAP; // item height + separator
+      }
+    },
+    [itemSize],
+  );
+
   return (
     <View style={styles.container} onLayout={handleLayout}>
-      {containerWidth > 0 && (
+      {containerWidth > 0 && itemSize > 0 && (
         <FlashList
           data={items}
           renderItem={renderItem}
           keyExtractor={keyExtractor}
           numColumns={numColumns}
+          overrideItemLayout={overrideItemLayout}
           contentContainerStyle={{ padding: GAP }}
           ItemSeparatorComponent={ItemSeparator}
         />

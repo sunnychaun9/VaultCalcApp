@@ -17,4 +17,5 @@ export {
   type MediaType,
   type Album,
   type IntruderLog,
+  type RiskLevel,
 } from './database';

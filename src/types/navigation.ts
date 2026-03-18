@@ -25,6 +25,8 @@ export type RootStackParamList = {
   HowItWorks: undefined;
   /** First Import prompt - shown after tutorial (ONBOARD-005/006) */
   FirstImport: undefined;
+  /** Pattern unlock screen (AUTH-009) */
+  PatternUnlock: undefined;
 };
 
 /**
@@ -54,6 +56,8 @@ export type VaultStackParamList = {
   About: undefined;
   /** Intruder logs viewer */
   IntruderLogs: undefined;
+  /** Intruder detail report */
+  IntruderDetail: { logId: string };
   /** Note editor (NOTES-002) */
   NoteEditor: { noteId: string };
   /** Gallery album list — in-app media picker (GALLERY-001) */
@@ -66,6 +70,10 @@ export type VaultStackParamList = {
   AppLock: undefined;
   /** Notification Privacy settings */
   NotificationPrivacy: undefined;
+  /** Pattern setup screen (AUTH-009) */
+  PatternSetup: undefined;
+  /** Change pattern screen (AUTH-009) */
+  ChangePattern: undefined;
 };
 
 /**

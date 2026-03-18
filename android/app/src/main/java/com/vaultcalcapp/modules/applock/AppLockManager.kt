@@ -2,8 +2,9 @@
  * VaultCalc - App Lock Manager
  *
  * Manages the set of locked app package names.
- * Persists via SharedPreferences. Provides unlock cooldown
- * to prevent repeated lock triggers.
+ * Persists via SharedPreferences. Tracks which apps
+ * the user has just authenticated so they aren't
+ * immediately re-locked when the lock screen closes.
  *
  * @see App Lock feature
  */
@@ -19,8 +20,6 @@ class AppLockManager private constructor(context: Context) {
         private const val PREFS_NAME = "vaultcalc_applock"
         private const val KEY_LOCKED_APPS = "locked_apps"
         private const val KEY_APP_LOCK_ENABLED = "app_lock_enabled"
-        /** Cooldown after unlock — don't re-lock for 30 seconds */
-        const val UNLOCK_COOLDOWN_MS = 30_000L
 
         @Volatile
         private var instance: AppLockManager? = null
@@ -35,8 +34,15 @@ class AppLockManager private constructor(context: Context) {
     private val prefs: SharedPreferences =
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-    // In-memory cache of unlock timestamps per package
-    private val unlockTimestamps = mutableMapOf<String, Long>()
+    /**
+     * Set of packages that were just unlocked and should be skipped ONCE
+     * when they return to the foreground (i.e., when the lock screen closes
+     * and the locked app resumes underneath).
+     *
+     * Cleared per-package as soon as the user navigates away to a
+     * different app, so the next open will trigger the lock again.
+     */
+    private val justUnlockedApps = mutableSetOf<String>()
 
     /**
      * Whether the app lock feature is globally enabled.
@@ -86,36 +92,40 @@ class AppLockManager private constructor(context: Context) {
 
     /**
      * Record that the user just authenticated to unlock a specific app.
-     * Starts the cooldown timer for that package.
+     * The next foreground event for this package will be skipped (one-shot).
      */
     fun recordUnlock(packageName: String) {
-        synchronized(unlockTimestamps) {
-            unlockTimestamps[packageName] = System.currentTimeMillis()
+        synchronized(justUnlockedApps) {
+            justUnlockedApps.add(packageName)
         }
     }
 
     /**
-     * Check if a package is still within the cooldown window.
-     * Returns true if the app was unlocked recently and should NOT be locked.
+     * Check if a package was just unlocked and should be skipped once.
+     * Returns true (and consumes the skip) if the app was just unlocked.
      */
     fun isInCooldown(packageName: String): Boolean {
-        synchronized(unlockTimestamps) {
-            val timestamp = unlockTimestamps[packageName] ?: return false
-            val elapsed = System.currentTimeMillis() - timestamp
-            if (elapsed > UNLOCK_COOLDOWN_MS) {
-                unlockTimestamps.remove(packageName)
-                return false
-            }
-            return true
+        synchronized(justUnlockedApps) {
+            return justUnlockedApps.remove(packageName)
         }
     }
 
     /**
-     * Clear all cooldowns (e.g. on screen off).
+     * Called when the foreground changes to a different (non-locked) app.
+     * Clears all one-shot skips so locked apps will trigger on next open.
+     */
+    fun onNavigatedAway() {
+        synchronized(justUnlockedApps) {
+            justUnlockedApps.clear()
+        }
+    }
+
+    /**
+     * Clear all state (e.g. on screen off).
      */
     fun clearAllCooldowns() {
-        synchronized(unlockTimestamps) {
-            unlockTimestamps.clear()
+        synchronized(justUnlockedApps) {
+            justUnlockedApps.clear()
         }
     }
 }

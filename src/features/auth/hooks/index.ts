@@ -10,3 +10,4 @@ export { useBiometricAuth } from './useBiometricAuth';
 export { useAuthSession, useActivityTracker } from './useAuthSession';
 export { useFailedAttempts } from './useFailedAttempts';
 export { useShakeLock } from './useShakeLock';
+export { useShakeAnimation, useDotScaleAnimations, useSuccessAnimation, useTapHaptic } from './useLockAnimations';

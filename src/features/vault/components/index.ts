@@ -22,3 +22,7 @@ export { PremiumUpsell } from './PremiumUpsell';
 export { SelectionOverflowMenu } from './SelectionOverflowMenu';
 export { RenameModal } from './RenameModal';
 export { PropertiesModal } from './PropertiesModal';
+export { ZoomableImage } from './ZoomableImage';
+export { MediaList } from './MediaList';
+export { MediaListItem } from './MediaListItem';
+export { SearchBar } from './SearchBar';
