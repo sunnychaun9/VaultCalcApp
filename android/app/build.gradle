@@ -22,7 +22,7 @@ react {
     //   The list of variants to that are debuggable. For those we're going to
     //   skip the bundling of the JS bundle and the assets. By default is just 'debug'.
     //   If you add flavors like lite, prod, etc. you'll have to list your debuggableVariants.
-    debuggableVariants = ["devDebug"]
+    debuggableVariants = ["debug"]
 
     /* Autolinking */
     autolinkLibrariesWithApp()
@@ -58,20 +58,6 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode appVersionCode
         versionName appVersionName
-    }
-
-    flavorDimensions "environment"
-    productFlavors {
-        dev {
-            dimension "environment"
-            applicationIdSuffix ".dev"
-            versionNameSuffix "-dev"
-            resValue "string", "app_name", "VaultCalc Dev"
-        }
-        prod {
-            dimension "environment"
-            resValue "string", "app_name", "VaultCalc"
-        }
     }
 
     signingConfigs {
