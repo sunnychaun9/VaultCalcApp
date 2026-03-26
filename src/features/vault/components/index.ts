@@ -26,3 +26,4 @@ export { ZoomableImage } from './ZoomableImage';
 export { MediaList } from './MediaList';
 export { MediaListItem } from './MediaListItem';
 export { SearchBar } from './SearchBar';
+export { VideoActionBar } from './VideoActionBar';

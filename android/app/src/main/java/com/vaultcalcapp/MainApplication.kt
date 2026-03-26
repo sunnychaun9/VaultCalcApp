@@ -23,6 +23,7 @@ import com.vaultcalcapp.modules.camera.VaultCameraPackage
 import com.vaultcalcapp.modules.panic.PanicPackage
 import com.vaultcalcapp.modules.stealth.StealthPackage
 import com.vaultcalcapp.modules.notificationprivacy.NotificationPrivacyPackage
+import com.vaultcalcapp.modules.videoplayer.VideoPlayerPackage
 import expo.modules.ApplicationLifecycleDispatcher
 
 class MainApplication : Application(), ReactApplication {
@@ -50,6 +51,7 @@ class MainApplication : Application(), ReactApplication {
           add(PanicPackage())
           add(StealthPackage())
           add(NotificationPrivacyPackage())
+          add(VideoPlayerPackage())
         },
     )
   }

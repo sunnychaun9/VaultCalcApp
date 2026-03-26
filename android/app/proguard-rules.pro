@@ -43,6 +43,10 @@
 # CameraX
 -keep class androidx.camera.** { *; }
 
+# Media3 ExoPlayer
+-keep class androidx.media3.** { *; }
+-dontwarn androidx.media3.**
+
 # ===== HERMES ENGINE =====
 
 -keep class com.facebook.hermes.unicode.** { *; }

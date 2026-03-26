@@ -2,23 +2,12 @@
  * VaultCalc - Media Viewer Screen
  *
  * Full-screen viewer for decrypted media items.
- * Decrypts the encrypted file to a temp path and displays it.
- * Cleans up the temp file on unmount.
+ * Video: Native Media3 ExoPlayer with gesture controls, speed popup,
+ *        prev/next navigation, and file management (detail/rename/move/delete).
+ * Photo: ZoomableImage with pinch-to-zoom.
+ * PDF: Page-by-page rendered viewer.
  *
- * Video player features:
- * - Play/pause with tap overlay
- * - Seek bar with scrubbing
- * - Forward 10s / backward 10s
- * - Double-tap left/right to seek
- * - Playback speed (0.5x – 2x)
- * - Volume / mute toggle
- * - Buffering indicator
- * - Error handling with retry
- * - Auto-hide controls
- * - Screen kept awake during playback
- * - Pause on background / incoming call
- *
- * @see FEATURE_INDEX.md VAULT-005, VIDEO-005
+ * @see FEATURE_INDEX.md VAULT-005, VIDEO-010
  */
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
@@ -31,16 +20,16 @@ import {
   FlatList,
   StyleSheet,
   Dimensions,
-  Animated,
+  Modal,
+  TextInput,
+  Alert,
   AppState,
-  type GestureResponderEvent,
   type AppStateStatus,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Video, { type VideoRef, type OnLoadData, type OnProgressData, type OnVideoErrorData, type OnBufferData } from 'react-native-video';
 import { useQueryClient } from '@tanstack/react-query';
 import type { VaultStackScreenProps } from '@typedefs/navigation';
-import { mediaItems, type MediaItem } from '@services/storage/database';
+import { mediaItems, albums, albumMedia, type MediaItem, type Album } from '@services/storage/database';
 import { useAuthStore } from '@store/authStore';
 import { decryptFile, decryptFileStreaming, getVaultDirectory } from '@services/crypto';
 import { deleteFile } from '@services/media';
@@ -48,37 +37,45 @@ import { shareMediaItems } from '@services/share';
 import { getPageCount, renderPage, type PdfPageResult } from '@services/pdf';
 import { ZoomableImage } from '../components/ZoomableImage';
 import { useThemeColors, type ColorTokens, typography, spacing } from '@shared/theme';
+import {
+  NativeVideoPlayerView,
+  loadVideo,
+  enterFullscreen,
+  exitFullscreen,
+  releasePlayer,
+  getVideoDetails,
+  type VideoDetails,
+} from '@services/videoPlayer/nativeVideoPlayer';
+import { useMediaQuery } from '../hooks/useMediaQuery';
 
 type Props = VaultStackScreenProps<'MediaViewer'>;
 
 // ─── Constants ───────────────────────────────────────────────────────
-const CONTROLS_HIDE_DELAY = 4000;
-const SEEK_SECONDS = 10;
-const DOUBLE_TAP_DELAY = 300;
-const PLAYBACK_SPEEDS = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const ACCENT = '#3B82F6';
 
 // ─── Helpers ─────────────────────────────────────────────────────────
-
-function formatTime(seconds: number): string {
-  const s = Math.floor(seconds);
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const sec = s % 60;
-  const pad = (n: number) => n.toString().padStart(2, '0');
-  if (h > 0) return `${h}:${pad(m)}:${pad(sec)}`;
-  return `${m}:${pad(sec)}`;
-}
-
-function getExtension(filename: string): string {
-  const dot = filename.lastIndexOf('.');
-  return dot >= 0 ? filename.substring(dot) : '';
-}
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+}
+
+function formatDuration(ms: number): string {
+  const totalSeconds = Math.floor(ms / 1000);
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  if (h > 0) return `${h}:${pad(m)}:${pad(s)}`;
+  return `${m}:${pad(s)}`;
+}
+
+function getExtension(filename: string): string {
+  const dot = filename.lastIndexOf('.');
+  return dot >= 0 ? filename.substring(dot) : '';
 }
 
 // ─── Main Component ──────────────────────────────────────────────────
@@ -94,113 +91,32 @@ export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Eleme
   const [item, setItem] = useState<MediaItem | null>(null);
   const [isFavorite, setIsFavorite] = useState(false);
   const [decryptedUri, setDecryptedUri] = useState<string | null>(null);
+  const [decryptedPath, setDecryptedPath] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [tempPath, setTempPath] = useState<string | null>(null);
 
-  // ── Video player state ──
-  const videoRef = useRef<VideoRef>(null);
-  const [paused, setPaused] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [seekBarWidth, setSeekBarWidth] = useState(0);
-  const [isBuffering, setIsBuffering] = useState(false);
-  const [videoError, setVideoError] = useState<string | null>(null);
-  const [playbackRate, setPlaybackRate] = useState(1.0);
-  const [volume] = useState(1.0);
-  const [isMuted, setIsMuted] = useState(false);
-  const [showSpeedMenu, setShowSpeedMenu] = useState(false);
+  // Video player ref
+  const videoPlayerRef = useRef<any>(null);
 
-  // ── Controls visibility with auto-hide ──
-  const [showControls, setShowControls] = useState(true);
-  const controlsOpacity = useRef(new Animated.Value(1)).current;
-  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Video playlist (all videos in same query)
+  const { data: allVideos } = useMediaQuery('videos');
+  // ── Menu state ──
+  const [showMenu, setShowMenu] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
+  const [showRename, setShowRename] = useState(false);
+  const [showMoveToAlbum, setShowMoveToAlbum] = useState(false);
+  const [renameValue, setRenameValue] = useState('');
+  const [videoDetailInfo, setVideoDetailInfo] = useState<VideoDetails | null>(null);
+  const [albumList, setAlbumList] = useState<Album[]>([]);
 
-  const fadeControls = useCallback((show: boolean) => {
-    Animated.timing(controlsOpacity, {
-      toValue: show ? 1 : 0,
-      duration: 250,
-      useNativeDriver: true,
-    }).start(() => {
-      if (!show) setShowControls(false);
-    });
-    if (show) setShowControls(true);
-  }, [controlsOpacity]);
-
-  const resetHideTimer = useCallback(() => {
-    if (hideTimer.current) clearTimeout(hideTimer.current);
-    if (!paused) {
-      hideTimer.current = setTimeout(() => fadeControls(false), CONTROLS_HIDE_DELAY);
-    }
-  }, [paused, fadeControls]);
-
-  const toggleControls = useCallback(() => {
-    if (showControls) {
-      fadeControls(false);
-    } else {
-      fadeControls(true);
-      resetHideTimer();
-    }
-  }, [showControls, fadeControls, resetHideTimer]);
-
-  // Show controls when paused, auto-hide when playing
-  useEffect(() => {
-    if (paused) {
-      fadeControls(true);
-      if (hideTimer.current) clearTimeout(hideTimer.current);
-    } else {
-      resetHideTimer();
-    }
-    return () => { if (hideTimer.current) clearTimeout(hideTimer.current); };
-  }, [paused, fadeControls, resetHideTimer]);
-
-  // ── Double-tap to seek ──
-  const lastTap = useRef<{ time: number; x: number } | null>(null);
-
-  const handleVideoAreaPress = useCallback((e: GestureResponderEvent) => {
-    const { locationX } = e.nativeEvent;
-    const now = Date.now();
-    const screenW = Dimensions.get('window').width;
-
-    if (lastTap.current && now - lastTap.current.time < DOUBLE_TAP_DELAY) {
-      // Double tap detected
-      const isLeftSide = locationX < screenW / 2;
-      const seekTo = isLeftSide
-        ? Math.max(0, currentTime - SEEK_SECONDS)
-        : Math.min(duration, currentTime + SEEK_SECONDS);
-      videoRef.current?.seek(seekTo);
-      setCurrentTime(seekTo);
-      lastTap.current = null;
-      // Show controls briefly
-      fadeControls(true);
-      resetHideTimer();
-    } else {
-      lastTap.current = { time: now, x: locationX };
-      // Single tap — toggle controls after delay
-      setTimeout(() => {
-        if (lastTap.current && now === lastTap.current.time) {
-          toggleControls();
-          lastTap.current = null;
-        }
-      }, DOUBLE_TAP_DELAY);
-    }
-  }, [currentTime, duration, fadeControls, resetHideTimer, toggleControls]);
-
-  // ── Pause on background ──
-  useEffect(() => {
-    const handleAppState = (state: AppStateStatus) => {
-      if (state !== 'active' && item?.type === 'video') {
-        setPaused(true);
-      }
-    };
-    const sub = AppState.addEventListener('change', handleAppState);
-    return () => sub.remove();
-  }, [item?.type]);
+  // PDF viewer state
+  const [pdfPageCount, setPdfPageCount] = useState(0);
+  const isPdf = item?.mimeType === 'application/pdf';
 
   // ── Load and decrypt media ──
   useEffect(() => {
     let cancelled = false;
-    let decryptedPath: string | null = null;
+    let tempFilePath: string | null = null;
 
     async function loadMedia() {
       try {
@@ -222,16 +138,16 @@ export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Eleme
         }
 
         const ext = getExtension(mediaItem.originalName);
-        decryptedPath = `${vaultDirResult.data}/viewer_${mediaItem.id}${ext}`;
+        tempFilePath = `${vaultDirResult.data}/viewer_${mediaItem.id}${ext}`;
 
         const decryptFn = mediaItem.type === 'video' ? decryptFileStreaming : decryptFile;
         const decryptResult = await decryptFn(
           mediaItem.encryptedPath,
-          decryptedPath,
+          tempFilePath,
           mediaItem.keyId,
         );
         if (cancelled) {
-          deleteFile(decryptedPath);
+          if (tempFilePath) deleteFile(tempFilePath);
           return;
         }
 
@@ -241,8 +157,8 @@ export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Eleme
           return;
         }
 
-        setTempPath(decryptedPath);
-        setDecryptedUri(`file://${decryptedPath}`);
+        setDecryptedPath(tempFilePath);
+        setDecryptedUri(`file://${tempFilePath}`);
         setIsLoading(false);
       } catch (e) {
         if (!cancelled) {
@@ -255,17 +171,70 @@ export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Eleme
     loadMedia();
     return () => {
       cancelled = true;
-      if (decryptedPath) deleteFile(decryptedPath);
+      if (tempFilePath) deleteFile(tempFilePath);
     };
   }, [mediaId]);
 
   // Cleanup temp on unmount
   useEffect(() => {
-    return () => { if (tempPath) deleteFile(tempPath); };
-  }, [tempPath]);
+    return () => {
+      if (decryptedPath) deleteFile(decryptedPath);
+    };
+  }, [decryptedPath]);
+
+  // Pause on background (for video)
+  useEffect(() => {
+    const handleAppState = (state: AppStateStatus) => {
+      if (state !== 'active' && item?.type === 'video' && videoPlayerRef.current) {
+        // Native player handles pause internally via lifecycle
+      }
+    };
+    const sub = AppState.addEventListener('change', handleAppState);
+    return () => sub.remove();
+  }, [item?.type]);
+
+  // Enter fullscreen when video loads
+  useEffect(() => {
+    if (decryptedUri && item?.type === 'video' && videoPlayerRef.current) {
+      enterFullscreen(videoPlayerRef);
+    }
+    return () => {
+      if (item?.type === 'video' && videoPlayerRef.current) {
+        exitFullscreen(videoPlayerRef);
+      }
+    };
+  }, [decryptedUri, item?.type]);
+
+  // Load video into native player once decrypted
+  useEffect(() => {
+    if (decryptedPath && item?.type === 'video' && videoPlayerRef.current) {
+      loadVideo(videoPlayerRef, `file://${decryptedPath}`);
+    }
+  }, [decryptedPath, item?.type]);
+
+  // PDF page count
+  useEffect(() => {
+    if (!isPdf || !decryptedPath) return;
+    let cancelled = false;
+    async function loadPdfInfo() {
+      const result = await getPageCount(decryptedPath!);
+      if (!cancelled && result.success && result.data !== undefined) {
+        setPdfPageCount(result.data);
+      }
+    }
+    loadPdfInfo();
+    return () => { cancelled = true; };
+  }, [isPdf, decryptedPath]);
 
   // ── Handlers ──
-  const handleBack = useCallback(() => navigation.goBack(), [navigation]);
+
+  const handleBack = useCallback(() => {
+    if (videoPlayerRef.current) {
+      exitFullscreen(videoPlayerRef);
+      releasePlayer(videoPlayerRef);
+    }
+    navigation.goBack();
+  }, [navigation]);
 
   const handleShare = useCallback(async () => {
     if (!item) return;
@@ -283,104 +252,103 @@ export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Eleme
     await mediaItems.toggleFavorite(item.id);
   }, [item, isFavorite, queryClient, isDecoyMode]);
 
-  // Video callbacks
-  const handleVideoLoad = useCallback((data: OnLoadData) => {
-    setDuration(data.duration);
-    setVideoError(null);
+  // ── Video events ──
+
+  const handleVideoBackPress = useCallback(() => {
+    handleBack();
+  }, [handleBack]);
+
+  const handleVideoMenuPress = useCallback(() => {
+    setShowMenu(true);
   }, []);
 
-  const handleVideoProgress = useCallback((data: OnProgressData) => {
-    setCurrentTime(data.currentTime);
+  const handleVideoNavigate = useCallback(async (event: { nativeEvent: { direction: string; index: number } }) => {
+    const { index } = event.nativeEvent;
+    if (!allVideos || index < 0 || index >= allVideos.length) return;
+    const nextVideo = allVideos[index];
+    // Navigate to the next/previous video
+    navigation.replace('MediaViewer', { mediaId: nextVideo.id });
+  }, [allVideos, navigation]);
+
+  const handleVideoError = useCallback((event: { nativeEvent: { error: string; errorCode: number } }) => {
+    setError(event.nativeEvent.error);
   }, []);
 
-  const handleVideoEnd = useCallback(() => {
-    setPaused(true);
-    fadeControls(true);
-  }, [fadeControls]);
+  // ── Menu actions ──
 
-  const handleVideoError = useCallback((e: OnVideoErrorData) => {
-    const msg = e.error?.errorString || e.error?.errorException || 'Unable to play this video';
-    setVideoError(msg);
-    setPaused(true);
-  }, []);
-
-  const handleBuffer = useCallback((data: OnBufferData) => {
-    setIsBuffering(data.isBuffering);
-  }, []);
-
-  const handlePlayPause = useCallback(() => {
-    if (videoError) return;
-    setPaused(p => !p);
-    resetHideTimer();
-  }, [videoError, resetHideTimer]);
-
-  const handleSeekBackward = useCallback(() => {
-    const t = Math.max(0, currentTime - SEEK_SECONDS);
-    videoRef.current?.seek(t);
-    setCurrentTime(t);
-    resetHideTimer();
-  }, [currentTime, resetHideTimer]);
-
-  const handleSeekForward = useCallback(() => {
-    const t = Math.min(duration, currentTime + SEEK_SECONDS);
-    videoRef.current?.seek(t);
-    setCurrentTime(t);
-    resetHideTimer();
-  }, [currentTime, duration, resetHideTimer]);
-
-  const handleSeek = useCallback((e: GestureResponderEvent) => {
-    if (seekBarWidth <= 0 || duration <= 0) return;
-    const x = e.nativeEvent.locationX;
-    const ratio = Math.max(0, Math.min(1, x / seekBarWidth));
-    const seekTime = ratio * duration;
-    videoRef.current?.seek(seekTime);
-    setCurrentTime(seekTime);
-    resetHideTimer();
-  }, [seekBarWidth, duration, resetHideTimer]);
-
-  const handleSeekBarLayout = useCallback((e: { nativeEvent: { layout: { width: number } } }) => {
-    setSeekBarWidth(e.nativeEvent.layout.width);
-  }, []);
-
-  const handleToggleMute = useCallback(() => {
-    setIsMuted(m => !m);
-    resetHideTimer();
-  }, [resetHideTimer]);
-
-  const handleSpeedSelect = useCallback((speed: number) => {
-    setPlaybackRate(speed);
-    setShowSpeedMenu(false);
-    resetHideTimer();
-  }, [resetHideTimer]);
-
-  const handleToggleSpeedMenu = useCallback(() => {
-    setShowSpeedMenu(s => !s);
-    resetHideTimer();
-  }, [resetHideTimer]);
-
-  const handleRetry = useCallback(() => {
-    setVideoError(null);
-    setPaused(false);
-  }, []);
-
-  const progress = duration > 0 ? currentTime / duration : 0;
-
-  // PDF viewer state
-  const [pdfPageCount, setPdfPageCount] = useState(0);
-  const isPdf = item?.mimeType === 'application/pdf';
-
-  useEffect(() => {
-    if (!isPdf || !tempPath) return;
-    let cancelled = false;
-    async function loadPdfInfo() {
-      const result = await getPageCount(tempPath!);
-      if (!cancelled && result.success && result.data !== undefined) {
-        setPdfPageCount(result.data);
+  const handleShowDetails = useCallback(async () => {
+    setShowMenu(false);
+    if (decryptedPath) {
+      try {
+        const details = await getVideoDetails(decryptedPath);
+        setVideoDetailInfo(details);
+      } catch {
+        // Fallback to basic item info
+        setVideoDetailInfo(null);
       }
     }
-    loadPdfInfo();
-    return () => { cancelled = true; };
-  }, [isPdf, tempPath]);
+    setShowDetails(true);
+  }, [decryptedPath]);
+
+  const handleShowRename = useCallback(() => {
+    setShowMenu(false);
+    setRenameValue(item?.name ?? '');
+    setShowRename(true);
+  }, [item]);
+
+  const handleRename = useCallback(async () => {
+    if (!item || !renameValue.trim()) return;
+    const newName = renameValue.trim();
+    await mediaItems.rename(item.id, newName);
+    setItem(prev => prev ? { ...prev, name: newName } : null);
+    queryClient.invalidateQueries({ queryKey: ['media'] });
+    setShowRename(false);
+  }, [item, renameValue, queryClient]);
+
+  const handleShowMoveToAlbum = useCallback(async () => {
+    setShowMenu(false);
+    const allAlbums = await albums.getAll(isDecoyMode);
+    setAlbumList(allAlbums);
+    setShowMoveToAlbum(true);
+  }, [isDecoyMode]);
+
+  const handleMoveToAlbum = useCallback(async (albumId: string) => {
+    if (!item) return;
+    await albumMedia.add(albumId, item.id);
+    queryClient.invalidateQueries({ queryKey: ['albumMedia', albumId] });
+    queryClient.invalidateQueries({ queryKey: ['albums'] });
+    setShowMoveToAlbum(false);
+    Alert.alert('Moved', `Video moved to album successfully.`);
+  }, [item, queryClient]);
+
+  const handleDelete = useCallback(() => {
+    setShowMenu(false);
+    if (!item) return;
+    Alert.alert(
+      'Delete Video',
+      'This will permanently delete this video from your vault. This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // Delete encrypted file
+              if (item.encryptedPath) deleteFile(item.encryptedPath);
+              if (item.thumbnailPath) deleteFile(item.thumbnailPath);
+              // Delete from database
+              await mediaItems.deleteByIds([item.id]);
+              queryClient.invalidateQueries({ queryKey: ['media'] });
+              navigation.goBack();
+            } catch {
+              Alert.alert('Error', 'Failed to delete video.');
+            }
+          },
+        },
+      ],
+    );
+  }, [item, queryClient, navigation]);
 
   // ── Loading state ──
   if (isLoading) {
@@ -396,7 +364,9 @@ export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Eleme
   if (error) {
     return (
       <View style={styles.container}>
-        <Text style={styles.errorText}>{error}</Text>
+        <Text style={styles.errorIcon}>{'\u26A0'}</Text>
+        <Text style={styles.errorText}>Unable to play this video</Text>
+        <Text style={styles.errorDetail}>{error}</Text>
         <Pressable onPress={handleBack} style={styles.backButtonCenter}>
           <Text style={styles.backButtonCenterText}>Go Back</Text>
         </Pressable>
@@ -404,162 +374,134 @@ export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Eleme
     );
   }
 
-  // ── Video render ──
+  // ── Video render (Native ExoPlayer) ──
   if (decryptedUri !== null && item?.type === 'video') {
     return (
       <View style={styles.container}>
-        {/* Video */}
-        <Pressable style={styles.videoTouchArea} onPress={handleVideoAreaPress}>
-          <Video
-            ref={videoRef}
-            source={{ uri: decryptedUri }}
-            style={styles.video}
-            controls={false}
-            resizeMode="contain"
-            paused={paused}
-            rate={playbackRate}
-            volume={volume}
-            muted={isMuted}
-            repeat={false}
-            onLoad={handleVideoLoad}
-            onProgress={handleVideoProgress}
-            onEnd={handleVideoEnd}
-            onError={handleVideoError}
-            onBuffer={handleBuffer}
-            progressUpdateInterval={250}
-            preventsDisplaySleepDuringVideoPlayback={true}
-            playInBackground={false}
-          />
+        <NativeVideoPlayerView
+          ref={videoPlayerRef}
+          style={styles.videoPlayer}
+          title={item.originalName}
+          onBackPress={handleVideoBackPress}
+          onMenuPress={handleVideoMenuPress}
+          onNavigate={handleVideoNavigate}
+          onError={handleVideoError}
+        />
 
-          {/* Buffering spinner */}
-          {isBuffering && !paused && (
-            <View style={styles.bufferingOverlay}>
-              <ActivityIndicator size="large" color="#FFFFFF" />
-            </View>
-          )}
-
-          {/* Video error overlay */}
-          {videoError && (
-            <View style={styles.videoErrorOverlay}>
-              <Text style={styles.videoErrorIcon}>{'\u26A0'}</Text>
-              <Text style={styles.videoErrorText}>Unable to play this video</Text>
-              <Text style={styles.videoErrorDetail}>{videoError}</Text>
-              <Pressable onPress={handleRetry} style={styles.retryButton}>
-                <Text style={styles.retryButtonText}>Retry</Text>
+        {/* Video Menu Modal */}
+        <Modal visible={showMenu} transparent animationType="fade" onRequestClose={() => setShowMenu(false)}>
+          <Pressable style={styles.modalBackdrop} onPress={() => setShowMenu(false)}>
+            <View style={styles.menuContainer}>
+              <Text style={styles.menuTitle}>Video Options</Text>
+              <Pressable style={styles.menuItem} onPress={handleShowDetails}>
+                <Text style={styles.menuItemIcon}>{'\u2139'}</Text>
+                <Text style={styles.menuItemText}>Details</Text>
+              </Pressable>
+              <Pressable style={styles.menuItem} onPress={handleShowMoveToAlbum}>
+                <Text style={styles.menuItemIcon}>{'\uD83D\uDCC1'}</Text>
+                <Text style={styles.menuItemText}>Move to Album</Text>
+              </Pressable>
+              <Pressable style={styles.menuItem} onPress={handleShowRename}>
+                <Text style={styles.menuItemIcon}>{'\u270F'}</Text>
+                <Text style={styles.menuItemText}>Rename</Text>
+              </Pressable>
+              <Pressable style={styles.menuItem} onPress={handleShare}>
+                <Text style={styles.menuItemIcon}>{'\u2B06'}</Text>
+                <Text style={styles.menuItemText}>Share</Text>
+              </Pressable>
+              <View style={styles.menuDivider} />
+              <Pressable style={styles.menuItem} onPress={handleDelete}>
+                <Text style={[styles.menuItemIcon, styles.dangerText]}>{'\uD83D\uDDD1'}</Text>
+                <Text style={[styles.menuItemText, styles.dangerText]}>Delete</Text>
               </Pressable>
             </View>
-          )}
-        </Pressable>
+          </Pressable>
+        </Modal>
 
-        {/* Controls overlay — animated opacity */}
-        {showControls && (
-          <Animated.View style={[styles.controlsOverlay, { opacity: controlsOpacity }]} pointerEvents="box-none">
-            {/* Top bar */}
-            <SafeAreaView edges={['top']} style={styles.topBar}>
-              <Pressable onPress={handleBack} style={styles.iconButton}>
-                <Text style={styles.iconText}>{'\u2190'}</Text>
+        {/* Details Modal */}
+        <Modal visible={showDetails} transparent animationType="slide" onRequestClose={() => setShowDetails(false)}>
+          <Pressable style={styles.modalBackdrop} onPress={() => setShowDetails(false)}>
+            <View style={styles.detailsContainer}>
+              <Text style={styles.detailsTitle}>Video Details</Text>
+              <DetailRow label="File Name" value={item.originalName} />
+              <DetailRow label="Duration" value={
+                videoDetailInfo?.duration
+                  ? formatDuration(videoDetailInfo.duration)
+                  : item.durationMs ? formatDuration(item.durationMs) : 'Unknown'
+              } />
+              <DetailRow label="Size" value={formatFileSize(
+                videoDetailInfo?.size ?? item.sizeBytes
+              )} />
+              <DetailRow label="Resolution" value={
+                videoDetailInfo?.resolution
+                  ?? (item.width && item.height ? `${item.width}x${item.height}` : 'Unknown')
+              } />
+              <DetailRow label="Date Added" value={new Date(item.importedAt).toLocaleDateString()} />
+              {videoDetailInfo?.bitrate ? (
+                <DetailRow label="Bitrate" value={`${Math.round(videoDetailInfo.bitrate / 1000)} kbps`} />
+              ) : null}
+              <Pressable style={styles.detailsCloseBtn} onPress={() => setShowDetails(false)}>
+                <Text style={styles.detailsCloseBtnText}>Close</Text>
               </Pressable>
-              <Text style={styles.headerTitle} numberOfLines={1}>{item.originalName}</Text>
-              <Pressable onPress={handleToggleFavorite} style={styles.iconButton}>
-                <Text style={styles.favIconText}>{isFavorite ? '\u2605' : '\u2606'}</Text>
-              </Pressable>
-              <Pressable onPress={handleShare} style={styles.iconButton}>
-                <Text style={styles.iconText}>{'\u2B06'}</Text>
-              </Pressable>
-            </SafeAreaView>
+            </View>
+          </Pressable>
+        </Modal>
 
-            {/* Center play/pause */}
-            {paused && !videoError && (
-              <Pressable style={styles.centerPlayButton} onPress={handlePlayPause}>
-                <View style={styles.centerPlayCircle}>
-                  <Text style={styles.centerPlayIcon}>{'\u25B6'}</Text>
-                </View>
-              </Pressable>
-            )}
-
-            {/* Bottom controls */}
-            <SafeAreaView edges={['bottom']} style={styles.bottomBar}>
-              {/* Seek bar */}
-              <Pressable
-                style={styles.seekBarRow}
-                onPress={handleSeek}
-                onLayout={handleSeekBarLayout}
-              >
-                <View style={styles.seekTrack}>
-                  <View style={[styles.seekFill, { flex: progress }]} />
-                  <View style={styles.seekThumb} />
-                  <View style={{ flex: Math.max(0.001, 1 - progress) }} />
-                </View>
-              </Pressable>
-
-              {/* Controls row */}
-              <View style={styles.controlsRow}>
-                {/* Time */}
-                <Text style={styles.timeText}>
-                  {formatTime(currentTime)} / {formatTime(duration)}
-                </Text>
-
-                <View style={styles.controlsSpacer} />
-
-                {/* Rewind 10s */}
-                <Pressable onPress={handleSeekBackward} style={styles.iconButton}>
-                  <Text style={styles.seekIconText}>{'\u23EA'}</Text>
+        {/* Rename Modal */}
+        <Modal visible={showRename} transparent animationType="fade" onRequestClose={() => setShowRename(false)}>
+          <Pressable style={styles.modalBackdrop} onPress={() => setShowRename(false)}>
+            <View style={styles.renameContainer}>
+              <Text style={styles.renameTitle}>Rename Video</Text>
+              <TextInput
+                style={styles.renameInput}
+                value={renameValue}
+                onChangeText={setRenameValue}
+                placeholder="Enter new name"
+                placeholderTextColor="#888"
+                autoFocus
+                selectTextOnFocus
+              />
+              <View style={styles.renameButtons}>
+                <Pressable style={styles.renameCancelBtn} onPress={() => setShowRename(false)}>
+                  <Text style={styles.renameCancelText}>Cancel</Text>
                 </Pressable>
-
-                {/* Play/Pause */}
-                <Pressable onPress={handlePlayPause} style={styles.iconButton}>
-                  <Text style={styles.controlIconText}>
-                    {paused ? '\u25B6' : '\u23F8'}
-                  </Text>
-                </Pressable>
-
-                {/* Forward 10s */}
-                <Pressable onPress={handleSeekForward} style={styles.iconButton}>
-                  <Text style={styles.seekIconText}>{'\u23E9'}</Text>
-                </Pressable>
-
-                <View style={styles.controlsSpacer} />
-
-                {/* Mute */}
-                <Pressable onPress={handleToggleMute} style={styles.iconButton}>
-                  <Text style={styles.smallIconText}>
-                    {isMuted ? '\u{1F507}' : '\u{1F50A}'}
-                  </Text>
-                </Pressable>
-
-                {/* Speed */}
-                <Pressable onPress={handleToggleSpeedMenu} style={styles.speedButton}>
-                  <Text style={styles.speedText}>{playbackRate}x</Text>
+                <Pressable style={styles.renameSaveBtn} onPress={handleRename}>
+                  <Text style={styles.renameSaveText}>Save</Text>
                 </Pressable>
               </View>
-            </SafeAreaView>
-          </Animated.View>
-        )}
+            </View>
+          </Pressable>
+        </Modal>
 
-        {/* Speed selection menu */}
-        {showSpeedMenu && (
-          <View style={styles.speedMenu}>
-            <Text style={styles.speedMenuTitle}>Playback Speed</Text>
-            {PLAYBACK_SPEEDS.map(speed => (
-              <Pressable
-                key={speed}
-                onPress={() => handleSpeedSelect(speed)}
-                style={({ pressed }) => [
-                  styles.speedMenuItem,
-                  speed === playbackRate && styles.speedMenuItemActive,
-                  pressed && styles.speedMenuItemPressed,
-                ]}
-              >
-                <Text style={[
-                  styles.speedMenuItemText,
-                  speed === playbackRate && styles.speedMenuItemTextActive,
-                ]}>
-                  {speed}x
-                </Text>
+        {/* Move to Album Modal */}
+        <Modal visible={showMoveToAlbum} transparent animationType="slide" onRequestClose={() => setShowMoveToAlbum(false)}>
+          <Pressable style={styles.modalBackdrop} onPress={() => setShowMoveToAlbum(false)}>
+            <View style={styles.albumPickerContainer}>
+              <Text style={styles.albumPickerTitle}>Move to Album</Text>
+              {albumList.length === 0 ? (
+                <Text style={styles.albumPickerEmpty}>No albums found. Create an album first.</Text>
+              ) : (
+                <FlatList
+                  data={albumList}
+                  keyExtractor={a => a.id}
+                  renderItem={({ item: album }) => (
+                    <Pressable
+                      style={styles.albumPickerItem}
+                      onPress={() => handleMoveToAlbum(album.id)}
+                    >
+                      <Text style={styles.albumPickerItemIcon}>{'\uD83D\uDCC2'}</Text>
+                      <Text style={styles.albumPickerItemText}>{album.name}</Text>
+                    </Pressable>
+                  )}
+                  style={styles.albumPickerList}
+                />
+              )}
+              <Pressable style={styles.detailsCloseBtn} onPress={() => setShowMoveToAlbum(false)}>
+                <Text style={styles.detailsCloseBtnText}>Cancel</Text>
               </Pressable>
-            ))}
-          </View>
-        )}
+            </View>
+          </Pressable>
+        </Modal>
       </View>
     );
   }
@@ -583,13 +525,13 @@ export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Eleme
         </Pressable>
       </SafeAreaView>
 
-      {isPdf && tempPath && pdfPageCount > 0 ? (
+      {isPdf && decryptedPath && pdfPageCount > 0 ? (
         <FlatList
           data={Array.from({ length: pdfPageCount }, (_, i) => i)}
           keyExtractor={(i) => `page-${i}`}
           renderItem={({ item: pageIndex }) => (
             <PdfPageItem
-              filePath={tempPath}
+              filePath={decryptedPath}
               pageIndex={pageIndex}
               renderWidth={SCREEN_WIDTH}
             />
@@ -615,6 +557,29 @@ export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Eleme
     </View>
   );
 }
+
+// ─── Detail Row Component ─────────────────────────────────────────────
+
+function DetailRow({ label, value }: { label: string; value: string }): React.JSX.Element {
+  return (
+    <View style={detailStyles.row}>
+      <Text style={detailStyles.label}>{label}</Text>
+      <Text style={detailStyles.value}>{value}</Text>
+    </View>
+  );
+}
+
+const detailStyles = StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(255,255,255,0.1)',
+  },
+  label: { color: 'rgba(255,255,255,0.6)', fontSize: 14 },
+  value: { color: '#FFFFFF', fontSize: 14, fontWeight: '500', maxWidth: '60%', textAlign: 'right' },
+});
 
 // ─── PDF Page Item ───────────────────────────────────────────────────
 
@@ -677,15 +642,19 @@ const pdfPageStyles = StyleSheet.create({
 
 // ─── Styles ──────────────────────────────────────────────────────────
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-const ACCENT = '#3B82F6';
-
-const createStyles = (c: ColorTokens) => StyleSheet.create({
+const createStyles = (_c: ColorTokens) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000000',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+
+  // ── Video player ──
+  videoPlayer: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
   },
 
   // ── Header (photo/pdf) ──
@@ -712,7 +681,6 @@ const createStyles = (c: ColorTokens) => StyleSheet.create({
   },
   iconText: { fontSize: 24, color: '#FFFFFF' },
   favIconText: { fontSize: 22, color: '#FFD700' },
-  smallIconText: { fontSize: 18, color: '#FFFFFF' },
   headerTitle: {
     ...typography.titleMedium,
     color: '#FFFFFF',
@@ -723,200 +691,185 @@ const createStyles = (c: ColorTokens) => StyleSheet.create({
   // ── Photo ──
   image: { width: SCREEN_WIDTH, height: SCREEN_HEIGHT },
 
-  // ── Video ──
-  videoTouchArea: {
-    flex: 1,
-    width: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  video: { width: '100%', height: '100%' },
-
-  // ── Buffering ──
-  bufferingOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-  // ── Video error ──
-  videoErrorOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.8)',
-    paddingHorizontal: spacing.xl,
-  },
-  videoErrorIcon: { fontSize: 48, marginBottom: spacing.md },
-  videoErrorText: {
-    ...typography.titleMedium,
-    color: '#FFFFFF',
-    textAlign: 'center',
-    marginBottom: spacing.sm,
-  },
-  videoErrorDetail: {
-    ...typography.bodySmall,
-    color: 'rgba(255,255,255,0.5)',
-    textAlign: 'center',
-    marginBottom: spacing.lg,
-  },
-  retryButton: {
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.sm,
-    borderRadius: 8,
-    backgroundColor: ACCENT,
-  },
-  retryButtonText: { ...typography.labelLarge, color: '#FFFFFF' },
-
-  // ── Controls overlay (video) ──
-  controlsOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'space-between',
-  },
-  topBar: {
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.xs,
-    paddingBottom: spacing.xs,
-  },
-  bottomBar: {
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    paddingHorizontal: spacing.sm,
-    paddingTop: spacing.xs,
-  },
-
-  // ── Center play button ──
-  centerPlayButton: {
-    position: 'absolute',
-    alignSelf: 'center',
-    top: '50%',
-    marginTop: -32,
-  },
-  centerPlayCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  centerPlayIcon: { fontSize: 28, color: '#FFFFFF', marginLeft: 4 },
-
-  // ── Seek bar ──
-  seekBarRow: {
-    height: 28,
-    justifyContent: 'center',
-    marginBottom: spacing.xxs,
-  },
-  seekTrack: {
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: 'rgba(255,255,255,0.3)',
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  seekFill: {
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: ACCENT,
-  },
-  seekThumb: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: -7,
-    elevation: 2,
-  },
-
-  // ── Controls row ──
-  controlsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingBottom: spacing.xxs,
-  },
-  controlsSpacer: { flex: 1 },
-  timeText: {
-    fontSize: 12,
-    color: '#FFFFFF',
-    fontVariant: ['tabular-nums'],
-  },
-  seekIconText: { fontSize: 18, color: '#FFFFFF' },
-  controlIconText: { fontSize: 22, color: '#FFFFFF' },
-
-  // ── Speed button ──
-  speedButton: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.4)',
-  },
-  speedText: {
-    fontSize: 12,
-    color: '#FFFFFF',
-    fontWeight: '600',
-  },
-
-  // ── Speed menu ──
-  speedMenu: {
-    position: 'absolute',
-    bottom: 100,
-    right: spacing.md,
-    backgroundColor: 'rgba(20,20,20,0.95)',
-    borderRadius: 12,
-    paddingVertical: spacing.sm,
-    minWidth: 140,
-    elevation: 10,
-  },
-  speedMenuTitle: {
-    ...typography.labelMedium,
-    color: 'rgba(255,255,255,0.5)',
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.sm,
-  },
-  speedMenuItem: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  speedMenuItemActive: {
-    backgroundColor: 'rgba(59, 130, 246, 0.2)',
-  },
-  speedMenuItemPressed: {
-    backgroundColor: 'rgba(255,255,255,0.1)',
-  },
-  speedMenuItemText: {
-    ...typography.bodyMedium,
-    color: '#FFFFFF',
-  },
-  speedMenuItemTextActive: {
-    color: ACCENT,
-    fontWeight: '600',
-  },
-
   // ── Loading / Error states ──
   loadingText: {
     ...typography.bodyMedium,
     color: '#FFFFFF',
     marginTop: spacing.md,
   },
+  errorIcon: { fontSize: 48, marginBottom: spacing.md },
   errorText: {
-    ...typography.bodyMedium,
-    color: '#FF6B6B',
+    ...typography.titleMedium,
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginBottom: spacing.sm,
+  },
+  errorDetail: {
+    ...typography.bodySmall,
+    color: 'rgba(255,255,255,0.5)',
     textAlign: 'center',
     paddingHorizontal: spacing.lg,
+    marginBottom: spacing.lg,
   },
   backButtonCenter: {
     marginTop: spacing.lg,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
     borderRadius: 8,
-    backgroundColor: c.accent,
+    backgroundColor: ACCENT,
   },
   backButtonCenterText: {
     ...typography.labelLarge,
-    color: c.textOnAccent,
+    color: '#FFFFFF',
+  },
+
+  // ── Modal backdrop ──
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'flex-end',
+  },
+
+  // ── Video menu ──
+  menuContainer: {
+    backgroundColor: '#1A1A1A',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+  },
+  menuTitle: {
+    ...typography.titleMedium,
+    color: '#FFFFFF',
+    paddingBottom: spacing.md,
+    paddingHorizontal: spacing.sm,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: spacing.sm,
+  },
+  menuItemIcon: {
+    fontSize: 20,
+    color: '#FFFFFF',
+    width: 32,
+    textAlign: 'center',
+  },
+  menuItemText: {
+    ...typography.bodyMedium,
+    color: '#FFFFFF',
+    marginLeft: 12,
+  },
+  menuDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    marginVertical: 8,
+  },
+  dangerText: { color: '#EF4444' },
+
+  // ── Details modal ──
+  detailsContainer: {
+    backgroundColor: '#1A1A1A',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.lg,
+    maxHeight: SCREEN_HEIGHT * 0.6,
+  },
+  detailsTitle: {
+    ...typography.titleMedium,
+    color: '#FFFFFF',
+    marginBottom: spacing.md,
+  },
+  detailsCloseBtn: {
+    marginTop: spacing.lg,
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    alignItems: 'center',
+  },
+  detailsCloseBtnText: {
+    ...typography.labelLarge,
+    color: '#FFFFFF',
+  },
+
+  // ── Rename modal ──
+  renameContainer: {
+    backgroundColor: '#1A1A1A',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.lg,
+  },
+  renameTitle: {
+    ...typography.titleMedium,
+    color: '#FFFFFF',
+    marginBottom: spacing.md,
+  },
+  renameInput: {
+    backgroundColor: '#2A2A2A',
+    color: '#FFFFFF',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  renameButtons: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: spacing.lg,
+    gap: 12,
+  },
+  renameCancelBtn: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  renameCancelText: { ...typography.labelLarge, color: '#FFFFFF' },
+  renameSaveBtn: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: ACCENT,
+  },
+  renameSaveText: { ...typography.labelLarge, color: '#FFFFFF' },
+
+  // ── Move to album ──
+  albumPickerContainer: {
+    backgroundColor: '#1A1A1A',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.lg,
+    maxHeight: SCREEN_HEIGHT * 0.5,
+  },
+  albumPickerTitle: {
+    ...typography.titleMedium,
+    color: '#FFFFFF',
+    marginBottom: spacing.md,
+  },
+  albumPickerEmpty: {
+    ...typography.bodyMedium,
+    color: 'rgba(255,255,255,0.5)',
+    textAlign: 'center',
+    paddingVertical: spacing.xl,
+  },
+  albumPickerList: { maxHeight: 300 },
+  albumPickerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(255,255,255,0.1)',
+  },
+  albumPickerItemIcon: { fontSize: 22, marginRight: 12 },
+  albumPickerItemText: {
+    ...typography.bodyMedium,
+    color: '#FFFFFF',
   },
 
   // ── PDF ──
