@@ -1,29 +1,43 @@
 /**
  * VaultCalc - Native ExoPlayer Video Player View
  *
- * Premium video playback with Media3 ExoPlayer.
+ * Premium MX Player-style video playback with Media3 ExoPlayer.
  * Gesture controls: horizontal seek, vertical volume/brightness, double-tap.
  * Immersive fullscreen, FLAG_SECURE, playback speed, prev/next support.
+ * Screen lock, manual rotation, ripple effects, animated overlays.
  *
  * @see FEATURE_INDEX.md VIDEO-010
  */
 
 package com.vaultcalcapp.modules.videoplayer
 
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
+import android.animation.AnimatorSet
+import android.animation.ObjectAnimator
+import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
+import android.content.pm.ActivityInfo
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.media.AudioManager
 import android.os.Handler
 import android.os.Looper
-import android.provider.Settings
 import android.util.AttributeSet
 import android.view.*
+import android.view.animation.AccelerateDecelerateInterpolator
+import android.view.animation.DecelerateInterpolator
+import android.view.animation.OvershootInterpolator
 import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.PopupWindow
+import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -66,6 +80,12 @@ class VaultVideoPlayerView @JvmOverloads constructor(
     private var resumePosition = 0L
     private var autoPlayNext = true
 
+    // ── Lock state ─────────────────────────────────────────────
+    private var isScreenLocked = false
+
+    // ── Rotation state ─────────────────────────────────────────
+    private var rotationState = 0 // 0=auto, 1=portrait, 2=landscape-left, 3=landscape-right
+
     // ── Gesture tracking ───────────────────────────────────────
     private var gestureStartX = 0f
     private var gestureStartY = 0f
@@ -87,20 +107,27 @@ class VaultVideoPlayerView @JvmOverloads constructor(
 
     // ── Controls auto-hide ─────────────────────────────────────
     private var controlsVisible = true
-    private val CONTROLS_HIDE_DELAY = 4000L
+    private val CONTROLS_HIDE_DELAY = 3000L
     private val hideControlsRunnable = Runnable { hideControls() }
 
     // ── Overlay views ──────────────────────────────────────────
     private val gestureOverlay: TextView
     private val seekOverlay: TextView
     private val errorOverlay: TextView
-    private val bufferingOverlay: View
+    private val bufferingOverlay: FrameLayout
+    private val centerPlayBtn: TextView
+    private val lockOverlay: LinearLayout
+    private val lockUnlockBtn: TextView
+
+    // ── Ripple views ────────────────────────────────────────────
+    private val leftRipple: RippleCircleView
+    private val rightRipple: RippleCircleView
 
     // ── Custom controls ────────────────────────────────────────
     private val bottomControlsContainer: LinearLayout
-    private val rightControlsContainer: LinearLayout
     private val seekBar: View
     private val seekFill: View
+    private val seekThumb: View
     private val timeText: TextView
     private val playPauseBtn: TextView
     private val prevBtn: TextView
@@ -109,6 +136,8 @@ class VaultVideoPlayerView @JvmOverloads constructor(
     private val nextBtn: TextView
     private val volumeBtn: TextView
     private val speedBtn: TextView
+    private val lockBtn: TextView
+    private val rotateBtn: TextView
     private val topBar: LinearLayout
     private val backBtn: TextView
     private val titleText: TextView
@@ -129,6 +158,41 @@ class VaultVideoPlayerView @JvmOverloads constructor(
     // ── Speed options ──────────────────────────────────────────
     private val SPEED_OPTIONS = floatArrayOf(0.25f, 0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f, 3.0f)
 
+    // ── Ripple animation view ──────────────────────────────────
+    class RippleCircleView(context: Context) : View(context) {
+        private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0x40FFFFFF
+            style = Paint.Style.FILL
+        }
+        private var rippleRadius = 0f
+        private var rippleAlpha = 0
+
+        fun animateRipple() {
+            val radiusAnim = ValueAnimator.ofFloat(0f, 120f).apply {
+                duration = 400
+                interpolator = DecelerateInterpolator()
+                addUpdateListener { rippleRadius = it.animatedValue as Float; invalidate() }
+            }
+            val alphaAnim = ValueAnimator.ofInt(100, 0).apply {
+                duration = 400
+                interpolator = DecelerateInterpolator()
+                addUpdateListener { rippleAlpha = it.animatedValue as Int; invalidate() }
+            }
+            AnimatorSet().apply {
+                playTogether(radiusAnim, alphaAnim)
+                start()
+            }
+        }
+
+        override fun onDraw(canvas: Canvas) {
+            super.onDraw(canvas)
+            if (rippleAlpha > 0) {
+                paint.alpha = rippleAlpha
+                canvas.drawCircle(width / 2f, height / 2f, rippleRadius, paint)
+            }
+        }
+    }
+
     init {
         setBackgroundColor(Color.BLACK)
 
@@ -141,21 +205,46 @@ class VaultVideoPlayerView @JvmOverloads constructor(
         }
         addView(playerView)
 
-        // Buffering overlay
-        bufferingOverlay = View(context).apply {
-            setBackgroundColor(Color.TRANSPARENT)
+        // ── Ripple views ──
+        leftRipple = RippleCircleView(context).apply {
+            layoutParams = LayoutParams(dp(200), dp(200)).apply {
+                gravity = Gravity.CENTER_VERTICAL or Gravity.START
+                marginStart = dp(40)
+            }
+            visibility = View.GONE
+        }
+        addView(leftRipple)
+
+        rightRipple = RippleCircleView(context).apply {
+            layoutParams = LayoutParams(dp(200), dp(200)).apply {
+                gravity = Gravity.CENTER_VERTICAL or Gravity.END
+                marginEnd = dp(40)
+            }
+            visibility = View.GONE
+        }
+        addView(rightRipple)
+
+        // Buffering overlay (spinner)
+        bufferingOverlay = FrameLayout(context).apply {
+            setBackgroundColor(0x40000000)
             visibility = View.GONE
             layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
         }
+        val spinner = ProgressBar(context).apply {
+            isIndeterminate = true
+            layoutParams = LayoutParams(dp(48), dp(48), Gravity.CENTER)
+        }
+        bufferingOverlay.addView(spinner)
         addView(bufferingOverlay)
 
-        // Gesture overlay (volume/brightness)
+        // Gesture overlay (volume/brightness) — pill style
         gestureOverlay = TextView(context).apply {
-            setBackgroundColor(0xCC000000.toInt())
+            background = createPillBackground(0xCC000000.toInt(), dp(24).toFloat())
             setTextColor(Color.WHITE)
-            textSize = 16f
+            textSize = 15f
+            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
             gravity = Gravity.CENTER
-            setPadding(32, 16, 32, 16)
+            setPadding(dp(24), dp(12), dp(24), dp(12))
             visibility = View.GONE
             layoutParams = LayoutParams(
                 LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.CENTER
@@ -163,13 +252,14 @@ class VaultVideoPlayerView @JvmOverloads constructor(
         }
         addView(gestureOverlay)
 
-        // Seek overlay
+        // Seek overlay — pill style
         seekOverlay = TextView(context).apply {
-            setBackgroundColor(0xCC000000.toInt())
+            background = createPillBackground(0xCC000000.toInt(), dp(24).toFloat())
             setTextColor(Color.WHITE)
-            textSize = 18f
+            textSize = 17f
+            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
             gravity = Gravity.CENTER
-            setPadding(40, 20, 40, 20)
+            setPadding(dp(28), dp(14), dp(28), dp(14))
             visibility = View.GONE
             layoutParams = LayoutParams(
                 LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.CENTER
@@ -189,55 +279,93 @@ class VaultVideoPlayerView @JvmOverloads constructor(
         }
         addView(errorOverlay)
 
-        // ── Top bar ──
+        // ── Center play button (large, shown when paused) ──
+        centerPlayBtn = TextView(context).apply {
+            text = "\u25B6"
+            textSize = 56f
+            setTextColor(0xDDFFFFFF.toInt())
+            gravity = Gravity.CENTER
+            background = createPillBackground(0x66000000, dp(40).toFloat())
+            setPadding(dp(28), dp(16), dp(20), dp(20))
+            visibility = View.GONE
+            layoutParams = LayoutParams(dp(96), dp(96), Gravity.CENTER)
+            setOnClickListener { togglePlayPause() }
+        }
+        addView(centerPlayBtn)
+
+        // ── Top bar — gradient background ──
         topBar = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
-            setBackgroundColor(0x80000000.toInt())
+            background = GradientDrawable(
+                GradientDrawable.Orientation.TOP_BOTTOM,
+                intArrayOf(0xCC000000.toInt(), 0x00000000)
+            )
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(8, 8, 8, 8)
+            setPadding(dp(4), dp(12), dp(4), dp(24))
             layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT, Gravity.TOP)
         }
 
-        backBtn = createIconButton("\u2190", 28f) { sendSimpleEvent("onBackPress") }
+        backBtn = createControlIcon("\u2190", 24f) { sendSimpleEvent("onBackPress") }
         titleText = TextView(context).apply {
             setTextColor(Color.WHITE)
-            textSize = 16f
+            textSize = 15f
+            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
             maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.MIDDLE
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
-                marginStart = 8; marginEnd = 8
+                marginStart = dp(4); marginEnd = dp(4)
             }
         }
-        menuBtn = createIconButton("\u22EE", 24f) { sendSimpleEvent("onMenuPress") }
+        menuBtn = createControlIcon("\u22EE", 22f) { sendSimpleEvent("onMenuPress") }
 
         topBar.addView(backBtn)
         topBar.addView(titleText)
         topBar.addView(menuBtn)
         addView(topBar)
 
-        // ── Bottom controls ──
+        // ── Bottom controls — gradient background ──
         bottomControlsContainer = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(0x99000000.toInt())
-            setPadding(16, 8, 16, 16)
+            background = GradientDrawable(
+                GradientDrawable.Orientation.BOTTOM_TOP,
+                intArrayOf(0xCC000000.toInt(), 0x00000000)
+            )
+            setPadding(dp(16), dp(24), dp(16), dp(16))
             layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT, Gravity.BOTTOM)
         }
 
         // Seek bar row
         val seekBarContainer = FrameLayout(context).apply {
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(28))
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(32))
         }
         seekBar = View(context).apply {
-            setBackgroundColor(0x4DFFFFFF)
-            layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, dp(4), Gravity.CENTER_VERTICAL)
+            background = createPillBackground(0x4DFFFFFF, dp(2).toFloat())
+            layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, dp(3), Gravity.CENTER_VERTICAL)
         }
         seekFill = View(context).apply {
-            setBackgroundColor(0xFF3B82F6.toInt())
-            layoutParams = FrameLayout.LayoutParams(0, dp(4), Gravity.CENTER_VERTICAL)
+            background = createPillBackground(0xFF3B82F6.toInt(), dp(2).toFloat())
+            layoutParams = FrameLayout.LayoutParams(0, dp(3), Gravity.CENTER_VERTICAL)
+        }
+        seekThumb = View(context).apply {
+            background = createCircleBackground(0xFF3B82F6.toInt())
+            layoutParams = FrameLayout.LayoutParams(dp(14), dp(14), Gravity.CENTER_VERTICAL)
+            visibility = View.GONE
         }
         seekBarContainer.addView(seekBar)
         seekBarContainer.addView(seekFill)
+        seekBarContainer.addView(seekThumb)
         seekBarContainer.setOnTouchListener { v, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    seekThumb.visibility = View.VISIBLE
+                    seekThumb.animate().scaleX(1.3f).scaleY(1.3f).setDuration(100).start()
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    seekThumb.animate().scaleX(1f).scaleY(1f).setDuration(100).withEndAction {
+                        seekThumb.visibility = View.GONE
+                    }.start()
+                }
+            }
             if (event.action == MotionEvent.ACTION_DOWN || event.action == MotionEvent.ACTION_MOVE) {
                 val ratio = (event.x / v.width).coerceIn(0f, 1f)
                 player?.let { p ->
@@ -253,9 +381,10 @@ class VaultVideoPlayerView @JvmOverloads constructor(
 
         // Time text
         timeText = TextView(context).apply {
-            setTextColor(Color.WHITE)
+            setTextColor(0xB3FFFFFF.toInt())
             textSize = 12f
-            setPadding(0, 4, 0, 8)
+            typeface = Typeface.create("sans-serif", Typeface.NORMAL)
+            setPadding(0, dp(2), 0, dp(8))
         }
         bottomControlsContainer.addView(timeText)
 
@@ -266,18 +395,29 @@ class VaultVideoPlayerView @JvmOverloads constructor(
             layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
         }
 
-        prevBtn = createIconButton("\u23EE", 22f) { playPrevious() }
-        rewindBtn = createIconButton("\u23EA", 20f) { seekRelative(-SEEK_JUMP_MS) }
-        playPauseBtn = createIconButton("\u25B6", 28f) { togglePlayPause() }
-        forwardBtn = createIconButton("\u23E9", 20f) { seekRelative(SEEK_JUMP_MS) }
-        nextBtn = createIconButton("\u23ED", 22f) { playNext() }
+        prevBtn = createControlIcon("\u23EE", 20f) { playPrevious() }
+        rewindBtn = createControlIcon("\u23EA", 18f) { seekRelative(-SEEK_JUMP_MS) }
+        playPauseBtn = createControlIcon("\u25B6", 26f) { togglePlayPause() }
+        forwardBtn = createControlIcon("\u23E9", 18f) { seekRelative(SEEK_JUMP_MS) }
+        nextBtn = createControlIcon("\u23ED", 20f) { playNext() }
 
-        val spacer1 = View(context).apply {
-            layoutParams = LinearLayout.LayoutParams(0, 1, 1f)
+        // Right-side controls inline
+        speedBtn = TextView(context).apply {
+            text = "1.0x"
+            setTextColor(0xCCFFFFFF.toInt())
+            textSize = 12f
+            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            background = createPillBackground(0x33FFFFFF, dp(12).toFloat())
+            setPadding(dp(12), dp(6), dp(12), dp(6))
+            gravity = Gravity.CENTER
+            setOnClickListener { showSpeedMenu() }
         }
-        val spacer2 = View(context).apply {
-            layoutParams = LinearLayout.LayoutParams(0, 1, 1f)
-        }
+        volumeBtn = createControlIcon("\uD83D\uDD0A", 18f) { toggleMute() }
+        lockBtn = createControlIcon("\uD83D\uDD12", 18f) { lockScreen() }
+        rotateBtn = createControlIcon("\uD83D\uDD04", 18f) { rotateScreen() }
+
+        val spacer1 = View(context).apply { layoutParams = LinearLayout.LayoutParams(0, 1, 1f) }
+        val spacer2 = View(context).apply { layoutParams = LinearLayout.LayoutParams(0, 1, 1f) }
 
         controlsRow.addView(prevBtn)
         controlsRow.addView(rewindBtn)
@@ -287,34 +427,49 @@ class VaultVideoPlayerView @JvmOverloads constructor(
         controlsRow.addView(forwardBtn)
         controlsRow.addView(nextBtn)
 
+        // Add a separator
+        val rightSpacer = View(context).apply { layoutParams = LinearLayout.LayoutParams(dp(12), 1) }
+        controlsRow.addView(rightSpacer)
+        controlsRow.addView(speedBtn)
+        controlsRow.addView(volumeBtn)
+        controlsRow.addView(lockBtn)
+        controlsRow.addView(rotateBtn)
+
         bottomControlsContainer.addView(controlsRow)
         addView(bottomControlsContainer)
 
-        // ── Right controls (volume, speed) ──
-        rightControlsContainer = LinearLayout(context).apply {
+        // ── Lock overlay ──
+        lockOverlay = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            setPadding(8, 0, 16, 0)
-            layoutParams = LayoutParams(
-                LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT,
-                Gravity.END or Gravity.CENTER_VERTICAL
-            )
+            setBackgroundColor(0x40000000)
+            visibility = View.GONE
+            layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
         }
-
-        volumeBtn = createIconButton("\uD83D\uDD0A", 20f) { toggleMute() }
-        speedBtn = TextView(context).apply {
-            text = "1.0x"
-            setTextColor(Color.WHITE)
-            textSize = 13f
-            setBackgroundColor(0x40FFFFFF)
-            setPadding(16, 8, 16, 8)
+        val lockIcon = TextView(context).apply {
+            text = "\uD83D\uDD12"
+            textSize = 40f
             gravity = Gravity.CENTER
-            setOnClickListener { showSpeedMenu() }
         }
-
-        rightControlsContainer.addView(volumeBtn)
-        rightControlsContainer.addView(speedBtn)
-        addView(rightControlsContainer)
+        val lockText = TextView(context).apply {
+            text = "Screen Locked"
+            setTextColor(0xCCFFFFFF.toInt())
+            textSize = 16f
+            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            gravity = Gravity.CENTER
+            setPadding(0, dp(8), 0, dp(4))
+        }
+        lockUnlockBtn = TextView(context).apply {
+            text = "Tap to unlock"
+            setTextColor(0x99FFFFFF.toInt())
+            textSize = 13f
+            gravity = Gravity.CENTER
+        }
+        lockOverlay.addView(lockIcon)
+        lockOverlay.addView(lockText)
+        lockOverlay.addView(lockUnlockBtn)
+        lockOverlay.setOnClickListener { showUnlockButton() }
+        addView(lockOverlay)
 
         initializePlayer()
     }
@@ -399,6 +554,95 @@ class VaultVideoPlayerView @JvmOverloads constructor(
     }
 
     // ═══════════════════════════════════════════════════════════
+    // Lock / Unlock
+    // ═══════════════════════════════════════════════════════════
+
+    fun lockScreen() {
+        isScreenLocked = true
+        hideControls()
+        lockOverlay.alpha = 0f
+        lockOverlay.visibility = View.VISIBLE
+        lockOverlay.animate().alpha(1f).setDuration(200).start()
+        // Auto-hide lock overlay after 2s, show just a small lock icon
+        handler.postDelayed({
+            if (isScreenLocked) {
+                lockOverlay.animate().alpha(0.3f).setDuration(300).start()
+            }
+        }, 2000)
+        sendSimpleEvent("onLockStateChange")
+    }
+
+    fun unlockScreen() {
+        isScreenLocked = false
+        lockOverlay.animate().alpha(0f).setDuration(200).withEndAction {
+            lockOverlay.visibility = View.GONE
+        }.start()
+        showControls()
+        resetHideTimer()
+        sendSimpleEvent("onLockStateChange")
+    }
+
+    private fun showUnlockButton() {
+        if (!isScreenLocked) return
+        // Bring overlay to full opacity and show unlock prompt
+        lockOverlay.animate().alpha(1f).setDuration(150).start()
+        lockUnlockBtn.text = "\uD83D\uDD13 Tap again to unlock"
+        lockUnlockBtn.setTextColor(0xFFFFFFFF.toInt())
+        lockUnlockBtn.textSize = 15f
+        // Replace click listener temporarily
+        lockOverlay.setOnClickListener {
+            unlockScreen()
+            lockUnlockBtn.text = "Tap to unlock"
+            lockUnlockBtn.setTextColor(0x99FFFFFF.toInt())
+            lockUnlockBtn.textSize = 13f
+            lockOverlay.setOnClickListener { showUnlockButton() }
+        }
+        // Reset after 3s if not tapped
+        handler.postDelayed({
+            if (isScreenLocked) {
+                lockUnlockBtn.text = "Tap to unlock"
+                lockUnlockBtn.setTextColor(0x99FFFFFF.toInt())
+                lockUnlockBtn.textSize = 13f
+                lockOverlay.setOnClickListener { showUnlockButton() }
+                lockOverlay.animate().alpha(0.3f).setDuration(300).start()
+            }
+        }, 3000)
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // Rotation
+    // ═══════════════════════════════════════════════════════════
+
+    fun rotateScreen() {
+        val activity = getActivity() ?: return
+        rotationState = (rotationState + 1) % 3
+        when (rotationState) {
+            0 -> { // Portrait
+                activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                showGestureFeedback("\uD83D\uDD04 Portrait")
+            }
+            1 -> { // Landscape left
+                activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+                showGestureFeedback("\uD83D\uDD04 Landscape")
+            }
+            2 -> { // Landscape right
+                activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE
+                showGestureFeedback("\uD83D\uDD04 Landscape (R)")
+            }
+        }
+    }
+
+    fun setAutoRotate(enabled: Boolean) {
+        val activity = getActivity() ?: return
+        if (enabled) {
+            activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR
+            rotationState = -1
+        } else {
+            activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LOCKED
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════
     // Player.Listener
     // ═══════════════════════════════════════════════════════════
 
@@ -428,6 +672,7 @@ class VaultVideoPlayerView @JvmOverloads constructor(
                 } else {
                     showControls()
                     playPauseBtn.text = "\u25B6"
+                    showCenterPlay()
                 }
             }
             Player.STATE_IDLE -> {}
@@ -440,7 +685,13 @@ class VaultVideoPlayerView @JvmOverloads constructor(
             putBoolean("isPlaying", isPlaying)
         }
         sendEvent("onPlaybackStateChange", event)
-        if (isPlaying) resetHideTimer() else showControls()
+        if (isPlaying) {
+            hideCenterPlay()
+            resetHideTimer()
+        } else {
+            showControls()
+            showCenterPlay()
+        }
     }
 
     override fun onPlayerError(error: PlaybackException) {
@@ -468,6 +719,9 @@ class VaultVideoPlayerView @JvmOverloads constructor(
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent): Boolean {
+        // If locked, only handle taps on the lock overlay
+        if (isScreenLocked) return false
+
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
                 gestureStartX = event.x
@@ -507,12 +761,10 @@ class VaultVideoPlayerView @JvmOverloads constructor(
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 if (isHorizontalGesture) {
-                    // Commit seek
-                    seekOverlay.visibility = View.GONE
+                    fadeOutOverlay(seekOverlay)
                 } else if (isVerticalGesture) {
-                    gestureOverlay.visibility = View.GONE
+                    fadeOutOverlay(gestureOverlay)
                 } else {
-                    // Tap
                     handleTap(event.x, event.y)
                 }
                 isHorizontalGesture = false
@@ -530,9 +782,10 @@ class VaultVideoPlayerView @JvmOverloads constructor(
             p.seekTo(newPos)
             updateSeekBar()
 
-            val diffSec = (newPos - gestureSeekStartPosition) / 1000
-            val sign = if (diffSec >= 0) "+" else ""
-            seekOverlay.text = if (diffSec >= 0) "\u23E9 ${sign}${diffSec}s" else "\u23EA ${diffSec}s"
+            val fromTime = formatTime(gestureSeekStartPosition)
+            val toTime = formatTime(newPos)
+            val icon = if (seekDelta >= 0) "\u23E9" else "\u23EA"
+            seekOverlay.text = "$icon $fromTime \u2192 $toTime"
             seekOverlay.visibility = View.VISIBLE
         }
     }
@@ -575,9 +828,11 @@ class VaultVideoPlayerView @JvmOverloads constructor(
             val isLeftSide = x < width / 2f
             if (isLeftSide) {
                 seekRelative(-SEEK_JUMP_MS)
+                showDoubleTapRipple(true)
                 showSeekFeedback("\u23EA -10s")
             } else {
                 seekRelative(SEEK_JUMP_MS)
+                showDoubleTapRipple(false)
                 showSeekFeedback("\u23E9 +10s")
             }
             lastTapTime = 0
@@ -593,12 +848,68 @@ class VaultVideoPlayerView @JvmOverloads constructor(
         }
     }
 
+    private fun showDoubleTapRipple(isLeft: Boolean) {
+        val ripple = if (isLeft) leftRipple else rightRipple
+        ripple.visibility = View.VISIBLE
+        ripple.animateRipple()
+        handler.postDelayed({ ripple.visibility = View.GONE }, 500)
+    }
+
     private fun showSeekFeedback(text: String) {
         seekOverlay.text = text
+        seekOverlay.alpha = 0f
         seekOverlay.visibility = View.VISIBLE
-        handler.postDelayed({ seekOverlay.visibility = View.GONE }, 600)
+        seekOverlay.animate().alpha(1f).setDuration(100).start()
+        handler.postDelayed({
+            fadeOutOverlay(seekOverlay)
+        }, 500)
         showControls()
         resetHideTimer()
+    }
+
+    private fun showGestureFeedback(text: String) {
+        gestureOverlay.text = text
+        gestureOverlay.alpha = 0f
+        gestureOverlay.visibility = View.VISIBLE
+        gestureOverlay.animate().alpha(1f).setDuration(100).start()
+        handler.postDelayed({
+            fadeOutOverlay(gestureOverlay)
+        }, 800)
+    }
+
+    private fun fadeOutOverlay(view: View) {
+        view.animate().alpha(0f).setDuration(200).withEndAction {
+            view.visibility = View.GONE
+            view.alpha = 1f
+        }.start()
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // Center play button
+    // ═══════════════════════════════════════════════════════════
+
+    private fun showCenterPlay() {
+        centerPlayBtn.alpha = 0f
+        centerPlayBtn.scaleX = 0.7f
+        centerPlayBtn.scaleY = 0.7f
+        centerPlayBtn.visibility = View.VISIBLE
+        centerPlayBtn.animate()
+            .alpha(1f)
+            .scaleX(1f)
+            .scaleY(1f)
+            .setDuration(200)
+            .setInterpolator(OvershootInterpolator(1.5f))
+            .start()
+    }
+
+    private fun hideCenterPlay() {
+        centerPlayBtn.animate()
+            .alpha(0f)
+            .scaleX(0.7f)
+            .scaleY(0.7f)
+            .setDuration(150)
+            .withEndAction { centerPlayBtn.visibility = View.GONE }
+            .start()
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -606,20 +917,19 @@ class VaultVideoPlayerView @JvmOverloads constructor(
     // ═══════════════════════════════════════════════════════════
 
     private fun showControls() {
+        if (isScreenLocked) return
         controlsVisible = true
-        topBar.animate().alpha(1f).setDuration(200).start()
-        bottomControlsContainer.animate().alpha(1f).setDuration(200).start()
-        rightControlsContainer.animate().alpha(1f).setDuration(200).start()
         topBar.visibility = View.VISIBLE
         bottomControlsContainer.visibility = View.VISIBLE
-        rightControlsContainer.visibility = View.VISIBLE
+        topBar.animate().alpha(1f).setDuration(200).start()
+        bottomControlsContainer.animate().alpha(1f).setDuration(200).start()
     }
 
     private fun hideControls() {
+        if (isScreenLocked) return
         controlsVisible = false
         topBar.animate().alpha(0f).setDuration(200).withEndAction { topBar.visibility = View.GONE }.start()
         bottomControlsContainer.animate().alpha(0f).setDuration(200).withEndAction { bottomControlsContainer.visibility = View.GONE }.start()
-        rightControlsContainer.animate().alpha(0f).setDuration(200).withEndAction { rightControlsContainer.visibility = View.GONE }.start()
     }
 
     private fun toggleControlsVisibility() {
@@ -667,7 +977,6 @@ class VaultVideoPlayerView @JvmOverloads constructor(
 
     private fun playPrevious() {
         player?.let { p ->
-            // If more than 3s in, restart current video
             if (p.currentPosition > 3000) {
                 p.seekTo(0)
                 return
@@ -684,35 +993,36 @@ class VaultVideoPlayerView @JvmOverloads constructor(
     }
 
     private fun showSpeedMenu() {
-        val activity = getActivity() ?: return
         val popupView = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(0xF0141414.toInt())
-            setPadding(0, 16, 0, 16)
+            background = createPillBackground(0xF0141414.toInt(), dp(16).toFloat())
+            setPadding(0, dp(12), 0, dp(12))
+            elevation = 24f
         }
 
         val titleTv = TextView(context).apply {
             text = "Playback Speed"
             setTextColor(0x80FFFFFF.toInt())
-            textSize = 13f
-            setPadding(24, 8, 24, 12)
+            textSize = 12f
+            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            setPadding(dp(20), dp(8), dp(20), dp(10))
         }
         popupView.addView(titleTv)
 
         val popup = PopupWindow(popupView, dp(160), LayoutParams.WRAP_CONTENT, true).apply {
             setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Color.TRANSPARENT))
-            elevation = 16f
+            elevation = 24f
         }
 
         for (speed in SPEED_OPTIONS) {
             val item = TextView(context).apply {
                 text = "${speed}x"
-                setTextColor(if (speed == currentSpeed) 0xFF3B82F6.toInt() else Color.WHITE)
-                textSize = 15f
-                setPadding(24, 14, 24, 14)
+                setTextColor(if (speed == currentSpeed) 0xFF3B82F6.toInt() else 0xDDFFFFFF.toInt())
+                textSize = 14f
+                typeface = if (speed == currentSpeed) Typeface.create("sans-serif-medium", Typeface.BOLD) else Typeface.create("sans-serif", Typeface.NORMAL)
+                setPadding(dp(20), dp(12), dp(20), dp(12))
                 if (speed == currentSpeed) {
-                    setBackgroundColor(0x333B82F6)
-                    setTypeface(null, android.graphics.Typeface.BOLD)
+                    setBackgroundColor(0x1A3B82F6)
                 }
                 setOnClickListener {
                     setSpeed(speed)
@@ -733,10 +1043,19 @@ class VaultVideoPlayerView @JvmOverloads constructor(
         player?.let { p ->
             if (p.duration > 0) {
                 val ratio = p.currentPosition.toFloat() / p.duration.toFloat()
+                val barWidth = seekBar.width
+                val fillWidth = (barWidth * ratio).toInt()
                 seekFill.layoutParams = (seekFill.layoutParams as FrameLayout.LayoutParams).apply {
-                    width = (seekBar.width * ratio).toInt()
+                    width = fillWidth
                 }
                 seekFill.requestLayout()
+
+                // Update thumb position
+                seekThumb.layoutParams = (seekThumb.layoutParams as FrameLayout.LayoutParams).apply {
+                    marginStart = fillWidth - dp(7)
+                }
+                seekThumb.requestLayout()
+
                 timeText.text = "${formatTime(p.currentPosition)} / ${formatTime(p.duration)}"
             }
         }
@@ -775,6 +1094,8 @@ class VaultVideoPlayerView @JvmOverloads constructor(
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         WindowCompat.setDecorFitsSystemWindows(window, true)
         WindowInsetsControllerCompat(window, window.decorView).show(WindowInsetsCompat.Type.systemBars())
+        // Restore rotation
+        activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -840,16 +1161,30 @@ class VaultVideoPlayerView @JvmOverloads constructor(
         return if (h > 0) String.format("%d:%02d:%02d", h, m, s) else String.format("%d:%02d", m, s)
     }
 
-    private fun createIconButton(icon: String, size: Float, onClick: () -> Unit): TextView {
+    private fun createControlIcon(icon: String, size: Float, onClick: () -> Unit): TextView {
         return TextView(context).apply {
             text = icon
             textSize = size
-            setTextColor(Color.WHITE)
+            setTextColor(0xDDFFFFFF.toInt()) // semi-transparent white
             gravity = Gravity.CENTER
-            setPadding(16, 12, 16, 12)
-            minimumWidth = dp(48)
-            minimumHeight = dp(48)
+            setPadding(dp(14), dp(10), dp(14), dp(10))
+            minimumWidth = dp(44)
+            minimumHeight = dp(44)
             setOnClickListener { onClick() }
+        }
+    }
+
+    private fun createPillBackground(color: Int, radius: Float): GradientDrawable {
+        return GradientDrawable().apply {
+            setColor(color)
+            cornerRadius = radius
+        }
+    }
+
+    private fun createCircleBackground(color: Int): GradientDrawable {
+        return GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            setColor(color)
         }
     }
 

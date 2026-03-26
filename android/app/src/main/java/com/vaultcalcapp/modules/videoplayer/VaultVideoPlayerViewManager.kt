@@ -20,19 +20,6 @@ class VaultVideoPlayerViewManager : SimpleViewManager<VaultVideoPlayerView>() {
 
     companion object {
         const val REACT_CLASS = "VaultVideoPlayerView"
-
-        // Command IDs
-        private const val CMD_LOAD_VIDEO = 1
-        private const val CMD_PLAY = 2
-        private const val CMD_PAUSE = 3
-        private const val CMD_SEEK_TO = 4
-        private const val CMD_SET_SPEED = 5
-        private const val CMD_MUTE = 6
-        private const val CMD_UNMUTE = 7
-        private const val CMD_ENTER_FULLSCREEN = 8
-        private const val CMD_EXIT_FULLSCREEN = 9
-        private const val CMD_SET_PLAYLIST = 10
-        private const val CMD_RELEASE = 11
     }
 
     override fun getName(): String = REACT_CLASS
@@ -57,17 +44,21 @@ class VaultVideoPlayerViewManager : SimpleViewManager<VaultVideoPlayerView>() {
 
     override fun getCommandsMap(): Map<String, Int> {
         return MapBuilder.builder<String, Int>()
-            .put("loadVideo", CMD_LOAD_VIDEO)
-            .put("play", CMD_PLAY)
-            .put("pause", CMD_PAUSE)
-            .put("seekTo", CMD_SEEK_TO)
-            .put("setSpeed", CMD_SET_SPEED)
-            .put("mute", CMD_MUTE)
-            .put("unmute", CMD_UNMUTE)
-            .put("enterFullscreen", CMD_ENTER_FULLSCREEN)
-            .put("exitFullscreen", CMD_EXIT_FULLSCREEN)
-            .put("setPlaylist", CMD_SET_PLAYLIST)
-            .put("release", CMD_RELEASE)
+            .put("loadVideo", 1)
+            .put("play", 2)
+            .put("pause", 3)
+            .put("seekTo", 4)
+            .put("setSpeed", 5)
+            .put("mute", 6)
+            .put("unmute", 7)
+            .put("enterFullscreen", 8)
+            .put("exitFullscreen", 9)
+            .put("setPlaylist", 10)
+            .put("release", 11)
+            .put("lockScreen", 12)
+            .put("unlockScreen", 13)
+            .put("rotateScreen", 14)
+            .put("setAutoRotate", 15)
             .build()
     }
 
@@ -102,6 +93,13 @@ class VaultVideoPlayerViewManager : SimpleViewManager<VaultVideoPlayerView>() {
                 root.setPlaylist(paths, startIndex)
             }
             "release" -> root.release()
+            "lockScreen" -> root.lockScreen()
+            "unlockScreen" -> root.unlockScreen()
+            "rotateScreen" -> root.rotateScreen()
+            "setAutoRotate" -> {
+                val enabled = args?.getBoolean(0) ?: return
+                root.setAutoRotate(enabled)
+            }
         }
     }
 
@@ -121,6 +119,7 @@ class VaultVideoPlayerViewManager : SimpleViewManager<VaultVideoPlayerView>() {
             .put("onNavigate", MapBuilder.of("registrationName", "onNavigate"))
             .put("onBackPress", MapBuilder.of("registrationName", "onBackPress"))
             .put("onMenuPress", MapBuilder.of("registrationName", "onMenuPress"))
+            .put("onLockStateChange", MapBuilder.of("registrationName", "onLockStateChange"))
             .build()
     }
 

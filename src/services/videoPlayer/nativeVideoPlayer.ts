@@ -33,6 +33,7 @@ export interface NativeVideoPlayerProps extends ViewProps {
   onNavigate?: (event: { nativeEvent: { direction: string; index: number } }) => void;
   onBackPress?: (event: { nativeEvent: Record<string, never> }) => void;
   onMenuPress?: (event: { nativeEvent: Record<string, never> }) => void;
+  onLockStateChange?: (event: { nativeEvent: Record<string, never> }) => void;
 }
 
 // ── Native View Component ──────────────────────────────────────
@@ -91,6 +92,22 @@ export function setPlaylist(ref: RefObject<any>, paths: string[], startIndex: nu
 
 export function releasePlayer(ref: RefObject<any>) {
   dispatchCommand(ref, 'release');
+}
+
+export function lockScreen(ref: RefObject<any>) {
+  dispatchCommand(ref, 'lockScreen');
+}
+
+export function unlockScreen(ref: RefObject<any>) {
+  dispatchCommand(ref, 'unlockScreen');
+}
+
+export function rotateScreen(ref: RefObject<any>) {
+  dispatchCommand(ref, 'rotateScreen');
+}
+
+export function setAutoRotate(ref: RefObject<any>, enabled: boolean) {
+  dispatchCommand(ref, 'setAutoRotate', [enabled]);
 }
 
 // ── Native Module (for non-view operations) ────────────────────
