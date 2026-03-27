@@ -67,7 +67,7 @@
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:exported="true"
-        android:enabled="true">
+        android:enabled="false">
         <intent-filter>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
@@ -81,7 +81,7 @@
         android:icon="@mipmap/ic_calculator"
         android:roundIcon="@mipmap/ic_calculator_round"
         android:exported="true"
-        android:enabled="false">
+        android:enabled="true">
         <intent-filter>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />

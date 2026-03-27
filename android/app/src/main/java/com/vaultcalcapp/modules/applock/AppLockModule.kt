@@ -138,6 +138,40 @@ class AppLockModule(reactContext: ReactApplicationContext) :
     }
 
     /**
+     * Set the unlock method for the app lock screen ("pin" or "pattern").
+     * If pattern, also provide the pattern dots array to store a SHA-256 hash
+     * for native lock screen verification.
+     */
+    @ReactMethod
+    fun setAppLockCredentials(method: String, patternDots: ReadableArray?, promise: Promise) {
+        try {
+            lockManager.setUnlockMethod(method)
+            if (method == "pattern" && patternDots != null) {
+                val dots = mutableListOf<Int>()
+                for (i in 0 until patternDots.size()) {
+                    dots.add(patternDots.getInt(i))
+                }
+                val patternStr = dots.joinToString("-")
+                val digest = java.security.MessageDigest.getInstance("SHA-256")
+                val hash = digest.digest(patternStr.toByteArray())
+                    .joinToString("") { "%02x".format(it) }
+                lockManager.setPatternHash(hash)
+            }
+            promise.resolve(true)
+        } catch (e: Exception) {
+            promise.reject("CRED_ERROR", "Failed to set credentials: ${e.message}", e)
+        }
+    }
+
+    /**
+     * Get the current unlock method ("pin" or "pattern").
+     */
+    @ReactMethod
+    fun getUnlockMethod(promise: Promise) {
+        promise.resolve(lockManager.getUnlockMethod())
+    }
+
+    /**
      * Open Android accessibility settings so user can enable the service.
      */
     @ReactMethod

@@ -358,6 +358,11 @@ export const useSettingsStore = create<SettingsState & SettingsActions>()(
 
       setUnlockMethod: (method) => {
         set({ unlockMethod: method });
+        // Sync to native AppLockModule so LockScreenActivity knows which UI to show
+        try {
+          const { NativeModules } = require('react-native');
+          NativeModules.AppLockModule?.setAppLockCredentials(method, null);
+        } catch {}
       },
 
       setShowPatternPath: (show) => {

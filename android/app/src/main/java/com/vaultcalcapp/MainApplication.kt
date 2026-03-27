@@ -24,6 +24,7 @@ import com.vaultcalcapp.modules.panic.PanicPackage
 import com.vaultcalcapp.modules.stealth.StealthPackage
 import com.vaultcalcapp.modules.notificationprivacy.NotificationPrivacyPackage
 import com.vaultcalcapp.modules.videoplayer.VideoPlayerPackage
+import com.vaultcalcapp.modules.zoomimage.ZoomableImagePackage
 import expo.modules.ApplicationLifecycleDispatcher
 
 class MainApplication : Application(), ReactApplication {
@@ -52,6 +53,7 @@ class MainApplication : Application(), ReactApplication {
           add(StealthPackage())
           add(NotificationPrivacyPackage())
           add(VideoPlayerPackage())
+          add(ZoomableImagePackage())
         },
     )
   }

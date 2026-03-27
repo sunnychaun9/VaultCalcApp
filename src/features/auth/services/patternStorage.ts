@@ -11,6 +11,7 @@
 import { hashPin, verifyPin, initializeCrypto } from '@services/crypto';
 import { encryptString, decryptString } from '@services/crypto';
 import { mmkvStorage } from '@services/storage/mmkv';
+import { NativeModules } from 'react-native';
 
 /** Storage keys */
 const STORAGE_KEYS = {
@@ -61,6 +62,11 @@ export async function storePatternHash(pattern: number[]): Promise<boolean> {
     mmkvStorage.setItem(STORAGE_KEYS.PATTERN_HASH, encryptedHash.data!);
     mmkvStorage.setItem(STORAGE_KEYS.PATTERN_SALT, encryptedSalt.data!);
     mmkvStorage.setItem(STORAGE_KEYS.PATTERN_CONFIGURED, 'true');
+
+    // Sync pattern to native AppLockModule for native lock screen verification
+    try {
+      await NativeModules.AppLockModule?.setAppLockCredentials('pattern', pattern);
+    } catch {}
 
     return true;
   } catch {

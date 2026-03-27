@@ -4,12 +4,13 @@
  * Monitors foreground app changes and launches LockScreenActivity
  * when a locked app is detected.
  *
+ * Session-based auth: once a user authenticates for an app, it stays
+ * unlocked until they genuinely leave to a different real app.
+ * Keyboard/IME, system UI, permission dialogs, and internal activity
+ * transitions do NOT trigger re-lock.
+ *
  * Also manages a black overlay that hides locked app content
  * in the Android recents/task switcher.
- *
- * Detection strategy:
- * - TYPE_WINDOW_STATE_CHANGED: fires on new activity / window focus changes
- * - TYPE_WINDOWS_CHANGED: fires on window list changes (app resume from bg)
  *
  * @see App Lock feature
  */
@@ -31,8 +32,36 @@ class AppLockAccessibilityService : AccessibilityService() {
     private var recentsCover: RecentsCoverManager? = null
     private var screenOffReceiver: BroadcastReceiver? = null
 
-    /** The package that is currently in the foreground. */
-    private var currentForegroundPackage: String? = null
+    /** The real user-facing app currently in the foreground (excludes system/IME). */
+    private var currentUserApp: String? = null
+
+    /** Raw foreground package (includes system/IME for dedup). */
+    private var lastRawPackage: String? = null
+
+    /**
+     * Packages that should NOT be treated as "user navigated to a different app".
+     * These are transient overlays (keyboard, system UI, permission dialogs, etc.)
+     * that appear on top of the real app but don't represent a genuine app switch.
+     */
+    private fun isTransientSystemPackage(pkg: String): Boolean {
+        if (pkg == applicationContext.packageName) return true
+        if (pkg == "com.android.systemui") return true
+        // Common keyboard/IME packages
+        if (pkg.contains("inputmethod") || pkg.contains("keyboard") || pkg.contains("swiftkey")
+            || pkg.contains("gboard")) return true
+        // Permission dialogs, package installer
+        if (pkg == "com.google.android.permissioncontroller") return true
+        if (pkg == "com.android.permissioncontroller") return true
+        if (pkg == "com.android.packageinstaller") return true
+        if (pkg == "com.google.android.packageinstaller") return true
+        // System popups
+        if (pkg == "android") return true
+        return false
+    }
+
+    private fun isLauncherPackage(pkg: String): Boolean {
+        return pkg.contains("launcher") || pkg.contains("home")
+    }
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -51,8 +80,9 @@ class AppLockAccessibilityService : AccessibilityService() {
         screenOffReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
                 if (intent.action == Intent.ACTION_SCREEN_OFF) {
-                    lockManager?.clearAllCooldowns()
-                    currentForegroundPackage = null
+                    lockManager?.clearAllAuth()
+                    currentUserApp = null
+                    lastRawPackage = null
                     recentsCover?.hideCover()
                 }
             }
@@ -81,41 +111,52 @@ class AppLockAccessibilityService : AccessibilityService() {
 
         if (packageName.isNullOrEmpty()) return
 
-        // Skip if same package as before (no transition happened)
-        if (packageName == currentForegroundPackage) return
-        val previousPackage = currentForegroundPackage
-        currentForegroundPackage = packageName
+        // Skip if same raw package as last event (no change at all)
+        if (packageName == lastRawPackage) return
+        lastRawPackage = packageName
 
-        // ── Recents cover logic ──────────────────────────────────────
-        // If the user just left a locked app, show the black cover
-        // so the recents thumbnail captures the black screen.
-        if (previousPackage != null && manager.isAppLocked(previousPackage)) {
-            manager.onNavigatedAway()
-            recentsCover?.showCover()
+        // ── Classify the package ──
+        val isTransient = isTransientSystemPackage(packageName)
+        val isLauncher = isLauncherPackage(packageName)
+
+        // If it's a transient system package (keyboard, system UI, etc.),
+        // DON'T update currentUserApp — the real app is still underneath.
+        // Also don't trigger any lock logic.
+        if (isTransient) return
+
+        // ── Recents cover logic ──
+        // If the user is leaving a locked app, show cover for recents
+        val previousUserApp = currentUserApp
+
+        // If it's a launcher, handle recents cover but don't lock
+        if (isLauncher) {
+            if (previousUserApp != null && manager.isAppLocked(previousUserApp)) {
+                recentsCover?.showCover()
+                // Revoke auth for the app they left — next open will require PIN
+                manager.revokeAuth(previousUserApp)
+            }
+            currentUserApp = null
+            return
         }
 
-        // If the user is switching to any real app (not systemui/recents),
-        // remove the cover so they can see the app normally.
-        // Keep cover up while in systemui (recents view) or launcher.
-        val isSystemTransition = packageName == "com.android.systemui" ||
-            packageName.contains("launcher")
+        // ── This is a genuine user app transition ──
+        currentUserApp = packageName
 
-        if (!isSystemTransition) {
-            recentsCover?.hideCover()
+        // Hide recents cover when entering any real app
+        recentsCover?.hideCover()
+
+        // If the user left a locked app to go to a DIFFERENT real app,
+        // revoke authentication so next open requires PIN again
+        if (previousUserApp != null && previousUserApp != packageName
+            && manager.isAppLocked(previousUserApp)) {
+            manager.revokeAuth(previousUserApp)
         }
-        // ─────────────────────────────────────────────────────────────
 
-        // Skip our own app and system UI for lock detection
-        if (packageName == applicationContext.packageName) return
-        if (packageName == "com.android.systemui") return
-        if (packageName == "com.android.launcher") return
-        if (packageName.contains("launcher")) return
-
-        // Check if this app is locked
+        // Check if this app needs locking
         if (!manager.isAppLocked(packageName)) return
 
-        // Check one-shot skip (consumes it — only skips once after unlock)
-        if (manager.isInCooldown(packageName)) return
+        // If user already authenticated for this app in this session, skip
+        if (manager.isAuthenticated(packageName)) return
 
         // Remove cover before showing lock screen
         recentsCover?.hideCover()
