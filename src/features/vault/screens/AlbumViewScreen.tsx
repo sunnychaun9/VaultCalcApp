@@ -67,9 +67,10 @@ export function AlbumViewScreen(): React.JSX.Element {
     if (isSelectionMode) {
       toggleSelection(item.id);
     } else {
-      navigation.navigate('MediaViewer', { mediaId: item.id });
+      const siblingIds = mediaItems.map(i => i.id);
+      navigation.navigate('MediaViewer', { mediaId: item.id, mediaIds: siblingIds });
     }
-  }, [isSelectionMode, toggleSelection, navigation]);
+  }, [isSelectionMode, toggleSelection, navigation, mediaItems]);
 
   const handleItemLongPress = useCallback((item: MediaItem) => {
     onActivity();

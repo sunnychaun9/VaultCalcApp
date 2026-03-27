@@ -23,7 +23,6 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { VaultStackParamList } from '@typedefs/navigation';
 import { useSettingsStore } from '@store/settingsStore';
-import { useFeatureGate } from '@services/billing';
 import { useAuthStore } from '@store/authStore';
 import { useActivityTracker, isPatternConfigured } from '@features/auth';
 import { mediaItems } from '@services/storage/database';
@@ -142,7 +141,6 @@ export function SettingsScreen(): React.JSX.Element {
   } = useSettingsStore();
 
   const isDecoyMode = useAuthStore(s => s.isDecoyMode);
-  const { isPremium } = useFeatureGate('cloudBackup');
 
   // Google Drive connection state (CLOUD-001)
   const [isConnecting, setIsConnecting] = useState(false);
@@ -894,124 +892,112 @@ export function SettingsScreen(): React.JSX.Element {
           </>
         )}
 
-        {/* CLOUD BACKUP Section — hidden in decoy mode (CLOUD-001, PREMIUM-004) */}
+        {/* CLOUD BACKUP Section — hidden in decoy mode (CLOUD-001) */}
         {!isDecoyMode && (
           <>
             <Text style={styles.sectionHeader}>CLOUD BACKUP</Text>
             <View style={styles.sectionCard}>
-              {isPremium ? (
-                googleDriveEmail ? (
-                  <>
-                    <View style={styles.row}>
-                      <Text style={styles.rowLabel}>Google Drive</Text>
-                      <Text style={styles.rowValue}>Connected</Text>
-                    </View>
+              {googleDriveEmail ? (
+                <>
+                  <View style={styles.row}>
+                    <Text style={styles.rowLabel}>Google Drive</Text>
+                    <Text style={styles.rowValue}>Connected</Text>
+                  </View>
 
-                    <View style={styles.rowDivider} />
+                  <View style={styles.rowDivider} />
 
-                    <View style={styles.storageDetailRow}>
-                      <Text style={styles.storageDetailText}>
-                        {googleDriveDisplayName ?? googleDriveEmail}
-                      </Text>
-                      <Text style={styles.storageDetailText}>
-                        {googleDriveDisplayName ? googleDriveEmail : ''}
-                      </Text>
-                    </View>
+                  <View style={styles.storageDetailRow}>
+                    <Text style={styles.storageDetailText}>
+                      {googleDriveDisplayName ?? googleDriveEmail}
+                    </Text>
+                    <Text style={styles.storageDetailText}>
+                      {googleDriveDisplayName ? googleDriveEmail : ''}
+                    </Text>
+                  </View>
 
-                    <View style={styles.rowDivider} />
+                  <View style={styles.rowDivider} />
 
-                    <Pressable
-                      onPress={handleBackupNow}
-                      style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-                      accessibilityRole="button"
-                      accessibilityLabel="Back up now"
-                    >
-                      <Text style={styles.rowLabel}>
-                        {isBackingUp ? 'Backing Up...' : 'Back Up Now'}
-                      </Text>
-                      <Text style={styles.rowChevron}>→</Text>
-                    </Pressable>
-
-                    <View style={styles.rowDivider} />
-
-                    <View style={styles.row}>
-                      <Text style={styles.rowLabel}>Backup status</Text>
-                      <Text style={[styles.rowValue, { color: backupStatusColor }]}>
-                        {backupStatusLabel}
-                      </Text>
-                    </View>
-
-                    {lastBackupAt !== null && (
-                      <>
-                        <View style={styles.rowDivider} />
-
-                        <View style={styles.storageDetailRow}>
-                          <Text style={styles.storageDetailText}>
-                            {lastBackupItemCount !== null ? `${lastBackupItemCount} items · ` : ''}{formatLastBackup(lastBackupAt)}
-                          </Text>
-                        </View>
-                      </>
-                    )}
-
-                    <View style={styles.rowDivider} />
-
-                    <View style={styles.row}>
-                      <Text style={styles.rowLabel}>Auto-backup</Text>
-                      <Switch
-                        value={autoBackupEnabled}
-                        onValueChange={handleToggleAutoBackup}
-                        trackColor={{ false: themeColors.surfaceContainerHigh, true: themeColors.accent }}
-                        thumbColor={themeColors.surface}
-                      />
-                    </View>
-
-                    <View style={styles.rowDivider} />
-
-                    <Pressable
-                      onPress={handleRestoreFromDrive}
-                      style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-                      accessibilityRole="button"
-                      accessibilityLabel="Restore from backup"
-                    >
-                      <Text style={styles.rowLabel}>
-                        {isRestoring ? 'Restoring...' : 'Restore from Backup'}
-                      </Text>
-                      <Text style={styles.rowChevron}>→</Text>
-                    </Pressable>
-
-                    <View style={styles.rowDivider} />
-
-                    <Pressable
-                      onPress={handleGoogleDriveDisconnect}
-                      style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-                      accessibilityRole="button"
-                      accessibilityLabel="Disconnect Google Drive"
-                    >
-                      <Text style={[styles.rowLabel, { color: themeColors.error }]}>Disconnect</Text>
-                    </Pressable>
-                  </>
-                ) : (
                   <Pressable
-                    onPress={handleGoogleDriveConnect}
+                    onPress={handleBackupNow}
                     style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
                     accessibilityRole="button"
-                    accessibilityLabel="Connect Google Drive"
+                    accessibilityLabel="Back up now"
                   >
                     <Text style={styles.rowLabel}>
-                      {isConnecting ? 'Connecting...' : 'Connect Google Drive'}
+                      {isBackingUp ? 'Backing Up...' : 'Back Up Now'}
                     </Text>
                     <Text style={styles.rowChevron}>→</Text>
                   </Pressable>
-                )
+
+                  <View style={styles.rowDivider} />
+
+                  <View style={styles.row}>
+                    <Text style={styles.rowLabel}>Backup status</Text>
+                    <Text style={[styles.rowValue, { color: backupStatusColor }]}>
+                      {backupStatusLabel}
+                    </Text>
+                  </View>
+
+                  {lastBackupAt !== null && (
+                    <>
+                      <View style={styles.rowDivider} />
+
+                      <View style={styles.storageDetailRow}>
+                        <Text style={styles.storageDetailText}>
+                          {lastBackupItemCount !== null ? `${lastBackupItemCount} items · ` : ''}{formatLastBackup(lastBackupAt)}
+                        </Text>
+                      </View>
+                    </>
+                  )}
+
+                  <View style={styles.rowDivider} />
+
+                  <View style={styles.row}>
+                    <Text style={styles.rowLabel}>Auto-backup</Text>
+                    <Switch
+                      value={autoBackupEnabled}
+                      onValueChange={handleToggleAutoBackup}
+                      trackColor={{ false: themeColors.surfaceContainerHigh, true: themeColors.accent }}
+                      thumbColor={themeColors.surface}
+                    />
+                  </View>
+
+                  <View style={styles.rowDivider} />
+
+                  <Pressable
+                    onPress={handleRestoreFromDrive}
+                    style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Restore from backup"
+                  >
+                    <Text style={styles.rowLabel}>
+                      {isRestoring ? 'Restoring...' : 'Restore from Backup'}
+                    </Text>
+                    <Text style={styles.rowChevron}>→</Text>
+                  </Pressable>
+
+                  <View style={styles.rowDivider} />
+
+                  <Pressable
+                    onPress={handleGoogleDriveDisconnect}
+                    style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Disconnect Google Drive"
+                  >
+                    <Text style={[styles.rowLabel, { color: themeColors.error }]}>Disconnect</Text>
+                  </Pressable>
+                </>
               ) : (
                 <Pressable
-                  onPress={handleSubscription}
+                  onPress={handleGoogleDriveConnect}
                   style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
                   accessibilityRole="button"
-                  accessibilityLabel="Upgrade to unlock Cloud Backup"
+                  accessibilityLabel="Connect Google Drive"
                 >
-                  <Text style={styles.rowLabel}>🔒  Cloud Backup</Text>
-                  <Text style={styles.rowValue}>Upgrade →</Text>
+                  <Text style={styles.rowLabel}>
+                    {isConnecting ? 'Connecting...' : 'Connect Google Drive'}
+                  </Text>
+                  <Text style={styles.rowChevron}>→</Text>
                 </Pressable>
               )}
             </View>

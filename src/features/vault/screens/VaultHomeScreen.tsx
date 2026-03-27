@@ -22,13 +22,12 @@ import { useNavigation } from '@react-navigation/native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { VaultStackParamList } from '@typedefs/navigation';
-import { VaultHeader, EmptyState, FloatingAddButton, MediaGrid, MediaList, DocumentList, SelectionBar, ImportProgressOverlay, AlbumList, AddToAlbumModal, NoteList, PremiumUpsell, SelectionOverflowMenu, RenameModal, PropertiesModal, SearchBar } from '../components';
+import { VaultHeader, EmptyState, FloatingAddButton, MediaGrid, MediaList, DocumentList, SelectionBar, ImportProgressOverlay, AlbumList, AddToAlbumModal, NoteList, SelectionOverflowMenu, RenameModal, PropertiesModal, SearchBar } from '../components';
 import { useMediaQuery, useAlbumsQuery, useNotesQuery, type TabType } from '../hooks';
 import { useActivityTracker } from '@features/auth';
 import { useVaultStore } from '@store/vaultStore';
 import { useAuthStore } from '@store/authStore';
 import { useSettingsStore } from '@store/settingsStore';
-import { useFeatureGate } from '@services/billing';
 import { useThemeColors, type ColorTokens, typography, layout } from '@shared/theme';
 import { mediaItems as mediaItemsDb, albums as albumsDb, albumMedia as albumMediaDb, notes as notesDb, type MediaItem, type MediaType, type Album, type Note } from '@services/storage/database';
 import { pickFilesForTab } from '@services/filePicker';
@@ -113,7 +112,6 @@ export function VaultHomeScreen(): React.JSX.Element {
   const isDecoyMode = useAuthStore(s => s.isDecoyMode);
   const setSuppressAutoLock = useAuthStore(s => s.setSuppressAutoLock);
   const deleteOriginalsAfterImport = useSettingsStore(s => s.deleteOriginalsAfterImport);
-  const { isPremium } = useFeatureGate('notes');
 
   // Albums state (ALBUM-001)
   const [showCreateAlbum, setShowCreateAlbum] = useState(false);
@@ -578,12 +576,8 @@ export function VaultHomeScreen(): React.JSX.Element {
       return;
     }
 
-    // Notes tab: upgrade prompt for free users, create note for premium (PREMIUM-004)
+    // Notes tab: create note directly (all features are free)
     if (activeTab === 'notes') {
-      if (!isPremium) {
-        handleSubscription();
-        return;
-      }
       handleCreateNote();
       return;
     }
@@ -655,7 +649,7 @@ export function VaultHomeScreen(): React.JSX.Element {
       setIsImporting(false);
       setImportProgress(null);
     }
-  }, [onActivity, activeTab, queryClient, deleteOriginalsAfterImport, isDecoyMode, setSuppressAutoLock, handleCreateAlbum, handleCreateNote, isPremium, handleSubscription, navigation]);
+  }, [onActivity, activeTab, queryClient, deleteOriginalsAfterImport, isDecoyMode, setSuppressAutoLock, handleCreateAlbum, handleCreateNote, handleSubscription, navigation]);
 
   /**
    * Handle tab press
@@ -677,9 +671,11 @@ export function VaultHomeScreen(): React.JSX.Element {
     if (isSelectionMode) {
       toggleSelection(item.id);
     } else {
-      navigation.navigate('MediaViewer', { mediaId: item.id });
+      // Pass sibling IDs for swipe navigation between items
+      const siblingIds = filteredItems.map(i => i.id);
+      navigation.navigate('MediaViewer', { mediaId: item.id, mediaIds: siblingIds });
     }
-  }, [isDeleting, onActivity, isSelectionMode, toggleSelection, navigation]);
+  }, [isDeleting, onActivity, isSelectionMode, toggleSelection, navigation, filteredItems]);
 
   /**
    * Handle grid item long press — enter selection mode
@@ -894,19 +890,15 @@ export function VaultHomeScreen(): React.JSX.Element {
             <EmptyState contentType="albums" onAddPress={handleCreateAlbum} />
           )
         ) : activeTab === 'notes' ? (
-          isPremium ? (
-            notesData.length > 0 ? (
-              <NoteList
-                notes={notesData}
-                isLoading={notesLoading}
-                onNotePress={handleNotePress}
-                onNoteLongPress={handleNoteLongPress}
-              />
-            ) : (
-              <EmptyState contentType="notes" onAddPress={handleCreateNote} />
-            )
+          notesData.length > 0 ? (
+            <NoteList
+              notes={notesData}
+              isLoading={notesLoading}
+              onNotePress={handleNotePress}
+              onNoteLongPress={handleNoteLongPress}
+            />
           ) : (
-            <PremiumUpsell feature="Secure Notes" onUpgrade={handleSubscription} />
+            <EmptyState contentType="notes" onAddPress={handleCreateNote} />
           )
         ) : filteredItems.length > 0 ? (
           activeTab === 'documents' ? (
@@ -980,7 +972,7 @@ export function VaultHomeScreen(): React.JSX.Element {
           )}
           <FloatingAddButton
             onPress={handleAddPress}
-            label={isImporting ? 'Importing...' : activeTab === 'albums' ? '+ New Album' : activeTab === 'notes' ? (isPremium ? '+ New Note' : '🔒 Premium') : '+ Add Files'}
+            label={isImporting ? 'Importing...' : activeTab === 'albums' ? '+ New Album' : activeTab === 'notes' ? '+ New Note' : '+ Add Files'}
             disabled={isImporting}
           />
         </>

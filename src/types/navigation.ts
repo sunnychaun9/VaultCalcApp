@@ -36,8 +36,8 @@ export type RootStackParamList = {
 export type VaultStackParamList = {
   /** Vault home with tabs (Photos/Videos/Docs) */
   VaultHome: undefined;
-  /** Full-screen media viewer */
-  MediaViewer: { mediaId: string };
+  /** Full-screen media viewer — mediaIds for swipe navigation between siblings */
+  MediaViewer: { mediaId: string; mediaIds?: string[] };
   /** Album detail view */
   AlbumView: { albumId: string };
   /** Settings screen */

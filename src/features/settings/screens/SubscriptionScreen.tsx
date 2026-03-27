@@ -27,12 +27,9 @@ import { alert } from '@store/alertStore';
 type PlanType = 'yearly' | 'monthly' | 'lifetime';
 
 const PREMIUM_FEATURES = [
-  '50 GB Storage',
-  'Video Support',
-  'Document Support',
-  'Cloud Backup',
-  'Unlimited Albums',
-  'No Ads',
+  'Remove All Ads',
+  'Ad-Free Experience Forever',
+  'Support Development',
 ] as const;
 
 /** Map plan type to product ID */
@@ -72,7 +69,7 @@ export function SubscriptionScreen(): React.JSX.Element {
   const setPremiumStatus = useSettingsStore((s) => s.setPremiumStatus);
   const setPremiumPurchase = useSettingsStore((s) => s.setPremiumPurchase);
 
-  const { isPremium } = useFeatureGate('notes');
+  const { isPremium } = useFeatureGate('removeAds');
 
   // Initialize billing and load products on mount
   useEffect(() => {

@@ -17,7 +17,7 @@ export enum SubscriptionState {
 }
 
 /** Features gated behind premium */
-export type PremiumFeature = 'notes' | 'cloudBackup';
+export type PremiumFeature = 'removeAds';
 
 /** Product information (mirrors existing ProductInfo shape) */
 export interface BillingProductInfo {

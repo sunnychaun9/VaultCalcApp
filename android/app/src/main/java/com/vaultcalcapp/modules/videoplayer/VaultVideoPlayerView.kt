@@ -151,6 +151,11 @@ class VaultVideoPlayerView @JvmOverloads constructor(
         private val accentColor: Int = 0xFF3B82F6.toInt()
     ) : View(ctx) {
 
+        init {
+            setWillNotDraw(false) // Required for custom onDraw in ViewGroup children
+            setLayerType(LAYER_TYPE_SOFTWARE, null) // clipPath needs software rendering
+        }
+
         private val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = 0xAA222222.toInt()
             style = Paint.Style.FILL
@@ -296,6 +301,8 @@ class VaultVideoPlayerView @JvmOverloads constructor(
             setBackgroundColor(Color.BLACK)
             layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
             setShowBuffering(PlayerView.SHOW_BUFFERING_NEVER)
+            // Disable touch on PlayerView — gestures handled by parent
+            setOnTouchListener { _, _ -> false }
         }
         addView(playerView)
 
@@ -323,25 +330,7 @@ class VaultVideoPlayerView @JvmOverloads constructor(
         })
         addView(bufferingOverlay)
 
-        // ── MX-style Volume slider (RIGHT side) ──
-        volumeSlider = VerticalSliderView(context, "\uD83D\uDD0A", 0xFF3B82F6.toInt()).apply {
-            visibility = GONE
-            layoutParams = LayoutParams(dp(52), dp(220)).apply {
-                gravity = Gravity.CENTER_VERTICAL or Gravity.END
-                marginEnd = dp(16)
-            }
-        }
-        addView(volumeSlider)
-
-        // ── MX-style Brightness slider (LEFT side) ──
-        brightnessSlider = VerticalSliderView(context, "\u2600", 0xFF3B82F6.toInt()).apply {
-            visibility = GONE
-            layoutParams = LayoutParams(dp(52), dp(220)).apply {
-                gravity = Gravity.CENTER_VERTICAL or Gravity.START
-                marginStart = dp(16)
-            }
-        }
-        addView(brightnessSlider)
+        // Volume/brightness sliders added later (after controls) for z-order
 
         // ── Seek overlay (center pill) ──
         seekOverlay = TextView(context).apply {
@@ -561,6 +550,26 @@ class VaultVideoPlayerView @JvmOverloads constructor(
         lockOverlay.addView(lockContent)
         lockOverlay.setOnClickListener { handleLockOverlayTap() }
         addView(lockOverlay)
+
+        // ── MX-style Volume slider (RIGHT side) — added last for top z-order ──
+        volumeSlider = VerticalSliderView(context, "\uD83D\uDD0A", 0xFF3B82F6.toInt()).apply {
+            visibility = GONE
+            layoutParams = LayoutParams(dp(52), dp(220)).apply {
+                gravity = Gravity.CENTER_VERTICAL or Gravity.END
+                marginEnd = dp(16)
+            }
+        }
+        addView(volumeSlider)
+
+        // ── MX-style Brightness slider (LEFT side) — added last for top z-order ──
+        brightnessSlider = VerticalSliderView(context, "\u2600", 0xFF3B82F6.toInt()).apply {
+            visibility = GONE
+            layoutParams = LayoutParams(dp(52), dp(220)).apply {
+                gravity = Gravity.CENTER_VERTICAL or Gravity.START
+                marginStart = dp(16)
+            }
+        }
+        addView(brightnessSlider)
 
         initializePlayer()
     }
@@ -791,6 +800,33 @@ class VaultVideoPlayerView @JvmOverloads constructor(
     // Touch / Gesture handling
     // ════════════════════════════════════════════════════════════
 
+    /**
+     * Only intercept touches that land on the video area (not on controls).
+     * This allows seekbar drags and button taps to work normally while
+     * still capturing swipe gestures on the video surface.
+     */
+    override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
+        if (isScreenLocked) return false
+        // Don't intercept if touch is on controls or active sliders
+        if (controlsVisible) {
+            if (isTouchInsideView(ev, bottomContainer)) return false
+            if (isTouchInsideView(ev, topBar)) return false
+        }
+        if (isTouchInsideView(ev, volumeSlider)) return false
+        if (isTouchInsideView(ev, brightnessSlider)) return false
+        return true // Intercept all other touches for gesture handling
+    }
+
+    private fun isTouchInsideView(ev: MotionEvent, view: View): Boolean {
+        if (view.visibility != VISIBLE) return false
+        val loc = IntArray(2)
+        view.getLocationOnScreen(loc)
+        val x = ev.rawX
+        val y = ev.rawY
+        return x >= loc[0] && x <= loc[0] + view.width &&
+               y >= loc[1] && y <= loc[1] + view.height
+    }
+
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (isScreenLocked) return false
@@ -858,22 +894,32 @@ class VaultVideoPlayerView @JvmOverloads constructor(
     }
 
     private fun handleVolumeGesture(dy: Float) {
+        // Hide controls so slider is clearly visible
+        if (controlsVisible) hideControls()
         val maxVol = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
         val newVolume = (gestureStartVolume + dy * VOLUME_SENSITIVITY).coerceIn(0f, 1f)
         audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, (newVolume * maxVol).toInt(), 0)
         volumeSlider.progress = newVolume
+        volumeSlider.alpha = 1f
         volumeSlider.visibility = VISIBLE
+        // Hide the other slider if visible
+        brightnessSlider.visibility = GONE
         sendVolumeEvent(newVolume)
     }
 
     private fun handleBrightnessGesture(dy: Float) {
+        // Hide controls so slider is clearly visible
+        if (controlsVisible) hideControls()
         val activity = getActivity() ?: return
         val newBrightness = (gestureStartBrightness + dy * BRIGHTNESS_SENSITIVITY).coerceIn(0.01f, 1f)
         val lp = activity.window.attributes
         lp.screenBrightness = newBrightness
         activity.window.attributes = lp
         brightnessSlider.progress = newBrightness
+        brightnessSlider.alpha = 1f
         brightnessSlider.visibility = VISIBLE
+        // Hide the other slider if visible
+        volumeSlider.visibility = GONE
         val event = Arguments.createMap().apply { putDouble("brightness", newBrightness.toDouble()) }
         sendEvent("onBrightnessChange", event)
     }

@@ -80,8 +80,58 @@ function getExtension(filename: string): string {
 
 // ─── Main Component ──────────────────────────────────────────────────
 
+// ─── Image Pager Item ──────────────────────────────────────────────
+// Each page in the horizontal pager decrypts and displays one image.
+
+function ImagePagerItem({ itemId, width }: { itemId: string; width: number }): React.JSX.Element {
+  const [uri, setUri] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    let tempPath: string | null = null;
+
+    async function decrypt() {
+      try {
+        const mediaItem = await mediaItems.getById(itemId);
+        if (cancelled || !mediaItem) return;
+
+        const vaultDirResult = await getVaultDirectory();
+        if (cancelled || !vaultDirResult.success || !vaultDirResult.data) return;
+
+        const ext = getExtension(mediaItem.originalName);
+        tempPath = `${vaultDirResult.data}/pager_${mediaItem.id}${ext}`;
+
+        const result = await decryptFile(mediaItem.encryptedPath, tempPath, mediaItem.keyId);
+        if (cancelled) { if (tempPath) deleteFile(tempPath); return; }
+
+        if (result.success) {
+          setUri(`file://${tempPath}`);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    decrypt();
+    return () => {
+      cancelled = true;
+      if (tempPath) deleteFile(tempPath);
+    };
+  }, [itemId]);
+
+  return (
+    <View style={{ width, flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+      {loading ? (
+        <ActivityIndicator size="large" color="#3B82F6" />
+      ) : uri ? (
+        <ZoomableImage source={{ uri }} style={{ width, flex: 1 }} />
+      ) : null}
+    </View>
+  );
+}
+
 export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Element {
-  const { mediaId } = route.params;
+  const { mediaId, mediaIds } = route.params;
   const themeColors = useThemeColors();
   const styles = useMemo(() => createStyles(themeColors), [themeColors]);
   const queryClient = useQueryClient();
@@ -94,6 +144,47 @@ export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Eleme
   const [decryptedPath, setDecryptedPath] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // ── Pager state for image swipe navigation ──
+  const pagerRef = useRef<FlatList>(null);
+  const [currentPagerIndex, setCurrentPagerIndex] = useState(0);
+  // Filter sibling IDs to only include images (not videos/documents) for the pager
+  const [imageSiblingIds, setImageSiblingIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!mediaIds || mediaIds.length === 0) return;
+    const ids = mediaIds;
+    // Filter to only photo types for horizontal swiping
+    let cancelled = false;
+    async function filterImages() {
+      const allItems = await Promise.all(ids.map(id => mediaItems.getById(id)));
+      if (cancelled) return;
+      const imageIds = allItems
+        .filter((m): m is MediaItem => m !== null && m.type === 'photo')
+        .map(m => m.id);
+      setImageSiblingIds(imageIds);
+      const idx = imageIds.indexOf(mediaId);
+      if (idx >= 0) setCurrentPagerIndex(idx);
+    }
+    filterImages();
+    return () => { cancelled = true; };
+  }, [mediaIds, mediaId]);
+
+  // Update header when pager index changes
+  useEffect(() => {
+    if (imageSiblingIds.length === 0) return;
+    const currentId = imageSiblingIds[currentPagerIndex];
+    if (!currentId || currentId === item?.id) return;
+    let cancelled = false;
+    async function loadCurrent() {
+      const mediaItem = await mediaItems.getById(currentId);
+      if (cancelled || !mediaItem) return;
+      setItem(mediaItem);
+      setIsFavorite(mediaItem.isFavorite);
+    }
+    loadCurrent();
+    return () => { cancelled = true; };
+  }, [currentPagerIndex, imageSiblingIds]);
 
   // Video player ref
   const videoPlayerRef = useRef<any>(null);
@@ -548,6 +639,29 @@ export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Eleme
             {item.mimeType} {'\u00B7'} {formatFileSize(item.sizeBytes)}
           </Text>
         </View>
+      ) : imageSiblingIds.length > 1 ? (
+        <FlatList
+          ref={pagerRef}
+          data={imageSiblingIds}
+          keyExtractor={id => id}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          initialScrollIndex={currentPagerIndex > 0 ? currentPagerIndex : undefined}
+          getItemLayout={(_, index) => ({
+            length: SCREEN_WIDTH,
+            offset: SCREEN_WIDTH * index,
+            index,
+          })}
+          onMomentumScrollEnd={e => {
+            const idx = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
+            setCurrentPagerIndex(idx);
+          }}
+          renderItem={({ item: itemId }) => (
+            <ImagePagerItem itemId={itemId} width={SCREEN_WIDTH} />
+          )}
+          style={{ flex: 1 }}
+        />
       ) : decryptedUri !== null ? (
         <ZoomableImage
           source={{ uri: decryptedUri }}
