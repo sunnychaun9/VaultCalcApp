@@ -42,6 +42,7 @@ export function AppLockScreen(): React.JSX.Element {
 
   const [apps, setApps] = useState<AppInfo[]>([]);
   const [lockedApps, setLockedApps] = useState<Set<string>>(new Set());
+  const [appMethods, setAppMethods] = useState<Record<string, string>>({});
   const [isEnabled, setIsEnabled] = useState(false);
   const [isServiceEnabled, setIsServiceEnabled] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -63,11 +64,12 @@ export function AppLockScreen(): React.JSX.Element {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const [installedApps, locked, enabled, serviceEnabled] = await Promise.all([
+      const [installedApps, locked, enabled, serviceEnabled, methods] = await Promise.all([
         AppLockModule.getInstalledApps(),
         AppLockModule.getLockedApps(),
         AppLockModule.isEnabled(),
         AppLockModule.isAccessibilityServiceEnabled(),
+        AppLockModule.getAppUnlockMethods(),
       ]);
 
       // Sort alphabetically
@@ -78,6 +80,7 @@ export function AppLockScreen(): React.JSX.Element {
       setLockedApps(new Set(locked as string[]));
       setIsEnabled(enabled as boolean);
       setIsServiceEnabled(serviceEnabled as boolean);
+      setAppMethods((methods ?? {}) as Record<string, string>);
     } catch (e) {
       alert('Error', 'Failed to load installed apps');
     } finally {
@@ -134,6 +137,32 @@ export function AppLockScreen(): React.JSX.Element {
     }
   }, [onActivity]);
 
+  const handleToggleMethod = useCallback(async (packageName: string, appName: string) => {
+    onActivity();
+    const current = appMethods[packageName] ?? 'pin';
+    alert(
+      `Unlock method for ${appName}`,
+      `Currently: ${current === 'pattern' ? 'Pattern' : 'PIN'}`,
+      [
+        {
+          text: 'PIN',
+          onPress: async () => {
+            await AppLockModule.setAppUnlockMethod(packageName, 'pin');
+            setAppMethods(prev => ({ ...prev, [packageName]: 'pin' }));
+          },
+        },
+        {
+          text: 'Pattern',
+          onPress: async () => {
+            await AppLockModule.setAppUnlockMethod(packageName, 'pattern');
+            setAppMethods(prev => ({ ...prev, [packageName]: 'pattern' }));
+          },
+        },
+        { text: 'Cancel', style: 'cancel' },
+      ],
+    );
+  }, [onActivity, appMethods]);
+
   const filteredApps = useMemo(() => {
     if (!searchQuery.trim()) return apps;
     const q = searchQuery.toLowerCase();
@@ -145,6 +174,7 @@ export function AppLockScreen(): React.JSX.Element {
 
   const renderApp = useCallback(({ item }: { item: AppInfo }) => {
     const isLocked = lockedApps.has(item.packageName);
+    const method = appMethods[item.packageName] ?? 'pin';
     return (
       <View style={styles.appRow}>
         {item.icon ? (
@@ -155,9 +185,18 @@ export function AppLockScreen(): React.JSX.Element {
         ) : (
           <View style={[styles.appIcon, styles.appIconPlaceholder]} />
         )}
-        <Text style={styles.appName} numberOfLines={1}>
-          {item.appName}
-        </Text>
+        <View style={styles.appInfo}>
+          <Text style={styles.appName} numberOfLines={1}>
+            {item.appName}
+          </Text>
+          {isLocked && (
+            <Pressable onPress={() => handleToggleMethod(item.packageName, item.appName)}>
+              <Text style={styles.methodLabel}>
+                {method === 'pattern' ? 'Pattern' : 'PIN'} {'\u25BE'}
+              </Text>
+            </Pressable>
+          )}
+        </View>
         <Switch
           value={isLocked}
           onValueChange={(value) => handleToggleLock(item.packageName, value)}
@@ -167,7 +206,7 @@ export function AppLockScreen(): React.JSX.Element {
         />
       </View>
     );
-  }, [lockedApps, isEnabled, styles, themeColors, handleToggleLock]);
+  }, [lockedApps, appMethods, isEnabled, styles, themeColors, handleToggleLock, handleToggleMethod]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -341,10 +380,18 @@ const createStyles = (c: ColorTokens) => StyleSheet.create({
   appIconPlaceholder: {
     backgroundColor: c.surfaceContainerHigh,
   },
+  appInfo: {
+    flex: 1,
+    marginRight: spacing.sm,
+  },
   appName: {
     ...typography.bodyMedium,
     color: c.textPrimary,
-    flex: 1,
+  },
+  methodLabel: {
+    ...typography.labelSmall,
+    color: c.accent,
+    marginTop: 2,
   },
   footer: {
     padding: spacing.md,

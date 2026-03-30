@@ -55,6 +55,7 @@ const TYPE_SUBDIR: Record<MediaType, string> = {
   photo: 'photos',
   video: 'videos',
   document: 'documents',
+  audio: 'audio',
 };
 
 /** Subdirectory for thumbnails */
@@ -131,8 +132,8 @@ export async function importFiles(
       const destPath = `${vaultDir}/${subdir}/${fileId}.enc`;
 
       // 3. Encrypt file (native side: read URI → encrypt → write)
-      // Use streaming AEAD for videos to handle large files (VIDEO-001)
-      const encryptFn = mediaType === 'video' ? encryptFileStreaming : encryptFile;
+      // Use streaming AEAD for videos/audio to handle large files
+      const encryptFn = (mediaType === 'video' || mediaType === 'audio') ? encryptFileStreaming : encryptFile;
       const encryptResult = await encryptFn(file.uri, destPath, fileId);
       if (!encryptResult.success) {
         result.failed.push({
@@ -190,6 +191,15 @@ export async function importFiles(
             height = thumbResult.data.height;
           }
         }
+      } else if (mediaType === 'audio') {
+        // Extract audio duration using the video thumbnail extractor (shares MediaMetadataRetriever)
+        const thumbTemp = `${vaultDir}/${THUMBNAIL_SUBDIR}/${fileId}.tmp`;
+        const thumbResult = await generateVideoThumbnail(file.uri, thumbTemp);
+        if (thumbResult.success && thumbResult.data) {
+          durationMs = thumbResult.data.durationMs || null;
+        }
+        // Clean up any generated thumb file — audio doesn't use thumbnail display
+        await deleteFile(thumbTemp).catch(() => {});
       }
 
       // 5. Insert metadata into SQLite
@@ -209,7 +219,7 @@ export async function importFiles(
         createdAt: Date.now(),
         isFavorite: false,
         isDecoy: options?.isDecoy ?? false,
-        metadata: null,
+        metadata: { originalUri: file.uri },
       });
 
       result.imported++;

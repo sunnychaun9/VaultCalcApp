@@ -14,8 +14,8 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import type { VaultStackParamList } from '@typedefs/navigation';
 import { AuthGuard, ChangePinScreen, DecoyPinSetupScreen, PatternSetupScreen, ChangePatternScreen } from '@features/auth';
 import { VaultHomeScreen } from '@features/vault';
-import { MediaViewerScreen, AlbumViewScreen, NoteEditorScreen, GalleryAlbumListScreen, GalleryMediaSelectScreen, CameraScreen, AppLockScreen } from '@features/vault/screens';
-import { SettingsScreen, AboutScreen, IntruderLogsScreen, IntruderDetailScreen, SubscriptionScreen, NotificationPrivacyScreen } from '@features/settings';
+import { MediaViewerScreen, AlbumViewScreen, NoteEditorScreen, GalleryAlbumListScreen, GalleryMediaSelectScreen, AudioPlayerScreen, AppLockScreen } from '@features/vault/screens';
+import { SettingsScreen, AboutScreen, IntruderLogsScreen, IntruderDetailScreen, SubscriptionScreen, NotificationPrivacyScreen, UninstallProtectionScreen } from '@features/settings';
 
 const Stack = createNativeStackNavigator<VaultStackParamList>();
 
@@ -76,6 +76,16 @@ export function VaultNavigator(): React.JSX.Element {
           }}
         />
 
+        {/* Audio Player */}
+        <Stack.Screen
+          name="AudioPlayer"
+          component={AudioPlayerScreen}
+          options={{
+            animation: 'slide_from_bottom',
+            presentation: 'fullScreenModal',
+          }}
+        />
+
         {/* Album View - ALBUM-001 */}
         <Stack.Screen
           name="AlbumView"
@@ -109,16 +119,6 @@ export function VaultNavigator(): React.JSX.Element {
           component={GalleryMediaSelectScreen}
           options={{
             animation: 'slide_from_right',
-          }}
-        />
-
-        {/* Private Camera */}
-        <Stack.Screen
-          name="Camera"
-          component={CameraScreen}
-          options={{
-            animation: 'slide_from_bottom',
-            presentation: 'fullScreenModal',
           }}
         />
 
@@ -198,6 +198,14 @@ export function VaultNavigator(): React.JSX.Element {
         <Stack.Screen
           name="Subscription"
           component={SubscriptionScreen}
+          options={{
+            animation: 'slide_from_right',
+          }}
+        />
+        {/* Uninstall Protection */}
+        <Stack.Screen
+          name="UninstallProtection"
+          component={UninstallProtectionScreen}
           options={{
             animation: 'slide_from_right',
           }}

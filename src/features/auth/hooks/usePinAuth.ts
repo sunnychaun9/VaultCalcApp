@@ -89,6 +89,14 @@ export function usePinAuth() {
           // Authentication successful
           authenticate(result.isDecoy);
 
+          // Initialize ad SDK lazily on first unlock + record unlock cycle
+          try {
+            const ads = require('@services/ads');
+            ads.initializeAdsLazily();
+            ads.recordVaultUnlock();
+            ads.preloadInterstitial('Calculator');
+          } catch { /* ads may not be available */ }
+
           // Navigate to vault
           // Using setTimeout to ensure state updates before navigation
           setTimeout(() => {

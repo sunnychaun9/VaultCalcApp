@@ -17,6 +17,7 @@ const PRODUCT_IDS = [
   'vaultcalc_premium_monthly',
   'vaultcalc_premium_yearly',
   'vaultcalc_premium_lifetime',
+  'vaultcalc_remove_ads',
 ];
 
 export interface PurchaseResult {

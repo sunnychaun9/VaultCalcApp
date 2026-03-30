@@ -9,7 +9,7 @@ import React, { useMemo } from 'react';
 import { View, Text, Pressable, Modal, ScrollView, StyleSheet } from 'react-native';
 import type { MediaItem } from '@services/storage/database';
 import { useThemeColors, type ColorTokens, typography, spacing } from '@shared/theme';
-import { formatFileSize, formatDate, formatDuration, formatMimeType } from '@shared/utils/formatters';
+import { formatFileSize, formatDateTime, formatDuration, formatMimeType } from '@shared/utils/formatters';
 
 interface PropertiesModalProps {
   visible: boolean;
@@ -33,7 +33,7 @@ export function PropertiesModal({
   const rows: PropertyRow[] = useMemo(() => {
     if (item === null) return [];
     const r: PropertyRow[] = [
-      { label: 'Name', value: item.name },
+      { label: 'Name', value: item.originalName },
       { label: 'Type', value: formatMimeType(item.mimeType) },
       { label: 'Size', value: formatFileSize(item.sizeBytes) },
     ];
@@ -43,9 +43,17 @@ export function PropertiesModal({
     if (item.durationMs != null && item.durationMs > 0) {
       r.push({ label: 'Duration', value: formatDuration(item.durationMs) });
     }
-    r.push({ label: 'Created', value: formatDate(item.createdAt) });
-    r.push({ label: 'Imported', value: formatDate(item.importedAt) });
-    r.push({ label: 'Favorite', value: item.isFavorite ? 'Yes' : 'No' });
+    r.push({ label: 'Last modified', value: formatDateTime(item.createdAt) });
+    // Original path from metadata (stored during import)
+    const originalUri = item.metadata?.originalUri as string | undefined;
+    if (originalUri) {
+      // Convert content:// URI to a readable path or show as-is
+      const displayPath = originalUri.startsWith('content://')
+        ? decodeURIComponent(originalUri.replace(/^content:\/\/[^/]+\//, '/'))
+        : originalUri;
+      r.push({ label: 'Original path', value: displayPath });
+    }
+    r.push({ label: 'Current path', value: item.encryptedPath });
     return r;
   }, [item]);
 
@@ -97,26 +105,25 @@ const createStyles = (c: ColorTokens) => StyleSheet.create({
     textAlign: 'center',
   },
   scroll: {
-    maxHeight: 320,
+    maxHeight: 400,
   },
   row: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'flex-start',
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: c.border,
   },
   label: {
     ...typography.bodyMedium,
     color: c.textSecondary,
-    flex: 1,
+    width: 110,
+    flexShrink: 0,
   },
   value: {
     ...typography.bodyMedium,
     color: c.textPrimary,
-    flex: 2,
-    textAlign: 'right',
+    flex: 1,
   },
   closeButton: {
     alignItems: 'center',

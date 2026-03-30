@@ -28,12 +28,13 @@ import {
 export async function createEncryptedBackup(): Promise<BackupResult> {
   try {
     // 1. Query all non-decoy media items (all types in parallel)
-    const [photos, videos, documents] = await Promise.all([
+    const [photos, videos, documents, audio] = await Promise.all([
       mediaItems.getByType('photo', false),
       mediaItems.getByType('video', false),
       mediaItems.getByType('document', false),
+      mediaItems.getByType('audio', false),
     ]);
-    const allMedia = [...photos, ...videos, ...documents];
+    const allMedia = [...photos, ...videos, ...documents, ...audio];
 
     // 2. Query all non-decoy albums and their associations
     const allAlbums = await albums.getAll(false);

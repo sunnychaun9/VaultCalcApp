@@ -1,9 +1,8 @@
 /**
- * VaultCalc - Production Billing Service (Stub)
+ * VaultCalc - Production Billing Service
  *
- * Placeholder implementation that returns not-configured errors.
- * When Play Console is ready, this will delegate to the existing
- * billingService.ts functions.
+ * Delegates to billingService.ts which wraps the native BillingModule
+ * (Google Play Billing v7.1.1).
  *
  * @see FEATURE_INDEX.md PREMIUM-002
  */
@@ -16,34 +15,109 @@ import {
   type BillingPurchaseInfo,
   type BillingPurchaseResult,
 } from './types';
-
-const NOT_CONFIGURED: BillingResult<never> = {
-  success: false,
-  error: 'Production billing not yet configured',
-};
+import {
+  initializeBilling,
+  loadProducts as loadBillingProducts,
+  purchaseProduct as purchaseBillingProduct,
+  restorePurchases as restoreBillingPurchases,
+} from './billingService';
+import { useSettingsStore } from '@store/settingsStore';
 
 export class ProductionBillingService implements BillingService {
+  private initialized = false;
+
   async initialize(): Promise<BillingResult<boolean>> {
-    return NOT_CONFIGURED;
+    const result = await initializeBilling();
+    this.initialized = result.success;
+    return { success: result.success, data: result.success };
   }
 
   async loadProducts(): Promise<BillingResult<BillingProductInfo[]>> {
-    return NOT_CONFIGURED;
+    if (!this.initialized) {
+      const init = await this.initialize();
+      if (!init.success) return { success: false, error: 'Billing not available' };
+    }
+
+    const result = await loadBillingProducts();
+    if (!result.success || !result.products) {
+      return { success: false, error: 'Failed to load products' };
+    }
+
+    const mapped: BillingProductInfo[] = result.products.map(p => ({
+      productId: p.productId,
+      title: p.title,
+      description: p.description,
+      price: p.price,
+      priceMicros: p.priceMicros,
+      currencyCode: p.currencyCode,
+      productType: p.productType as 'subs' | 'inapp',
+      offerToken: p.offerToken ?? null,
+    }));
+
+    return { success: true, data: mapped };
   }
 
-  async purchaseProduct(): Promise<BillingPurchaseResult> {
-    return NOT_CONFIGURED;
+  async purchaseProduct(
+    productId: string,
+    offerToken?: string | null,
+  ): Promise<BillingPurchaseResult> {
+    if (!this.initialized) {
+      const init = await this.initialize();
+      if (!init.success) return { success: false, error: 'Billing not available' };
+    }
+
+    const result = await purchaseBillingProduct(productId, offerToken);
+
+    if (result.cancelled) {
+      return { success: false, cancelled: true };
+    }
+
+    if (result.success && result.purchase) {
+      return {
+        success: true,
+        purchase: {
+          purchaseToken: result.purchase.purchaseToken,
+          productId: result.purchase.productId,
+          purchaseState: result.purchase.purchaseState,
+          isAcknowledged: result.purchase.isAcknowledged,
+        },
+      };
+    }
+
+    return { success: false, error: result.error };
   }
 
   async restorePurchases(): Promise<BillingResult<BillingPurchaseInfo[]>> {
-    return NOT_CONFIGURED;
+    if (!this.initialized) {
+      const init = await this.initialize();
+      if (!init.success) return { success: false, error: 'Billing not available' };
+    }
+
+    const result = await restoreBillingPurchases();
+    if (!result.success || !result.purchases) {
+      return { success: false, error: 'Failed to restore purchases' };
+    }
+
+    const mapped: BillingPurchaseInfo[] = result.purchases.map(p => ({
+      purchaseToken: p.purchaseToken,
+      productId: p.productId,
+      purchaseState: p.purchaseState,
+      isAcknowledged: p.isAcknowledged,
+    }));
+
+    return { success: true, data: mapped };
   }
 
-  getActivePremiumPurchase(): BillingPurchaseInfo | null {
-    return null;
+  getActivePremiumPurchase(purchases: BillingPurchaseInfo[]): BillingPurchaseInfo | null {
+    return purchases.find(p => p.purchaseState === 1) ?? null;
   }
 
   getSubscriptionState(): SubscriptionState {
-    return SubscriptionState.FREE;
+    const { premiumStatus } = useSettingsStore.getState();
+    switch (premiumStatus) {
+      case 'premium': return SubscriptionState.ACTIVE;
+      case 'trial': return SubscriptionState.TRIAL;
+      default: return SubscriptionState.FREE;
+    }
   }
 }

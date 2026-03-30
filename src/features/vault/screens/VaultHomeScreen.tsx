@@ -13,6 +13,8 @@ import {
   View,
   Text,
   Pressable,
+  ScrollView as RNScrollView,
+  PanResponder,
   Modal,
   TextInput,
   StyleSheet,
@@ -22,13 +24,14 @@ import { useNavigation } from '@react-navigation/native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { VaultStackParamList } from '@typedefs/navigation';
-import { VaultHeader, EmptyState, FloatingAddButton, MediaGrid, MediaList, DocumentList, SelectionBar, ImportProgressOverlay, AlbumList, AddToAlbumModal, NoteList, SelectionOverflowMenu, RenameModal, PropertiesModal, SearchBar } from '../components';
+import { VaultHeader, EmptyState, FloatingAddButton, MediaGrid, MediaList, DocumentList, AudioList, SelectionBar, ImportProgressOverlay, AlbumList, AddToAlbumModal, NoteList, SelectionOverflowMenu, RenameModal, PropertiesModal, SearchBar } from '../components';
 import { useMediaQuery, useAlbumsQuery, useNotesQuery, type TabType } from '../hooks';
 import { useActivityTracker } from '@features/auth';
 import { useVaultStore } from '@store/vaultStore';
 import { useAuthStore } from '@store/authStore';
 import { useSettingsStore } from '@store/settingsStore';
-import { useThemeColors, type ColorTokens, typography, layout } from '@shared/theme';
+import { useThemeColors, type ColorTokens, typography, spacing, layout } from '@shared/theme';
+import { useOrientation } from '@shared/hooks';
 import { mediaItems as mediaItemsDb, albums as albumsDb, albumMedia as albumMediaDb, notes as notesDb, type MediaItem, type MediaType, type Album, type Note } from '@services/storage/database';
 import { pickFilesForTab } from '@services/filePicker';
 import { importFiles, type ImportProgress } from '@services/import';
@@ -37,7 +40,6 @@ import { deleteMediaItems } from '@services/deletion';
 import { shareMediaItems, shareNoteAsText } from '@services/share';
 import { unhideMediaItems } from '@services/unhide';
 import { requestGalleryPermissions, hasGalleryPermissions, type GalleryMediaType } from '@services/gallery';
-import { hasCameraPermissions, requestCameraPermissions } from '@services/camera';
 import { alert } from '@store/alertStore';
 import { sanitizeUserInput } from '@shared/utils/formatters';
 
@@ -45,6 +47,7 @@ import { sanitizeUserInput } from '@shared/utils/formatters';
 const TABS: { key: TabType; label: string }[] = [
   { key: 'images', label: 'Images' },
   { key: 'videos', label: 'Videos' },
+  { key: 'audio', label: 'Audio' },
   { key: 'documents', label: 'Docs' },
   { key: 'albums', label: 'Albums' },
   { key: 'notes', label: 'Notes' },
@@ -54,6 +57,7 @@ const TABS: { key: TabType; label: string }[] = [
 const TAB_TO_MEDIA_TYPE: Record<TabType, MediaType | null> = {
   images: 'photo',
   videos: 'video',
+  audio: 'audio',
   documents: 'document',
   albums: null,
   notes: null,
@@ -72,7 +76,10 @@ export function VaultHomeScreen(): React.JSX.Element {
   const themeColors = useThemeColors();
   const styles = useMemo(() => createStyles(themeColors), [themeColors]);
   const navigation = useNavigation<NativeStackNavigationProp<VaultStackParamList>>();
+  const { isLandscape } = useOrientation();
+  const gridColumns = isLandscape ? 5 : layout.vaultGridColumns;
   const queryClient = useQueryClient();
+  const tabScrollRef = useRef<RNScrollView>(null);
   const [activeTab, setActiveTab] = useState<TabType>('images');
   const [isImporting, setIsImporting] = useState(false);
   const [importProgress, setImportProgress] = useState<ImportProgress | null>(null);
@@ -170,19 +177,6 @@ export function VaultHomeScreen(): React.JSX.Element {
       setTimeout(() => noteNameInputRef.current?.focus(), 100);
     }
   }, [showCreateNote]);
-
-  /**
-   * Handle camera button press — opens private vault camera
-   */
-  const handleCameraPress = useCallback(async () => {
-    onActivity();
-    const hasPerms = await hasCameraPermissions();
-    if (!hasPerms) {
-      const granted = await requestCameraPermissions();
-      if (!granted) return;
-    }
-    navigation.navigate('Camera');
-  }, [onActivity, navigation]);
 
   /**
    * Handle settings button press
@@ -621,6 +615,14 @@ export function VaultHomeScreen(): React.JSX.Element {
       });
       await queryClient.invalidateQueries({ queryKey: ['media', mediaType, isDecoyMode] });
 
+      // Try to show ad after import (non-blocking)
+      if (result.imported > 0) {
+        try {
+          const { tryShowInterstitial } = require('@services/ads');
+          tryShowInterstitial('VaultHome', 'post_import').catch(() => {});
+        } catch { /* ad service may not be ready */ }
+      }
+
       if (result.failed.length === 0) {
         let originalsMsg = '';
         if (result.originalsDeleted > 0) {
@@ -662,6 +664,40 @@ export function VaultHomeScreen(): React.JSX.Element {
     setShowSearch(false);
   }, [onActivity]);
 
+  // Auto-scroll tab bar to keep active tab visible
+  useEffect(() => {
+    const idx = TABS.findIndex(t => t.key === activeTab);
+    // Approximate: each tab ~70px wide, scroll to center it
+    const scrollX = Math.max(0, idx * 70 - 100);
+    tabScrollRef.current?.scrollTo({ x: scrollX, animated: true });
+  }, [activeTab]);
+
+  // Swipe between tabs
+  const swipeTab = useCallback((direction: 'left' | 'right') => {
+    setActiveTab(prev => {
+      const tabKeys = TABS.map(t => t.key);
+      const idx = tabKeys.indexOf(prev);
+      const nextIdx = direction === 'left' ? idx + 1 : idx - 1;
+      if (nextIdx < 0 || nextIdx >= tabKeys.length) return prev;
+      setShowFavoritesOnly(false);
+      setSearchQuery('');
+      setShowSearch(false);
+      return tabKeys[nextIdx];
+    });
+  }, []);
+
+  const panResponder = useMemo(() => PanResponder.create({
+    onMoveShouldSetPanResponder: (_evt, gs) => {
+      // Only claim horizontal swipes (dx > 30px and mostly horizontal)
+      return Math.abs(gs.dx) > 30 && Math.abs(gs.dx) > Math.abs(gs.dy) * 1.8;
+    },
+    onPanResponderRelease: (_evt, gs) => {
+      if (Math.abs(gs.dx) > 50 && Math.abs(gs.dx) > Math.abs(gs.dy) * 1.5) {
+        swipeTab(gs.dx < 0 ? 'left' : 'right');
+      }
+    },
+  }), [swipeTab]);
+
   /**
    * Handle grid item press
    */
@@ -670,6 +706,10 @@ export function VaultHomeScreen(): React.JSX.Element {
     onActivity();
     if (isSelectionMode) {
       toggleSelection(item.id);
+    } else if (activeTab === 'audio') {
+      // Open audio player for audio items
+      const siblingIds = filteredItems.map(i => i.id);
+      navigation.navigate('AudioPlayer', { mediaId: item.id, mediaIds: siblingIds });
     } else {
       // Pass sibling IDs for swipe navigation between items
       const siblingIds = filteredItems.map(i => i.id);
@@ -787,83 +827,91 @@ export function VaultHomeScreen(): React.JSX.Element {
         onSelectAll={handleSelectAll}
       />
 
-      {/* Tab Bar */}
+      {/* Tab Bar — horizontally scrollable so tabs never wrap */}
       <View style={styles.tabBar}>
-        {TABS.map((tab) => (
-          <Pressable
-            key={tab.key}
-            onPress={() => handleTabPress(tab.key)}
-            style={[
-              styles.tab,
-              activeTab === tab.key && styles.tabActive,
-            ]}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: activeTab === tab.key }}
-          >
-            <Text
+        <RNScrollView
+          ref={tabScrollRef}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.tabScrollContent}
+          bounces={false}
+        >
+          {TABS.map((tab) => (
+            <Pressable
+              key={tab.key}
+              onPress={() => handleTabPress(tab.key)}
               style={[
-                styles.tabText,
-                activeTab === tab.key && styles.tabTextActive,
+                styles.tab,
+                activeTab === tab.key && styles.tabActive,
               ]}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: activeTab === tab.key }}
             >
-              {tab.label}
-            </Text>
-            {activeTab === tab.key && <View style={styles.tabIndicator} />}
-          </Pressable>
-        ))}
-        {/* Sort + Favorites + View toggle + Search — media tabs only */}
-        {(activeTab === 'images' || activeTab === 'videos' || activeTab === 'documents') && (
-          <>
-            {/* Search toggle */}
-            <Pressable
-              onPress={() => { setShowSearch(s => !s); if (showSearch) setSearchQuery(''); }}
-              style={styles.sortFilterButton}
-              accessibilityRole="button"
-              accessibilityLabel="Search"
-            >
-              <Text style={[styles.sortFilterIcon, showSearch && styles.sortFilterIconActive]}>
-                {'\u{1F50D}'}
-              </Text>
-            </Pressable>
-            {/* View mode toggle (grid/list) */}
-            {(activeTab === 'images' || activeTab === 'videos') && (
-              <Pressable
-                onPress={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
-                style={styles.sortFilterButton}
-                accessibilityRole="button"
-                accessibilityLabel={viewMode === 'grid' ? 'Switch to list view' : 'Switch to grid view'}
+              <Text
+                style={[
+                  styles.tabText,
+                  activeTab === tab.key && styles.tabTextActive,
+                ]}
+                numberOfLines={1}
               >
-                <Text style={styles.sortFilterIcon}>
-                  {viewMode === 'grid' ? '\u2630' : '\u2637'}
-                </Text>
-              </Pressable>
-            )}
-            <Pressable
-              onPress={() => setShowSortModal(true)}
-              style={styles.sortFilterButton}
-              accessibilityRole="button"
-              accessibilityLabel="Sort options"
-            >
-              <Text style={[
-                styles.sortFilterIcon,
-                (sortBy !== 'date' || sortOrder !== 'desc') && styles.sortFilterIconActive,
-              ]}>
-                {'\u2195'}
+                {tab.label}
               </Text>
+              {activeTab === tab.key && <View style={styles.tabIndicator} />}
             </Pressable>
-            <Pressable
-              onPress={() => setShowFavoritesOnly(prev => !prev)}
-              style={styles.favFilterButton}
-              accessibilityRole="button"
-              accessibilityLabel={showFavoritesOnly ? 'Show all items' : 'Show favorites only'}
-            >
-              <Text style={[styles.favFilterIcon, showFavoritesOnly && styles.favFilterIconActive]}>
-                {showFavoritesOnly ? '\u2605' : '\u2606'}
-              </Text>
-            </Pressable>
-          </>
-        )}
+          ))}
+        </RNScrollView>
       </View>
+
+      {/* Action bar — search, view toggle, sort, favorites (media tabs only) */}
+      {(activeTab === 'images' || activeTab === 'videos' || activeTab === 'documents' || activeTab === 'audio') && (
+        <View style={styles.actionBar}>
+          <Pressable
+            onPress={() => { setShowSearch(s => !s); if (showSearch) setSearchQuery(''); }}
+            style={styles.actionButton}
+            accessibilityRole="button"
+            accessibilityLabel="Search"
+          >
+            <Text style={[styles.actionIcon, showSearch && styles.actionIconActive]}>
+              {'\u{1F50D}'}
+            </Text>
+          </Pressable>
+          {(activeTab === 'images' || activeTab === 'videos') && (
+            <Pressable
+              onPress={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
+              style={styles.actionButton}
+              accessibilityRole="button"
+              accessibilityLabel={viewMode === 'grid' ? 'Switch to list view' : 'Switch to grid view'}
+            >
+              <Text style={styles.actionIcon}>
+                {viewMode === 'grid' ? '\u2630' : '\u2637'}
+              </Text>
+            </Pressable>
+          )}
+          <Pressable
+            onPress={() => setShowSortModal(true)}
+            style={styles.actionButton}
+            accessibilityRole="button"
+            accessibilityLabel="Sort options"
+          >
+            <Text style={[
+              styles.actionIcon,
+              (sortBy !== 'date' || sortOrder !== 'desc') && styles.actionIconActive,
+            ]}>
+              {'\u2195'}
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => setShowFavoritesOnly(prev => !prev)}
+            style={styles.actionButton}
+            accessibilityRole="button"
+            accessibilityLabel={showFavoritesOnly ? 'Show all items' : 'Show favorites only'}
+          >
+            <Text style={[styles.actionIcon, showFavoritesOnly && styles.actionIconFav]}>
+              {showFavoritesOnly ? '\u2605' : '\u2606'}
+            </Text>
+          </Pressable>
+        </View>
+      )}
 
       {/* Search bar — shown for media tabs when search is active */}
       {showSearch && (activeTab === 'images' || activeTab === 'videos' || activeTab === 'documents') && (
@@ -874,8 +922,8 @@ export function VaultHomeScreen(): React.JSX.Element {
         />
       )}
 
-      {/* Content Area */}
-      <View style={styles.content}>
+      {/* Content Area — swipeable between tabs */}
+      <View style={styles.content} {...panResponder.panHandlers}>
         {activeTab === 'albums' ? (
           albumsData.length > 0 ? (
             <AlbumList
@@ -908,6 +956,13 @@ export function VaultHomeScreen(): React.JSX.Element {
               onItemPress={handleItemPress}
               onItemLongPress={handleItemLongPress}
             />
+          ) : activeTab === 'audio' ? (
+            <AudioList
+              items={filteredItems}
+              isLoading={isLoading}
+              onItemPress={handleItemPress}
+              onItemLongPress={handleItemLongPress}
+            />
           ) : viewMode === 'list' ? (
             <MediaList
               items={filteredItems}
@@ -921,6 +976,7 @@ export function VaultHomeScreen(): React.JSX.Element {
               isLoading={isLoading}
               onItemPress={handleItemPress}
               onItemLongPress={handleItemLongPress}
+              numColumns={gridColumns}
             />
           )
         ) : searchQuery.trim() ? (
@@ -943,33 +999,12 @@ export function VaultHomeScreen(): React.JSX.Element {
           onClearSelection={clearSelection}
           onMore={activeTab !== 'albums' && activeTab !== 'notes' ? handleOverflowMore : undefined}
           onShare={activeTab !== 'albums' ? handleShare : undefined}
-          onFavorite={activeTab === 'images' || activeTab === 'videos' || activeTab === 'documents' ? handleFavorite : undefined}
+          onFavorite={activeTab === 'images' || activeTab === 'videos' || activeTab === 'documents' || activeTab === 'audio' ? handleFavorite : undefined}
           isDeleting={isDeleting}
           isSharing={isSharing}
         />
       ) : (
         <>
-          {(activeTab === 'images' || activeTab === 'videos') && (
-            <Pressable
-              onPress={handleCameraPress}
-              style={{
-                position: 'absolute',
-                bottom: 88,
-                alignSelf: 'center',
-                backgroundColor: themeColors.surfaceContainerHigh,
-                width: 48,
-                height: 48,
-                borderRadius: 24,
-                alignItems: 'center',
-                justifyContent: 'center',
-                elevation: 4,
-              }}
-              accessibilityRole="button"
-              accessibilityLabel="Open camera"
-            >
-              <Text style={{ fontSize: 20 }}>C</Text>
-            </Pressable>
-          )}
           <FloatingAddButton
             onPress={handleAddPress}
             label={isImporting ? 'Importing...' : activeTab === 'albums' ? '+ New Album' : activeTab === 'notes' ? '+ New Note' : '+ Add Files'}
@@ -1227,63 +1262,61 @@ const createStyles = (c: ColorTokens) => StyleSheet.create({
     backgroundColor: c.vaultBackground,
   },
   tabBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
     backgroundColor: c.surface,
-    borderBottomWidth: 1,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: c.border,
   },
-  sortFilterButton: {
-    width: 36,
-    height: layout.tabBarHeight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sortFilterIcon: {
-    fontSize: 16,
-    color: c.textSecondary,
-  },
-  sortFilterIconActive: {
-    color: c.accent,
-  },
-  favFilterButton: {
-    width: 36,
-    height: layout.tabBarHeight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  favFilterIcon: {
-    fontSize: 18,
-    color: c.textSecondary,
-  },
-  favFilterIconActive: {
-    color: '#FFD700',
+  tabScrollContent: {
+    paddingHorizontal: spacing.sm,
   },
   tab: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     height: layout.tabBarHeight,
+    paddingHorizontal: spacing.md,
     position: 'relative',
   },
-  tabActive: {
-    // Active state handled by text and indicator
-  },
+  tabActive: {},
   tabText: {
     ...typography.labelLarge,
     color: c.textSecondary,
   },
   tabTextActive: {
-    color: c.textPrimary,
+    color: c.accent,
+    fontWeight: '700',
   },
   tabIndicator: {
     position: 'absolute',
     bottom: 0,
-    left: '25%',
-    right: '25%',
+    left: spacing.md,
+    right: spacing.md,
     height: 3,
     backgroundColor: c.accent,
     borderRadius: 1.5,
+  },
+  actionBar: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    paddingHorizontal: spacing.sm,
+    height: 36,
+    backgroundColor: c.surface,
+  },
+  actionButton: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionIcon: {
+    fontSize: 16,
+    color: c.textTertiary,
+  },
+  actionIconActive: {
+    color: c.accent,
+  },
+  actionIconFav: {
+    color: '#FFD700',
   },
   content: {
     flex: 1,

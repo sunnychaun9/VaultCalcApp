@@ -28,6 +28,7 @@ interface CalcButtonProps {
   span?: number;
   disabled?: boolean;
   accessibilityLabel?: string;
+  compact?: boolean;
 }
 
 /**
@@ -41,6 +42,7 @@ export function CalcButton({
   span = 1,
   disabled = false,
   accessibilityLabel,
+  compact = false,
 }: CalcButtonProps): React.JSX.Element {
   const themeColors = useThemeColors();
 
@@ -63,6 +65,7 @@ export function CalcButton({
       disabled={disabled}
       style={({ pressed }) => [
         styles.button,
+        compact && styles.buttonCompact,
         buttonStyle,
         pressed && styles.pressed,
         pressed && type === 'equals' && { backgroundColor: themeColors.calcButtonEqualsPressed },
@@ -72,7 +75,7 @@ export function CalcButton({
       accessibilityLabel={accessibilityLabel ?? `${label} button`}
       accessibilityState={{ disabled }}
     >
-      <Text style={[styles.text, textStyle, disabled && styles.textDisabled]}>
+      <Text style={[styles.text, compact && styles.textCompact, textStyle, disabled && styles.textDisabled]}>
         {label}
       </Text>
     </Pressable>
@@ -92,11 +95,11 @@ function getButtonStyle(type: ButtonType, span: number, c: ColorTokens): ViewSty
     case 'operator':
       return { ...baseStyle, backgroundColor: c.calcButtonOperator };
     case 'function':
-      return { ...baseStyle, backgroundColor: c.calcButtonPrimary };
+      return { ...baseStyle, backgroundColor: 'transparent' };
     case 'clear':
-      return { ...baseStyle, backgroundColor: c.calcButtonPrimary };
+      return { ...baseStyle, backgroundColor: 'transparent' };
     case 'equals':
-      return { ...baseStyle, backgroundColor: c.calcButtonEquals };
+      return { ...baseStyle, backgroundColor: c.calcButtonEquals, borderRadius: 24 };
     default:
       return baseStyle;
   }
@@ -105,9 +108,13 @@ function getButtonStyle(type: ButtonType, span: number, c: ColorTokens): ViewSty
 function getTextStyle(type: ButtonType, c: ColorTokens): TextStyle {
   switch (type) {
     case 'equals':
-      return { color: c.calcButtonEqualsText };
+      return { color: c.calcButtonEqualsText, fontSize: 28 };
     case 'function':
-      return { ...typography.calcButtonSmall, color: c.textPrimary };
+      return { ...typography.calcButtonSmall, color: c.accent };
+    case 'operator':
+      return { color: c.accent };
+    case 'clear':
+      return { color: c.accent };
     default:
       return { color: c.textPrimary };
   }
@@ -122,8 +129,15 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     minWidth: layout.minTouchTarget,
   },
+  buttonCompact: {
+    height: layout.calcButtonHeightCompact,
+    borderRadius: 12,
+  },
   text: {
     ...typography.calcButton,
+  },
+  textCompact: {
+    fontSize: 20,
   },
   pressed: {
     opacity: 0.8,

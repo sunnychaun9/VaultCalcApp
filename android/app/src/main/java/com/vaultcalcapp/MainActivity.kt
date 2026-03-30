@@ -32,18 +32,15 @@ class MainActivity : ReactActivity() {
 
     super.onCreate(savedInstanceState)
 
-    // FLAG_SECURE prevents:
-    // 1. Recents/task-switcher thumbnail — shows blank instead of vault contents
-    // 2. Screenshots — blocked system-wide while this Activity is visible
-    // 3. Screen recording — frames from this Activity appear black
-    // 4. Smart Select / assistant overlays — cannot read window content
-    //
-    // This is set unconditionally because even the calculator screen benefits
-    // from appearing blank in recents (avoids drawing attention to the app).
-    window.setFlags(
-      WindowManager.LayoutParams.FLAG_SECURE,
-      WindowManager.LayoutParams.FLAG_SECURE
-    )
+    // FLAG_SECURE prevents screenshots, recents thumbnails, screen recording.
+    // Controlled via BuildConfig.ENABLE_FLAG_SECURE so test builds allow screenshots.
+    // Production Play Store builds should set this to true.
+    if (BuildConfig.ENABLE_FLAG_SECURE) {
+      window.setFlags(
+        WindowManager.LayoutParams.FLAG_SECURE,
+        WindowManager.LayoutParams.FLAG_SECURE
+      )
+    }
   }
 
   /**

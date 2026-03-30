@@ -9,7 +9,7 @@
  */
 
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, StatusBar } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, StatusBar } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { typography, spacing } from '@shared/theme';
 
@@ -63,6 +63,7 @@ export function LockScreenContainer({
       <View style={styles.bgBottom} />
 
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+        <ScrollView contentContainerStyle={styles.scrollContent} bounces={false} showsVerticalScrollIndicator={false}>
         {/* Top section: brand + status */}
         <View style={styles.topSection}>
           {/* Lock icon */}
@@ -100,6 +101,7 @@ export function LockScreenContainer({
             <Text style={styles.trustText}>Protected with encryption</Text>
           </View>
         </View>
+        </ScrollView>
       </SafeAreaView>
     </View>
   );
@@ -127,6 +129,9 @@ const createStyles = () =>
     },
     safeArea: {
       flex: 1,
+    },
+    scrollContent: {
+      flexGrow: 1,
     },
     topSection: {
       alignItems: 'center',
@@ -158,7 +163,8 @@ const createStyles = () =>
       paddingHorizontal: spacing['2xl'],
     },
     cardWrapper: {
-      flex: 1,
+      flexGrow: 1,
+      flexShrink: 0,
       paddingHorizontal: spacing.lg,
       justifyContent: 'center',
     },

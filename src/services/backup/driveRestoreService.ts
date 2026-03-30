@@ -34,6 +34,7 @@ const TYPE_SUBDIR: Record<MediaType, string> = {
   photo: 'photos',
   video: 'videos',
   document: 'documents',
+  audio: 'audio',
 };
 
 /**

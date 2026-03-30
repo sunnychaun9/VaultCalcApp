@@ -24,7 +24,7 @@ import {
 } from '@services/billing';
 import { alert } from '@store/alertStore';
 
-type PlanType = 'yearly' | 'monthly' | 'lifetime';
+type PlanType = 'yearly' | 'monthly' | 'lifetime' | 'remove_ads';
 
 const PREMIUM_FEATURES = [
   'Remove All Ads',
@@ -37,6 +37,7 @@ const PLAN_PRODUCT_MAP: Record<PlanType, string> = {
   monthly: 'vaultcalc_premium_monthly',
   yearly: 'vaultcalc_premium_yearly',
   lifetime: 'vaultcalc_premium_lifetime',
+  remove_ads: 'vaultcalc_remove_ads',
 };
 
 /** Fallback prices when Play Store query fails */
@@ -44,6 +45,7 @@ const FALLBACK_PRICES: Record<string, string> = {
   vaultcalc_premium_monthly: '$4.99',
   vaultcalc_premium_yearly: '$29.99',
   vaultcalc_premium_lifetime: '$79.99',
+  vaultcalc_remove_ads: '$2.99',
 };
 
 function getProductPrice(products: BillingProductInfo[], productId: string): string {
@@ -96,6 +98,7 @@ export function SubscriptionScreen(): React.JSX.Element {
   const yearlyPrice = getProductPrice(products, PLAN_PRODUCT_MAP.yearly);
   const monthlyPrice = getProductPrice(products, PLAN_PRODUCT_MAP.monthly);
   const lifetimePrice = getProductPrice(products, PLAN_PRODUCT_MAP.lifetime);
+  const removeAdsPrice = getProductPrice(products, PLAN_PRODUCT_MAP.remove_ads);
 
   // Calculate monthly equivalent for yearly plan
   const yearlyProduct = products.find((p) => p.productId === PLAN_PRODUCT_MAP.yearly);
@@ -271,6 +274,31 @@ export function SubscriptionScreen(): React.JSX.Element {
               </View>
             </Pressable>
 
+            {/* Remove Ads — just want ad-free? One-time purchase */}
+            <View style={styles.removeAdsDivider}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>or just remove ads</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            <Pressable
+              onPress={() => handleSelectPlan('remove_ads')}
+              style={[
+                styles.lifetimeCard,
+                selectedPlan === 'remove_ads' && styles.planCardSelected,
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel={`Remove ads for ${removeAdsPrice}`}
+            >
+              <View style={styles.lifetimeContent}>
+                <View>
+                  <Text style={styles.planTitle}>Remove Ads</Text>
+                  <Text style={styles.lifetimeSubtitle}>One-time purchase</Text>
+                </View>
+                <Text style={styles.lifetimePrice}>{removeAdsPrice}</Text>
+              </View>
+            </Pressable>
+
             {/* CTA button */}
             <Pressable
               onPress={handleStartTrial}
@@ -281,12 +309,14 @@ export function SubscriptionScreen(): React.JSX.Element {
                 isPurchasing && styles.ctaButtonDisabled,
               ]}
               accessibilityRole="button"
-              accessibilityLabel="Start 7-day free trial"
+              accessibilityLabel={selectedPlan === 'remove_ads' ? 'Remove Ads' : 'Start 7-day free trial'}
             >
               {isPurchasing ? (
                 <ActivityIndicator color={themeColors.textOnAccent} />
               ) : (
-                <Text style={styles.ctaButtonText}>Start 7-Day Free Trial</Text>
+                <Text style={styles.ctaButtonText}>
+                  {selectedPlan === 'remove_ads' ? `Remove Ads — ${removeAdsPrice}` : 'Start 7-Day Free Trial'}
+                </Text>
               )}
             </Pressable>
 
@@ -480,6 +510,23 @@ const createStyles = (c: ColorTokens) => StyleSheet.create({
     ...typography.titleMedium,
     color: c.textPrimary,
     fontWeight: '600',
+  },
+
+  // Remove Ads divider
+  removeAdsDivider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: spacing.md,
+    gap: spacing.sm,
+  },
+  dividerLine: {
+    flex: 1,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: c.border,
+  },
+  dividerText: {
+    ...typography.bodySmall,
+    color: c.textTertiary,
   },
 
   // CTA

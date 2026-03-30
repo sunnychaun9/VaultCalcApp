@@ -21,6 +21,17 @@ export function formatDate(timestamp: number): string {
   return `${month}/${day}/${year}`;
 }
 
+/** Format timestamp to date+time string (MM.DD.YYYY HH:MM) */
+export function formatDateTime(timestamp: number): string {
+  const d = new Date(timestamp);
+  const month = (d.getMonth() + 1).toString().padStart(2, '0');
+  const day = d.getDate().toString().padStart(2, '0');
+  const year = d.getFullYear();
+  const hours = d.getHours().toString().padStart(2, '0');
+  const minutes = d.getMinutes().toString().padStart(2, '0');
+  return `${month}.${day}.${year} ${hours}:${minutes}`;
+}
+
 /** Format milliseconds to duration string (e.g. "1:23" or "1:02:30") */
 export function formatDuration(ms: number): string {
   const totalSeconds = Math.floor(ms / 1000);

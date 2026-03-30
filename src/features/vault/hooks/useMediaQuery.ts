@@ -15,13 +15,14 @@ import { useVaultStore } from '@store/vaultStore';
 import { useAuthStore } from '@store/authStore';
 
 /** UI tab types */
-export type TabType = 'images' | 'videos' | 'documents' | 'albums' | 'notes';
+export type TabType = 'images' | 'videos' | 'documents' | 'audio' | 'albums' | 'notes';
 
 /** Map UI tab type → database MediaType (null = unsupported) */
 const TAB_TO_MEDIA_TYPE: Record<TabType, MediaType | null> = {
   images: 'photo',
   videos: 'video',
   documents: 'document',
+  audio: 'audio',
   albums: null,
   notes: null,
 };

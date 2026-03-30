@@ -27,6 +27,8 @@ export type RootStackParamList = {
   FirstImport: undefined;
   /** Pattern unlock screen (AUTH-009) */
   PatternUnlock: undefined;
+  /** Forgot PIN recovery screen */
+  ForgotPin: undefined;
 };
 
 /**
@@ -38,6 +40,8 @@ export type VaultStackParamList = {
   VaultHome: undefined;
   /** Full-screen media viewer — mediaIds for swipe navigation between siblings */
   MediaViewer: { mediaId: string; mediaIds?: string[] };
+  /** Audio player screen */
+  AudioPlayer: { mediaId: string; mediaIds?: string[] };
   /** Album detail view */
   AlbumView: { albumId: string };
   /** Settings screen */
@@ -64,8 +68,6 @@ export type VaultStackParamList = {
   GalleryAlbumList: { mediaType: GalleryMediaType };
   /** Gallery media selection grid (GALLERY-001) */
   GalleryMediaSelect: { bucketId: string; bucketName: string; mediaType: GalleryMediaType };
-  /** Private vault camera */
-  Camera: undefined;
   /** App Lock settings */
   AppLock: undefined;
   /** Notification Privacy settings */
@@ -74,6 +76,8 @@ export type VaultStackParamList = {
   PatternSetup: undefined;
   /** Change pattern screen (AUTH-009) */
   ChangePattern: undefined;
+  /** Uninstall Protection settings */
+  UninstallProtection: undefined;
 };
 
 /**

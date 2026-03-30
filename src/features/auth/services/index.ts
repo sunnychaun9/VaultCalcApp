@@ -47,6 +47,17 @@ export {
 } from './patternStorage';
 
 export {
+  SECURITY_QUESTIONS,
+  isRecoveryConfigured,
+  getSecurityQuestion,
+  getSecurityQuestionId,
+  setupRecovery,
+  verifyRecoveryAnswer,
+  resetPinWithRecovery,
+  clearRecoveryData,
+} from './recoveryService';
+
+export {
   validatePattern,
   setupPattern,
   attemptPatternAuth,

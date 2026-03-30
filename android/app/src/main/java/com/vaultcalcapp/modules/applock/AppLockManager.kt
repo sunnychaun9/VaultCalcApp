@@ -124,18 +124,51 @@ class AppLockManager private constructor(context: Context) {
     // ── Unlock method (PIN or Pattern) ──
 
     /**
-     * Get the configured unlock method ("pin" or "pattern").
-     * Defaults to "pin" if not set.
+     * Get the configured default unlock method ("pin" or "pattern").
      */
     fun getUnlockMethod(): String {
         return prefs.getString(KEY_UNLOCK_METHOD, "pin") ?: "pin"
     }
 
     /**
-     * Set the unlock method for the app lock screen.
+     * Set the default unlock method for the app lock screen.
      */
     fun setUnlockMethod(method: String) {
         prefs.edit().putString(KEY_UNLOCK_METHOD, method).apply()
+    }
+
+    /**
+     * Get the unlock method for a specific app.
+     * Falls back to the global default if not set per-app.
+     */
+    fun getUnlockMethodForApp(packageName: String): String {
+        return prefs.getString("unlock_method_$packageName", null) ?: getUnlockMethod()
+    }
+
+    /**
+     * Set the unlock method for a specific app ("pin" or "pattern").
+     * Pass null to clear the per-app override and use the global default.
+     */
+    fun setUnlockMethodForApp(packageName: String, method: String?) {
+        val editor = prefs.edit()
+        if (method == null) {
+            editor.remove("unlock_method_$packageName")
+        } else {
+            editor.putString("unlock_method_$packageName", method)
+        }
+        editor.apply()
+    }
+
+    /**
+     * Get per-app unlock methods for all locked apps.
+     * Returns a map of packageName → method ("pin" or "pattern").
+     */
+    fun getAllAppUnlockMethods(): Map<String, String> {
+        val result = mutableMapOf<String, String>()
+        for (pkg in getLockedApps()) {
+            result[pkg] = getUnlockMethodForApp(pkg)
+        }
+        return result
     }
 
     /**

@@ -4,3 +4,4 @@ export { IntruderLogsScreen } from './IntruderLogsScreen';
 export { IntruderDetailScreen } from './IntruderDetailScreen';
 export { SubscriptionScreen } from './SubscriptionScreen';
 export { NotificationPrivacyScreen } from './NotificationPrivacyScreen';
+export { UninstallProtectionScreen } from './UninstallProtectionScreen';

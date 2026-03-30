@@ -20,8 +20,8 @@ export const colors = {
     calcDisplay: '#FFFFFF',
     calcButtonPrimary: '#F5F5F5',
     calcButtonOperator: '#E8E8E8',
-    calcButtonEquals: '#1A1A1A',
-    calcButtonEqualsPressed: '#333333',
+    calcButtonEquals: '#3B82F6',
+    calcButtonEqualsPressed: '#2563EB',
     calcButtonEqualsText: '#FFFFFF',
 
     // Text
@@ -64,9 +64,9 @@ export const colors = {
     calcDisplay: '#1A1A1A',
     calcButtonPrimary: '#2A2A2A',
     calcButtonOperator: '#333333',
-    calcButtonEquals: '#FFFFFF',
-    calcButtonEqualsPressed: '#E0E0E0',
-    calcButtonEqualsText: '#1A1A1A',
+    calcButtonEquals: '#3B82F6',
+    calcButtonEqualsPressed: '#2563EB',
+    calcButtonEqualsText: '#FFFFFF',
 
     // Text
     textPrimary: '#F5F5F5',

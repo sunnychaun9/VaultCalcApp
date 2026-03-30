@@ -16,6 +16,7 @@ import {
   View,
   Text,
   Pressable,
+  ScrollView,
   StyleSheet,
   Vibration,
 } from 'react-native';
@@ -230,6 +231,7 @@ export function DecoyPinSetupScreen(): React.JSX.Element {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+      <ScrollView contentContainerStyle={styles.scrollContent} bounces={false} showsVerticalScrollIndicator={false}>
       {/* Header */}
       <View style={styles.header}>
         <Pressable
@@ -340,6 +342,7 @@ export function DecoyPinSetupScreen(): React.JSX.Element {
           </Text>
         </Pressable>
       </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -348,6 +351,9 @@ const createStyles = (c: ColorTokens) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: c.surface,
+  },
+  scrollContent: {
+    flexGrow: 1,
   },
   header: {
     flexDirection: 'row',
@@ -374,7 +380,8 @@ const createStyles = (c: ColorTokens) => StyleSheet.create({
     width: 40,
   },
   content: {
-    flex: 1,
+    flexGrow: 1,
+    flexShrink: 0,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.xl,

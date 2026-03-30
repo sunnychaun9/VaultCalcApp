@@ -14,6 +14,7 @@ import {
   View,
   Text,
   Pressable,
+  ScrollView,
   StyleSheet,
   Animated,
   StatusBar,
@@ -186,6 +187,7 @@ export function ChangePinScreen(): React.JSX.Element {
       <View style={styles.bgBottom} />
 
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+        <ScrollView contentContainerStyle={styles.scrollContent} bounces={false} showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.header}>
           <Pressable onPress={handleBack} style={styles.backButton}>
@@ -267,6 +269,7 @@ export function ChangePinScreen(): React.JSX.Element {
             </Text>
           </Pressable>
         </View>
+        </ScrollView>
       </SafeAreaView>
     </View>
   );
@@ -277,6 +280,7 @@ const styles = StyleSheet.create({
   bgTop: { ...StyleSheet.absoluteFillObject, backgroundColor: BG_TOP },
   bgBottom: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '55%', backgroundColor: BG_BOTTOM, borderTopLeftRadius: 40, borderTopRightRadius: 40 },
   safeArea: { flex: 1 },
+  scrollContent: { flexGrow: 1 },
   header: { alignItems: 'center', paddingTop: 20 },
   backButton: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center', alignSelf: 'flex-start', marginLeft: spacing.md },
   backButtonText: { fontSize: 24, color: TEXT_PRIMARY },
@@ -290,7 +294,7 @@ const styles = StyleSheet.create({
   pinDotExtra: { borderStyle: 'dashed' },
   lengthIndicator: { ...typography.labelSmall, color: TEXT_MUTED },
   errorText: { ...typography.bodyMedium, color: ERROR_COLOR, textAlign: 'center', marginTop: spacing.xs },
-  cardWrapper: { flex: 1, justifyContent: 'center', paddingHorizontal: spacing.lg },
+  cardWrapper: { flexGrow: 1, flexShrink: 0, justifyContent: 'center', paddingHorizontal: spacing.lg },
   card: { backgroundColor: CARD_BG, borderRadius: 24, borderWidth: 1, borderColor: CARD_BORDER, padding: spacing.md, elevation: 8 },
   keypad: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: spacing.sm },
   keypadButton: { width: 72, height: 60, borderRadius: 16, backgroundColor: KEY_BG, justifyContent: 'center', alignItems: 'center' },

@@ -98,6 +98,7 @@ class VaultVideoPlayerView @JvmOverloads constructor(
     // ── Controls auto-hide ─────────────────────────────────────
     private var controlsVisible = true
     private val CONTROLS_HIDE_DELAY = 3000L
+    private val SEEK_OVERLAY_TOKEN = Object()
     private val hideControlsRunnable = Runnable { hideControls() }
 
     // ── UI views ───────────────────────────────────────────────
@@ -153,7 +154,6 @@ class VaultVideoPlayerView @JvmOverloads constructor(
 
         init {
             setWillNotDraw(false) // Required for custom onDraw in ViewGroup children
-            setLayerType(LAYER_TYPE_SOFTWARE, null) // clipPath needs software rendering
         }
 
         private val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -437,13 +437,27 @@ class VaultVideoPlayerView @JvmOverloads constructor(
         seekBarContainer.addView(seekFill)
         seekBarContainer.addView(seekThumb)
         seekBarContainer.setOnTouchListener { v, event ->
-            if (event.action == MotionEvent.ACTION_DOWN || event.action == MotionEvent.ACTION_MOVE) {
-                val ratio = (event.x / v.width).coerceIn(0f, 1f)
-                player?.let { p ->
-                    p.seekTo((ratio * p.duration).toLong())
-                    updateSeekBar()
+            when (event.action) {
+                MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE, MotionEvent.ACTION_UP -> {
+                    val ratio = (event.x / v.width).coerceIn(0f, 1f)
+                    player?.let { p ->
+                        val pos = (ratio * p.duration).toLong()
+                        p.seekTo(pos)
+                        // Update fill/thumb immediately using the ratio directly
+                        val barWidth = v.width
+                        val fillW = (barWidth * ratio).toInt()
+                        val fillLp = seekFill.layoutParams as FrameLayout.LayoutParams
+                        fillLp.width = fillW
+                        seekFill.layoutParams = fillLp
+                        val thumbLp = seekThumb.layoutParams as FrameLayout.LayoutParams
+                        thumbLp.marginStart = (fillW - dp(7)).coerceAtLeast(0)
+                        seekThumb.layoutParams = thumbLp
+                        timeStartText.text = formatTime(pos)
+                        val remaining = p.duration - pos
+                        timeEndText.text = "-${formatTime(remaining)}"
+                    }
+                    resetHideTimer()
                 }
-                resetHideTimer()
             }
             true
         }
@@ -542,7 +556,7 @@ class VaultVideoPlayerView @JvmOverloads constructor(
             setPadding(0, dp(4), 0, dp(2))
         })
         lockContent.addView(TextView(context).apply {
-            text = "Tap to unlock"
+            text = "Double-tap to unlock"
             setTextColor(0x99FFFFFF.toInt())
             textSize = 12f
             gravity = Gravity.CENTER
@@ -554,6 +568,7 @@ class VaultVideoPlayerView @JvmOverloads constructor(
         // ── MX-style Volume slider (RIGHT side) — added last for top z-order ──
         volumeSlider = VerticalSliderView(context, "\uD83D\uDD0A", 0xFF3B82F6.toInt()).apply {
             visibility = GONE
+            elevation = 20f
             layoutParams = LayoutParams(dp(52), dp(220)).apply {
                 gravity = Gravity.CENTER_VERTICAL or Gravity.END
                 marginEnd = dp(16)
@@ -564,6 +579,7 @@ class VaultVideoPlayerView @JvmOverloads constructor(
         // ── MX-style Brightness slider (LEFT side) — added last for top z-order ──
         brightnessSlider = VerticalSliderView(context, "\u2600", 0xFF3B82F6.toInt()).apply {
             visibility = GONE
+            elevation = 20f
             layoutParams = LayoutParams(dp(52), dp(220)).apply {
                 gravity = Gravity.CENTER_VERTICAL or Gravity.START
                 marginStart = dp(16)
@@ -686,21 +702,24 @@ class VaultVideoPlayerView @JvmOverloads constructor(
         sendSimpleEvent("onLockStateChange")
     }
 
-    private var lockTapCount = 0
+    private var lockTapTime = 0L
     private fun handleLockOverlayTap() {
         if (!isScreenLocked) return
-        lockTapCount++
+        val now = System.currentTimeMillis()
+        lockOverlay.animate().cancel()
         lockOverlay.animate().alpha(1f).setDuration(100).start()
-        if (lockTapCount >= 2) {
-            lockTapCount = 0
+        if (now - lockTapTime < 500) {
+            // Double tap detected — unlock
+            lockTapTime = 0
             unlockScreen()
         } else {
+            // First tap — show hint and fade back
+            lockTapTime = now
             handler.postDelayed({
                 if (isScreenLocked) {
-                    lockTapCount = 0
                     lockOverlay.animate().alpha(0.4f).setDuration(400).start()
                 }
-            }, 2000)
+            }, 1500)
         }
     }
 
@@ -928,12 +947,23 @@ class VaultVideoPlayerView @JvmOverloads constructor(
         val now = System.currentTimeMillis()
         if (now - lastTapTime < DOUBLE_TAP_TIMEOUT && abs(x - lastTapX) < width * 0.3f) {
             val isLeft = x < width / 2f
-            if (isLeft) {
-                seekRelative(-SEEK_JUMP_MS)
-                leftRipple.show("10s")
-            } else {
-                seekRelative(SEEK_JUMP_MS)
-                rightRipple.show("10s")
+            player?.let { p ->
+                val oldPos = p.currentPosition
+                if (isLeft) {
+                    seekRelative(-SEEK_JUMP_MS)
+                    leftRipple.show("-10s")
+                } else {
+                    seekRelative(SEEK_JUMP_MS)
+                    rightRipple.show("+10s")
+                }
+                // Show seek overlay pill with from → to time
+                val newPos = p.currentPosition
+                val icon = if (isLeft) "\u23EA" else "\u23E9"
+                seekOverlay.text = "$icon ${formatTime(oldPos)} \u2192 ${formatTime(newPos)}"
+                seekOverlay.alpha = 1f
+                seekOverlay.visibility = VISIBLE
+                handler.removeCallbacksAndMessages(SEEK_OVERLAY_TOKEN)
+                handler.postAtTime({ fadeOut(seekOverlay) }, SEEK_OVERLAY_TOKEN, android.os.SystemClock.uptimeMillis() + 800)
             }
             lastTapTime = 0
         } else {
@@ -1066,15 +1096,26 @@ class VaultVideoPlayerView @JvmOverloads constructor(
         player?.let { p ->
             if (p.duration <= 0) return
             val ratio = p.currentPosition.toFloat() / p.duration.toFloat()
-            val barWidth = seekTrack.width
-            if (barWidth <= 0) return
-            val fillW = (barWidth * ratio).toInt()
-            seekFill.layoutParams = (seekFill.layoutParams as FrameLayout.LayoutParams).apply { width = fillW }
-            seekFill.requestLayout()
-            seekThumb.layoutParams = (seekThumb.layoutParams as FrameLayout.LayoutParams).apply {
-                marginStart = (fillW - dp(7)).coerceAtLeast(0)
+            // Use seekBarContainer width (the touch target) as reference since seekTrack
+            // may not have been laid out yet after a layoutParams change
+            val barWidth = seekBarContainer.width
+            if (barWidth <= 0) {
+                // View not laid out yet — schedule update after layout pass
+                seekBarContainer.post { updateSeekBar() }
+                return
             }
-            seekThumb.requestLayout()
+            val fillW = (barWidth * ratio).toInt()
+            val fillLp = seekFill.layoutParams as FrameLayout.LayoutParams
+            if (fillLp.width != fillW) {
+                fillLp.width = fillW
+                seekFill.layoutParams = fillLp
+            }
+            val thumbLp = seekThumb.layoutParams as FrameLayout.LayoutParams
+            val newMargin = (fillW - dp(7)).coerceAtLeast(0)
+            if (thumbLp.marginStart != newMargin) {
+                thumbLp.marginStart = newMargin
+                seekThumb.layoutParams = thumbLp
+            }
             timeStartText.text = formatTime(p.currentPosition)
             val remaining = p.duration - p.currentPosition
             timeEndText.text = "-${formatTime(remaining)}"
@@ -1093,7 +1134,9 @@ class VaultVideoPlayerView @JvmOverloads constructor(
     fun enterFullscreen() {
         val activity = getActivity() ?: return
         val window = activity.window
-        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        if (com.vaultcalcapp.BuildConfig.ENABLE_FLAG_SECURE) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         WindowInsetsControllerCompat(window, window.decorView).let { c ->
@@ -1195,9 +1238,10 @@ class VaultVideoPlayerView @JvmOverloads constructor(
     }
 
     private fun fadeOut(view: View) {
+        // Cancel any running animation on this view first to avoid conflicts
+        view.animate().cancel()
         view.animate().alpha(0f).setDuration(250).withEndAction {
             view.visibility = GONE
-            view.alpha = 1f
         }.start()
     }
 

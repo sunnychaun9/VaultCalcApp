@@ -28,6 +28,9 @@ const TAB_MIME_FILTERS: Record<TabType, string[]> = {
     types.json,
     types.zip,
   ],
+  audio: [
+    types.audio,
+  ],
   albums: [],
   notes: [],
 };

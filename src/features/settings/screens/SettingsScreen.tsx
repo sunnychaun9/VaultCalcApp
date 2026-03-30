@@ -775,7 +775,24 @@ export function SettingsScreen(): React.JSX.Element {
                 accessibilityLabel="Notification Privacy"
               >
                 <Text style={styles.rowLabel}>Notification Privacy</Text>
-                <Text style={styles.rowChevron}>→</Text>
+                <Text style={styles.rowChevron}>{'\u2192'}</Text>
+              </Pressable>
+            </>
+          )}
+
+          {/* Uninstall Protection — hidden in decoy mode */}
+          {!isDecoyMode && (
+            <>
+              <View style={styles.rowDivider} />
+
+              <Pressable
+                onPress={() => navigation.navigate('UninstallProtection')}
+                style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+                accessibilityRole="button"
+                accessibilityLabel="Uninstall Protection"
+              >
+                <Text style={styles.rowLabel}>Uninstall Protection</Text>
+                <Text style={styles.rowChevron}>{'\u2192'}</Text>
               </Pressable>
             </>
           )}

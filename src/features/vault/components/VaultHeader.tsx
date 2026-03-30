@@ -57,10 +57,18 @@ export function VaultHeader({
 
   /**
    * Handle lock button press - return to calculator.
+   * Shows interstitial ad on vault exit, then locks.
    * Thumbnail cache cleanup happens automatically via the global
    * auth subscription in App.tsx when isAuthenticated flips to false.
    */
-  const handleLockPress = () => {
+  const handleLockPress = async () => {
+    // Try to show ad on vault exit (non-blocking — skips if not ready)
+    try {
+      const { tryShowInterstitial } = require('@services/ads');
+      await tryShowInterstitial('Calculator', 'vault_exit');
+    } catch {
+      // Ad service may not be initialized — proceed with lock
+    }
     logout();
     navigation.navigate('Calculator' as never);
   };

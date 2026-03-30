@@ -19,7 +19,7 @@ import {
   ActivityIndicator,
   FlatList,
   StyleSheet,
-  Dimensions,
+  useWindowDimensions,
   Modal,
   TextInput,
   Alert,
@@ -47,11 +47,12 @@ import {
   type VideoDetails,
 } from '@services/videoPlayer/nativeVideoPlayer';
 import { useMediaQuery } from '../hooks/useMediaQuery';
+import { unlockOrientation, lockPortrait } from '@services/orientation';
+import { formatDateTime } from '@shared/utils/formatters';
 
 type Props = VaultStackScreenProps<'MediaViewer'>;
 
 // ─── Constants ───────────────────────────────────────────────────────
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const ACCENT = '#3B82F6';
 
 // ─── Helpers ─────────────────────────────────────────────────────────
@@ -133,9 +134,27 @@ function ImagePagerItem({ itemId, width }: { itemId: string; width: number }): R
 export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Element {
   const { mediaId, mediaIds } = route.params;
   const themeColors = useThemeColors();
-  const styles = useMemo(() => createStyles(themeColors), [themeColors]);
+  const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = useWindowDimensions();
+  const styles = useMemo(() => createStyles(themeColors, SCREEN_WIDTH, SCREEN_HEIGHT), [themeColors, SCREEN_WIDTH, SCREEN_HEIGHT]);
   const queryClient = useQueryClient();
   const isDecoyMode = useAuthStore(s => s.isDecoyMode);
+  const setSuppressAutoLock = useAuthStore(s => s.setSuppressAutoLock);
+
+  // Allow landscape rotation in media viewer
+  useEffect(() => {
+    unlockOrientation();
+    return () => { lockPortrait(); };
+  }, []);
+
+  // Suppress auto-lock while video is playing
+  const handlePlaybackStateChange = useCallback((event: { nativeEvent: { isPlaying: boolean } }) => {
+    setSuppressAutoLock(event.nativeEvent.isPlaying);
+  }, [setSuppressAutoLock]);
+
+  // Ensure auto-lock suppression is cleared on unmount
+  useEffect(() => {
+    return () => { setSuppressAutoLock(false); };
+  }, [setSuppressAutoLock]);
 
   // Media loading state
   const [item, setItem] = useState<MediaItem | null>(null);
@@ -145,28 +164,34 @@ export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Eleme
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // ── Pager state for image swipe navigation ──
+  // ── Pager state for swipe navigation (images only — videos use native player nav) ──
   const pagerRef = useRef<FlatList>(null);
   const [currentPagerIndex, setCurrentPagerIndex] = useState(0);
-  // Filter sibling IDs to only include images (not videos/documents) for the pager
   const [imageSiblingIds, setImageSiblingIds] = useState<string[]>([]);
 
   useEffect(() => {
     if (!mediaIds || mediaIds.length === 0) return;
     const ids = mediaIds;
-    // Filter to only photo types for horizontal swiping
     let cancelled = false;
-    async function filterImages() {
+    async function filterSiblings() {
+      // Look up the opened item's type so we filter siblings to the same type
+      const openedItem = await mediaItems.getById(mediaId);
+      if (cancelled || !openedItem) return;
+      // Only build pager for photos — videos use native ExoPlayer nav
+      if (openedItem.type !== 'photo') {
+        setImageSiblingIds([]);
+        return;
+      }
       const allItems = await Promise.all(ids.map(id => mediaItems.getById(id)));
       if (cancelled) return;
-      const imageIds = allItems
-        .filter((m): m is MediaItem => m !== null && m.type === 'photo')
+      const siblingIds = allItems
+        .filter((m): m is MediaItem => m !== null && m.type === openedItem.type)
         .map(m => m.id);
-      setImageSiblingIds(imageIds);
-      const idx = imageIds.indexOf(mediaId);
+      setImageSiblingIds(siblingIds);
+      const idx = siblingIds.indexOf(mediaId);
       if (idx >= 0) setCurrentPagerIndex(idx);
     }
-    filterImages();
+    filterSiblings();
     return () => { cancelled = true; };
   }, [mediaIds, mediaId]);
 
@@ -357,9 +382,9 @@ export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Eleme
     const { index } = event.nativeEvent;
     if (!allVideos || index < 0 || index >= allVideos.length) return;
     const nextVideo = allVideos[index];
-    // Navigate to the next/previous video
-    navigation.replace('MediaViewer', { mediaId: nextVideo.id });
-  }, [allVideos, navigation]);
+    // Navigate to the next/previous video, preserving sibling IDs for pager
+    navigation.replace('MediaViewer', { mediaId: nextVideo.id, mediaIds });
+  }, [allVideos, navigation, mediaIds]);
 
   const handleVideoError = useCallback((event: { nativeEvent: { error: string; errorCode: number } }) => {
     setError(event.nativeEvent.error);
@@ -477,6 +502,7 @@ export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Eleme
           onMenuPress={handleVideoMenuPress}
           onNavigate={handleVideoNavigate}
           onError={handleVideoError}
+          onPlaybackStateChange={handlePlaybackStateChange}
         />
 
         {/* Video Menu Modal */}
@@ -514,23 +540,29 @@ export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Eleme
           <Pressable style={styles.modalBackdrop} onPress={() => setShowDetails(false)}>
             <View style={styles.detailsContainer}>
               <Text style={styles.detailsTitle}>Video Details</Text>
-              <DetailRow label="File Name" value={item.originalName} />
+              <DetailRow label="Name" value={item.originalName} />
+              <DetailRow label="Size" value={formatFileSize(
+                videoDetailInfo?.size ?? item.sizeBytes
+              )} />
               <DetailRow label="Duration" value={
                 videoDetailInfo?.duration
                   ? formatDuration(videoDetailInfo.duration)
                   : item.durationMs ? formatDuration(item.durationMs) : 'Unknown'
               } />
-              <DetailRow label="Size" value={formatFileSize(
-                videoDetailInfo?.size ?? item.sizeBytes
-              )} />
               <DetailRow label="Resolution" value={
                 videoDetailInfo?.resolution
                   ?? (item.width && item.height ? `${item.width}x${item.height}` : 'Unknown')
               } />
-              <DetailRow label="Date Added" value={new Date(item.importedAt).toLocaleDateString()} />
               {videoDetailInfo?.bitrate ? (
                 <DetailRow label="Bitrate" value={`${Math.round(videoDetailInfo.bitrate / 1000)} kbps`} />
               ) : null}
+              <DetailRow label="Last modified" value={formatDateTime(item.createdAt)} />
+              {item.metadata?.originalUri ? (
+                <DetailRow label="Original path" value={
+                  decodeURIComponent(String(item.metadata.originalUri).replace(/^content:\/\/[^/]+\//, '/'))
+                } />
+              ) : null}
+              <DetailRow label="Current path" value={item.encryptedPath} />
               <Pressable style={styles.detailsCloseBtn} onPress={() => setShowDetails(false)}>
                 <Text style={styles.detailsCloseBtnText}>Close</Text>
               </Pressable>
@@ -756,7 +788,7 @@ const pdfPageStyles = StyleSheet.create({
 
 // ─── Styles ──────────────────────────────────────────────────────────
 
-const createStyles = (_c: ColorTokens) => StyleSheet.create({
+const createStyles = (_c: ColorTokens, SCREEN_WIDTH: number, SCREEN_HEIGHT: number) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000000',

@@ -31,6 +31,7 @@ import { useFailedAttempts, useBiometricAuth } from '../hooks';
 import { useShakeAnimation, useSuccessAnimation } from '../hooks/useLockAnimations';
 import { recordIntruderAttempt } from '@services/intruderCamera';
 import { typography, spacing } from '@shared/theme';
+import { isRecoveryConfigured } from '../services/recoveryService';
 
 /** Colors for the dark lock screen */
 const ACCENT = '#3B82F6';
@@ -132,6 +133,16 @@ export function PatternUnlockScreen(): React.JSX.Element {
             >
               <Text style={styles.toggleText}>Use PIN Instead</Text>
             </Pressable>
+
+            {/* Forgot PIN/Pattern — after 3+ fails */}
+            {failedAttempts >= 3 && isRecoveryConfigured() && (
+              <Pressable
+                onPress={() => navigation.navigate('ForgotPin' as never)}
+                style={({ pressed }) => [styles.toggleButton, pressed && styles.togglePressed]}
+              >
+                <Text style={[styles.toggleText, { fontSize: 13 }]}>Forgot PIN?</Text>
+              </Pressable>
+            )}
 
             {/* Biometric button */}
             {showBiometricButton && (

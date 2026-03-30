@@ -164,11 +164,38 @@ class AppLockModule(reactContext: ReactApplicationContext) :
     }
 
     /**
-     * Get the current unlock method ("pin" or "pattern").
+     * Get the current default unlock method ("pin" or "pattern").
      */
     @ReactMethod
     fun getUnlockMethod(promise: Promise) {
         promise.resolve(lockManager.getUnlockMethod())
+    }
+
+    /**
+     * Set the unlock method for a specific app ("pin" or "pattern").
+     */
+    @ReactMethod
+    fun setAppUnlockMethod(packageName: String, method: String, promise: Promise) {
+        try {
+            lockManager.setUnlockMethodForApp(packageName, method)
+            promise.resolve(true)
+        } catch (e: Exception) {
+            promise.reject("METHOD_ERROR", e.message, e)
+        }
+    }
+
+    /**
+     * Get per-app unlock methods for all locked apps.
+     * Returns { packageName: "pin"|"pattern", ... }
+     */
+    @ReactMethod
+    fun getAppUnlockMethods(promise: Promise) {
+        val methods = lockManager.getAllAppUnlockMethods()
+        val result = Arguments.createMap()
+        for ((pkg, method) in methods) {
+            result.putString(pkg, method)
+        }
+        promise.resolve(result)
     }
 
     /**

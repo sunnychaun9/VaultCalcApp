@@ -25,7 +25,7 @@ let db: SQLite.SQLiteDatabase | null = null;
 /**
  * Media type enum
  */
-export type MediaType = 'photo' | 'video' | 'document';
+export type MediaType = 'photo' | 'video' | 'document' | 'audio';
 
 /**
  * Media item interface matching database schema
@@ -129,7 +129,7 @@ export async function initializeDatabase(): Promise<void> {
     -- Media items table
     CREATE TABLE IF NOT EXISTS media_items (
       id TEXT PRIMARY KEY,
-      type TEXT NOT NULL CHECK (type IN ('photo', 'video', 'document')),
+      type TEXT NOT NULL CHECK (type IN ('photo', 'video', 'document', 'audio')),
       name TEXT NOT NULL,
       encrypted_path TEXT NOT NULL,
       thumbnail_path TEXT,

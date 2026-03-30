@@ -41,10 +41,12 @@ class LockScreenActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        window.setFlags(
-            WindowManager.LayoutParams.FLAG_SECURE,
-            WindowManager.LayoutParams.FLAG_SECURE
-        )
+        if (com.vaultcalcapp.BuildConfig.ENABLE_FLAG_SECURE) {
+            window.setFlags(
+                WindowManager.LayoutParams.FLAG_SECURE,
+                WindowManager.LayoutParams.FLAG_SECURE
+            )
+        }
 
         targetPackage = intent.getStringExtra(EXTRA_LOCKED_PACKAGE) ?: ""
         if (targetPackage.isEmpty()) {
@@ -53,7 +55,7 @@ class LockScreenActivity : FragmentActivity() {
         }
 
         val manager = AppLockManager.getInstance(this)
-        val unlockMethod = manager.getUnlockMethod()
+        val unlockMethod = manager.getUnlockMethodForApp(targetPackage)
 
         if (unlockMethod == "pattern") {
             buildPatternUI()
@@ -62,6 +64,12 @@ class LockScreenActivity : FragmentActivity() {
         }
 
         tryBiometricAuth()
+
+        // Hide the recents cover once the lock screen is fully rendered —
+        // the lock screen itself has FLAG_SECURE so content is protected.
+        window.decorView.post {
+            RecentsCoverBridge.hideCover()
+        }
     }
 
     // ════════════════════════════════════════════════════════════
@@ -450,6 +458,7 @@ class LockScreenActivity : FragmentActivity() {
     private fun onUnlockSuccess() {
         val manager = AppLockManager.getInstance(this)
         manager.recordUnlock(targetPackage)
+        RecentsCoverBridge.hideCover()
         finish()
     }
 

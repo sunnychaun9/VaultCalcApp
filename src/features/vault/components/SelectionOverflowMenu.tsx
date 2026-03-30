@@ -15,6 +15,7 @@ interface SelectionOverflowMenuProps {
   onClose: () => void;
   onAddToAlbum?: () => void;
   onMoveToAlbum?: () => void;
+  onPermanentDelete?: () => void;
   onUnhide?: () => void;
   onRename?: () => void;
   onProperties?: () => void;
@@ -30,6 +31,7 @@ export function SelectionOverflowMenu({
   onClose,
   onAddToAlbum,
   onMoveToAlbum,
+  onPermanentDelete,
   onUnhide,
   onRename,
   onProperties,
@@ -45,6 +47,9 @@ export function SelectionOverflowMenu({
     if (onMoveToAlbum != null) {
       items.push({ label: 'Move to Album', onPress: onMoveToAlbum });
     }
+    if (onPermanentDelete != null) {
+      items.push({ label: 'Permanently Delete', onPress: onPermanentDelete });
+    }
     if (onUnhide != null) {
       items.push({ label: 'Export to Gallery', onPress: onUnhide });
     }
@@ -55,7 +60,7 @@ export function SelectionOverflowMenu({
       items.push({ label: 'Properties', onPress: onProperties });
     }
     return items;
-  }, [onAddToAlbum, onMoveToAlbum, onUnhide, onRename, onProperties]);
+  }, [onAddToAlbum, onMoveToAlbum, onPermanentDelete, onUnhide, onRename, onProperties]);
 
   return (
     <Modal

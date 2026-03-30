@@ -20,6 +20,8 @@ import {
   View,
   Text,
   Pressable,
+  ScrollView,
+  TextInput,
   StyleSheet,
   Animated,
   StatusBar,
@@ -28,12 +30,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { setupPin, getPinRules } from '../services/authService';
+import { SECURITY_QUESTIONS, setupRecovery } from '../services/recoveryService';
 import { typography, spacing } from '@shared/theme';
 import { useShakeAnimation, useDotScaleAnimations, useTapHaptic } from '../hooks/useLockAnimations';
 import type { RootStackParamList, RootStackScreenProps } from '@typedefs/navigation';
 import { BG_TOP, BG_BOTTOM, TEXT_PRIMARY, TEXT_SECONDARY, TEXT_MUTED, CARD_BG, CARD_BORDER } from '../components/LockScreenContainer';
 
-type SetupMode = 'create' | 'confirm';
+type SetupMode = 'create' | 'confirm' | 'recovery';
 
 const PIN_RULES = getPinRules();
 const ACCENT = '#3B82F6';
@@ -54,6 +57,10 @@ export function PinSetupScreen(): React.JSX.Element {
   const [confirmPin, setConfirmPin] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // Recovery question state
+  const [selectedQuestionId, setSelectedQuestionId] = useState(0);
+  const [securityAnswer, setSecurityAnswer] = useState('');
 
   const currentPin = mode === 'create' ? pin : confirmPin;
   const setCurrentPin = mode === 'create' ? setPin : setConfirmPin;
@@ -95,8 +102,46 @@ export function PinSetupScreen(): React.JSX.Element {
     [currentPin.length, isProcessing, setCurrentPin, tap, resetAll]
   );
 
+  const finishSetup = useCallback(() => {
+    if (isInitialSetup) {
+      navigation.replace('HowItWorks');
+    } else {
+      navigation.goBack();
+    }
+  }, [isInitialSetup, navigation]);
+
+  const handleSaveRecovery = useCallback(async () => {
+    if (isProcessing) return;
+    const trimmed = securityAnswer.trim();
+    if (trimmed.length < 1) {
+      setError('Please enter an answer');
+      triggerShake();
+      return;
+    }
+    setIsProcessing(true);
+    try {
+      const result = await setupRecovery(selectedQuestionId, trimmed);
+      if (result.success) {
+        finishSetup();
+      } else {
+        setError(result.error ?? 'Failed to save recovery');
+        triggerShake();
+      }
+    } catch {
+      setError('An error occurred');
+      triggerShake();
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [isProcessing, securityAnswer, selectedQuestionId, triggerShake, finishSetup]);
+
   const handleContinue = useCallback(async () => {
     if (isProcessing) return;
+
+    if (mode === 'recovery') {
+      await handleSaveRecovery();
+      return;
+    }
 
     if (currentPin.length < PIN_RULES.MIN_LENGTH) {
       setError(`PIN must be at least ${PIN_RULES.MIN_LENGTH} digits`);
@@ -121,11 +166,9 @@ export function PinSetupScreen(): React.JSX.Element {
       try {
         const result = await setupPin(pin);
         if (result.success) {
-          if (isInitialSetup) {
-            navigation.replace('HowItWorks');
-          } else {
-            navigation.goBack();
-          }
+          // Go to recovery question setup
+          setMode('recovery');
+          setError(null);
         } else {
           setError(result.error ?? 'Failed to save PIN');
           triggerShake();
@@ -137,10 +180,14 @@ export function PinSetupScreen(): React.JSX.Element {
         setIsProcessing(false);
       }
     }
-  }, [mode, currentPin, pin, confirmPin, isProcessing, isInitialSetup, navigation, triggerShake, resetAll]);
+  }, [mode, currentPin, pin, confirmPin, isProcessing, triggerShake, resetAll, handleSaveRecovery]);
 
   const handleBack = useCallback(() => {
-    if (mode === 'confirm') {
+    if (mode === 'recovery') {
+      // Can't go back from recovery — PIN is already saved.
+      // Allow skip instead.
+      finishSetup();
+    } else if (mode === 'confirm') {
       setMode('create');
       setConfirmPin('');
       setError(null);
@@ -148,9 +195,11 @@ export function PinSetupScreen(): React.JSX.Element {
     } else if (!isInitialSetup) {
       navigation.goBack();
     }
-  }, [mode, isInitialSetup, navigation, resetAll]);
+  }, [mode, isInitialSetup, navigation, resetAll, finishSetup]);
 
-  const canContinue = currentPin.length >= PIN_RULES.MIN_LENGTH;
+  const canContinue = mode === 'recovery'
+    ? securityAnswer.trim().length > 0
+    : currentPin.length >= PIN_RULES.MIN_LENGTH;
 
   const dotCount = Math.max(currentPin.length, PIN_RULES.MIN_LENGTH);
 
@@ -161,89 +210,132 @@ export function PinSetupScreen(): React.JSX.Element {
       <View style={styles.bgBottom} />
 
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+        <ScrollView contentContainerStyle={styles.scrollContent} bounces={false} showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.header}>
-          {(mode === 'confirm' || !isInitialSetup) ? (
+          {(mode === 'confirm' || mode === 'recovery' || !isInitialSetup) ? (
             <Pressable onPress={handleBack} style={styles.backButton}>
-              <Text style={styles.backButtonText}>←</Text>
+              <Text style={styles.backButtonText}>{mode === 'recovery' ? 'Skip' : '←'}</Text>
             </Pressable>
           ) : <View style={styles.backButton} />}
           <View style={styles.lockIconWrapper}>
-            <Text style={styles.lockIcon}>{'\u{1F512}'}</Text>
+            <Text style={styles.lockIcon}>{mode === 'recovery' ? '\u{1F6E1}' : '\u{1F512}'}</Text>
           </View>
           <Text style={styles.title}>
-            {mode === 'create' ? 'Create PIN' : 'Confirm PIN'}
+            {mode === 'create' ? 'Create PIN' : mode === 'confirm' ? 'Confirm PIN' : 'Recovery Setup'}
           </Text>
           <Text style={styles.subtitle}>
             {mode === 'create'
               ? `Enter a ${PIN_RULES.MIN_LENGTH}-${PIN_RULES.MAX_LENGTH} digit PIN`
-              : 'Re-enter your PIN to confirm'}
+              : mode === 'confirm'
+                ? 'Re-enter your PIN to confirm'
+                : 'Set a security question to recover your PIN'}
           </Text>
         </View>
 
-        {/* PIN dots */}
-        <Animated.View style={[styles.dotsContainer, { transform: [{ translateX: shakeValue }] }]}>
-          <View style={styles.dotsRow}>
-            {Array.from({ length: dotCount }).map((_, index) => {
-              const isFilled = index < currentPin.length;
-              const isError = error !== null && isFilled;
-              const dotScale = scales[index].interpolate({
-                inputRange: [0, 1],
-                outputRange: [0.6, 1],
-              });
-              return (
-                <Animated.View
-                  key={index}
-                  style={[
-                    styles.pinDot,
-                    {
-                      backgroundColor: isError ? ERROR_COLOR : isFilled ? DOT_FILLED : DOT_EMPTY,
-                      borderColor: isError ? ERROR_COLOR : isFilled ? DOT_FILLED : 'rgba(100, 116, 139, 0.4)',
-                      transform: [{ scale: isFilled ? dotScale : 1 }],
-                    },
-                    index >= PIN_RULES.MIN_LENGTH && !isFilled && styles.pinDotExtra,
-                  ]}
-                />
-              );
-            })}
-          </View>
-
-          <Text style={styles.lengthIndicator}>
-            {currentPin.length} / {PIN_RULES.MAX_LENGTH}
-          </Text>
-
-          {error && <Text style={styles.errorText}>{error}</Text>}
-        </Animated.View>
-
-        {/* Keypad in glass card */}
-        <View style={styles.cardWrapper}>
-          <View style={styles.card}>
-            <View style={styles.keypad}>
-              {['1', '2', '3', '4', '5', '6', '7', '8', '9', 'clear', '0', 'backspace'].map(
-                (key) => (
+        {mode === 'recovery' ? (
+          <>
+            {/* Security Question Picker */}
+            <View style={styles.cardWrapper}>
+              <View style={styles.card}>
+                <Text style={styles.recoveryLabel}>Security Question</Text>
+                {SECURITY_QUESTIONS.map((q, idx) => (
                   <Pressable
-                    key={key}
-                    onPress={() => handleKeyPress(key)}
-                    style={({ pressed }) => [
-                      styles.keypadButton,
-                      pressed && styles.keypadButtonPressed,
-                      (key === 'clear' || key === 'backspace') && styles.keypadButtonAction,
+                    key={idx}
+                    onPress={() => { setSelectedQuestionId(idx); setError(null); }}
+                    style={[
+                      styles.questionRow,
+                      idx === selectedQuestionId && styles.questionRowSelected,
                     ]}
                   >
-                    <Text
-                      style={[
-                        styles.keypadButtonText,
-                        (key === 'clear' || key === 'backspace') && styles.keypadButtonTextAction,
-                      ]}
-                    >
-                      {key === 'backspace' ? '\u232B' : key === 'clear' ? 'C' : key}
-                    </Text>
+                    <Text style={[
+                      styles.questionText,
+                      idx === selectedQuestionId && styles.questionTextSelected,
+                    ]}>{q}</Text>
                   </Pressable>
-                )
-              )}
+                ))}
+
+                <Text style={[styles.recoveryLabel, { marginTop: 16 }]}>Your Answer</Text>
+                <TextInput
+                  style={styles.answerInput}
+                  value={securityAnswer}
+                  onChangeText={(t) => { setSecurityAnswer(t); setError(null); }}
+                  placeholder="Type your answer"
+                  placeholderTextColor="rgba(100, 116, 139, 0.5)"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                {error && <Text style={styles.errorText}>{error}</Text>}
+              </View>
             </View>
-          </View>
-        </View>
+          </>
+        ) : (
+          <>
+            {/* PIN dots */}
+            <Animated.View style={[styles.dotsContainer, { transform: [{ translateX: shakeValue }] }]}>
+              <View style={styles.dotsRow}>
+                {Array.from({ length: dotCount }).map((_, index) => {
+                  const isFilled = index < currentPin.length;
+                  const isError = error !== null && isFilled;
+                  const dotScale = scales[index].interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.6, 1],
+                  });
+                  return (
+                    <Animated.View
+                      key={index}
+                      style={[
+                        styles.pinDot,
+                        {
+                          backgroundColor: isError ? ERROR_COLOR : isFilled ? DOT_FILLED : DOT_EMPTY,
+                          borderColor: isError ? ERROR_COLOR : isFilled ? DOT_FILLED : 'rgba(100, 116, 139, 0.4)',
+                          transform: [{ scale: isFilled ? dotScale : 1 }],
+                        },
+                        index >= PIN_RULES.MIN_LENGTH && !isFilled && styles.pinDotExtra,
+                      ]}
+                    />
+                  );
+                })}
+              </View>
+
+              <Text style={styles.lengthIndicator}>
+                {currentPin.length} / {PIN_RULES.MAX_LENGTH}
+              </Text>
+
+              {error && <Text style={styles.errorText}>{error}</Text>}
+            </Animated.View>
+
+            {/* Keypad in glass card */}
+            <View style={styles.cardWrapper}>
+              <View style={styles.card}>
+                <View style={styles.keypad}>
+                  {['1', '2', '3', '4', '5', '6', '7', '8', '9', 'clear', '0', 'backspace'].map(
+                    (key) => (
+                      <Pressable
+                        key={key}
+                        onPress={() => handleKeyPress(key)}
+                        style={({ pressed }) => [
+                          styles.keypadButton,
+                          pressed && styles.keypadButtonPressed,
+                          (key === 'clear' || key === 'backspace') && styles.keypadButtonAction,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.keypadButtonText,
+                            (key === 'clear' || key === 'backspace') && styles.keypadButtonTextAction,
+                          ]}
+                        >
+                          {key === 'backspace' ? '\u232B' : key === 'clear' ? 'C' : key}
+                        </Text>
+                      </Pressable>
+                    )
+                  )}
+                </View>
+              </View>
+            </View>
+          </>
+        )}
 
         {/* Continue button */}
         <View style={styles.footer}>
@@ -257,15 +349,16 @@ export function PinSetupScreen(): React.JSX.Element {
             ]}
           >
             <Text style={[styles.continueButtonText, !canContinue && styles.continueButtonTextDisabled]}>
-              {isProcessing ? 'Saving...' : mode === 'create' ? 'Continue' : 'Create PIN'}
+              {isProcessing ? 'Saving...' : mode === 'create' ? 'Continue' : mode === 'confirm' ? 'Create PIN' : 'Save Recovery'}
             </Text>
           </Pressable>
 
           <View style={styles.trustRow}>
             <Text style={styles.trustIcon}>{'\u{1F6E1}'}</Text>
-            <Text style={styles.trustText}>Protected with encryption</Text>
+            <Text style={styles.trustText}>{mode === 'recovery' ? 'Helps recover your PIN if forgotten' : 'Protected with encryption'}</Text>
           </View>
         </View>
+        </ScrollView>
       </SafeAreaView>
     </View>
   );
@@ -276,6 +369,7 @@ const styles = StyleSheet.create({
   bgTop: { ...StyleSheet.absoluteFillObject, backgroundColor: BG_TOP },
   bgBottom: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '55%', backgroundColor: BG_BOTTOM, borderTopLeftRadius: 40, borderTopRightRadius: 40 },
   safeArea: { flex: 1 },
+  scrollContent: { flexGrow: 1 },
   header: { alignItems: 'center', paddingTop: 20 },
   backButton: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center', alignSelf: 'flex-start', marginLeft: spacing.md },
   backButtonText: { fontSize: 24, color: TEXT_PRIMARY },
@@ -289,7 +383,7 @@ const styles = StyleSheet.create({
   pinDotExtra: { borderStyle: 'dashed' },
   lengthIndicator: { ...typography.labelSmall, color: TEXT_MUTED },
   errorText: { ...typography.bodyMedium, color: ERROR_COLOR, textAlign: 'center', marginTop: spacing.xs },
-  cardWrapper: { flex: 1, justifyContent: 'center', paddingHorizontal: spacing.lg },
+  cardWrapper: { flexGrow: 1, flexShrink: 0, justifyContent: 'center', paddingHorizontal: spacing.lg },
   card: { backgroundColor: CARD_BG, borderRadius: 24, borderWidth: 1, borderColor: CARD_BORDER, padding: spacing.md, elevation: 8 },
   keypad: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: spacing.sm },
   keypadButton: { width: 72, height: 60, borderRadius: 16, backgroundColor: KEY_BG, justifyContent: 'center', alignItems: 'center' },
@@ -306,4 +400,11 @@ const styles = StyleSheet.create({
   trustRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, opacity: 0.6 },
   trustIcon: { fontSize: 12 },
   trustText: { ...typography.labelSmall, color: TEXT_MUTED },
+  // Recovery question styles
+  recoveryLabel: { ...typography.labelMedium, color: TEXT_SECONDARY, marginBottom: spacing.sm },
+  questionRow: { paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, marginBottom: 4 },
+  questionRowSelected: { backgroundColor: 'rgba(59, 130, 246, 0.15)' },
+  questionText: { ...typography.bodySmall, color: TEXT_SECONDARY },
+  questionTextSelected: { color: ACCENT, fontWeight: '600' },
+  answerInput: { backgroundColor: KEY_BG, color: TEXT_PRIMARY, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, fontSize: 16, marginTop: spacing.xs },
 });

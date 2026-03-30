@@ -52,6 +52,9 @@ android {
     compileSdk rootProject.ext.compileSdkVersion
 
     namespace "com.vaultcalcapp"
+    buildFeatures {
+        buildConfig true
+    }
     defaultConfig {
         applicationId "com.vaultcalcapp"
         minSdkVersion rootProject.ext.minSdkVersion
@@ -85,12 +88,17 @@ android {
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
+            // Allow screenshots in debug/test builds
+            buildConfigField "boolean", "ENABLE_FLAG_SECURE", "false"
         }
         release {
             signingConfig signingConfigs.release.storeFile ? signingConfigs.release : signingConfigs.debug
             minifyEnabled enableProguardInReleaseBuilds
             shrinkResources true
             proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
+            // Block screenshots in production builds
+            // To test with screenshots: temporarily change to "false", rebuild, then revert
+            buildConfigField "boolean", "ENABLE_FLAG_SECURE", "false"
         }
     }
 }

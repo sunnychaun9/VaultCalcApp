@@ -19,11 +19,12 @@ import com.vaultcalcapp.modules.shake.ShakeDetectorPackage
 import com.vaultcalcapp.modules.share.SharePackage
 import com.vaultcalcapp.modules.appicon.AppIconPackage
 import com.vaultcalcapp.modules.applock.AppLockPackage
-import com.vaultcalcapp.modules.camera.VaultCameraPackage
 import com.vaultcalcapp.modules.panic.PanicPackage
 import com.vaultcalcapp.modules.stealth.StealthPackage
 import com.vaultcalcapp.modules.notificationprivacy.NotificationPrivacyPackage
 import com.vaultcalcapp.modules.videoplayer.VideoPlayerPackage
+import com.vaultcalcapp.modules.orientation.OrientationPackage
+import com.vaultcalcapp.modules.uninstallprotect.UninstallProtectPackage
 import com.vaultcalcapp.modules.zoomimage.ZoomableImagePackage
 import expo.modules.ApplicationLifecycleDispatcher
 
@@ -48,11 +49,12 @@ class MainApplication : Application(), ReactApplication {
           add(SharePackage())
           add(AppIconPackage())
           add(AppLockPackage())
-          add(VaultCameraPackage())
           add(PanicPackage())
           add(StealthPackage())
           add(NotificationPrivacyPackage())
           add(VideoPlayerPackage())
+          add(OrientationPackage())
+          add(UninstallProtectPackage())
           add(ZoomableImagePackage())
         },
     )

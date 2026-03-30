@@ -41,4 +41,4 @@ export type { PatternState } from './components/PatternView';
 export { LockScreenContainer } from './components/LockScreenContainer';
 
 // Screens
-export { PinSetupScreen, ChangePinScreen, DecoyPinSetupScreen, PatternSetupScreen, ChangePatternScreen, PatternUnlockScreen } from './screens';
+export { PinSetupScreen, ChangePinScreen, DecoyPinSetupScreen, PatternSetupScreen, ChangePatternScreen, PatternUnlockScreen, ForgotPinScreen } from './screens';

@@ -18,7 +18,7 @@ import { useThemeColors, type ColorTokens, typography, spacing, layout } from '@
 
 interface EmptyStateProps {
   /** Type of content (images, videos, docs, albums, notes, favorites, search) */
-  contentType: 'images' | 'videos' | 'documents' | 'albums' | 'notes' | 'favorites' | 'search';
+  contentType: 'images' | 'videos' | 'documents' | 'audio' | 'albums' | 'notes' | 'favorites' | 'search';
   /** Handler for add button press */
   onAddPress?: () => void;
 }
@@ -41,6 +41,12 @@ const EMPTY_STATE_CONFIG = {
     title: 'No documents yet',
     description: 'Tap the + button below or share documents from other apps',
     buttonText: '+ Add Documents',
+  },
+  audio: {
+    icon: '🎵',
+    title: 'No audio files yet',
+    description: 'Tap the + button below to import audio files',
+    buttonText: '+ Add Audio',
   },
   albums: {
     icon: '📁',

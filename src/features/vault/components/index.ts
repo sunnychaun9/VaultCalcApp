@@ -13,6 +13,8 @@ export { SelectionBar } from './SelectionBar';
 export { ImportProgressOverlay } from './ImportProgressOverlay';
 export { DocumentList } from './DocumentList';
 export { DocumentListItem } from './DocumentListItem';
+export { AudioList } from './AudioList';
+export { AudioListItem } from './AudioListItem';
 export { AlbumList } from './AlbumList';
 export { AlbumListItem } from './AlbumListItem';
 export { AddToAlbumModal } from './AddToAlbumModal';

@@ -16,13 +16,15 @@ import { useQueryClient } from '@tanstack/react-query';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { VaultStackParamList, VaultStackScreenProps } from '@typedefs/navigation';
 import { albums as albumsDb, albumMedia as albumMediaDb, mediaItems as mediaItemsDb, type Album, type MediaItem } from '@services/storage/database';
-import { useThemeColors, type ColorTokens, typography, spacing } from '@shared/theme';
+import { useThemeColors, type ColorTokens, typography, spacing, layout } from '@shared/theme';
+import { useOrientation } from '@shared/hooks';
 import { useAlbumMediaQuery, useAlbumsQuery } from '../hooks';
 import { useVaultStore } from '@store/vaultStore';
 import { useAuthStore } from '@store/authStore';
 import { useActivityTracker } from '@features/auth';
 import { shareMediaItems } from '@services/share';
 import { unhideMediaItems } from '@services/unhide';
+import { deleteMediaItems } from '@services/deletion/deleteService';
 import { alert } from '@store/alertStore';
 import { MediaGrid, SelectionBar, SelectionOverflowMenu, AddToAlbumModal, RenameModal, PropertiesModal } from '../components';
 
@@ -30,6 +32,8 @@ export function AlbumViewScreen(): React.JSX.Element {
   const themeColors = useThemeColors();
   const styles = useMemo(() => createStyles(themeColors), [themeColors]);
   const navigation = useNavigation<NativeStackNavigationProp<VaultStackParamList>>();
+  const { isLandscape } = useOrientation();
+  const gridColumns = isLandscape ? 5 : layout.vaultGridColumns;
   const route = useRoute<VaultStackScreenProps<'AlbumView'>['route']>();
   const queryClient = useQueryClient();
   const { albumId } = route.params;
@@ -77,7 +81,7 @@ export function AlbumViewScreen(): React.JSX.Element {
     toggleSelection(item.id);
   }, [onActivity, toggleSelection]);
 
-  /** Delete selected items from this album (not permanent delete) */
+  /** Remove selected items from this album (not permanent delete) */
   const handleDelete = useCallback(() => {
     onActivity();
     const ids = Array.from(selectedIds);
@@ -95,8 +99,18 @@ export function AlbumViewScreen(): React.JSX.Element {
             setIsDeleting(true);
             try {
               await albumMediaDb.removeBatch(albumId, ids);
+
+              // If cover was removed, pick the next available item or null
+              if (album?.coverMediaId != null && ids.includes(album.coverMediaId)) {
+                const remainingIds = await albumMediaDb.getMediaIds(albumId);
+                await albumsDb.updateCover(albumId, remainingIds.length > 0 ? remainingIds[0] : null);
+                const updated = await albumsDb.getById(albumId);
+                if (updated) setAlbum(updated);
+              }
+
               await queryClient.invalidateQueries({ queryKey: ['albumMedia', albumId] });
               await queryClient.invalidateQueries({ queryKey: ['albumMediaCounts', isDecoyMode] });
+              await queryClient.invalidateQueries({ queryKey: ['albumCoverMedia', isDecoyMode] });
               clearSelection();
               alert('Removed', `${ids.length} item(s) removed from album.`);
             } finally {
@@ -107,6 +121,59 @@ export function AlbumViewScreen(): React.JSX.Element {
       ],
     );
   }, [onActivity, selectedIds, album, albumId, queryClient, isDecoyMode, clearSelection]);
+
+  /** Permanently delete selected items from vault */
+  const handlePermanentDelete = useCallback(() => {
+    onActivity();
+    const selected = mediaItems.filter(i => selectedIds.has(i.id));
+    if (selected.length === 0) return;
+
+    alert(
+      'Permanently Delete',
+      `Delete ${selected.length} item(s) permanently? This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setIsDeleting(true);
+            try {
+              const result = await deleteMediaItems(selected);
+              const deletedIds = selected.filter(s => !result.failed.some(f => f.id === s.id)).map(s => s.id);
+
+              // Update album cover if it was among deleted items
+              // (FK ON DELETE SET NULL handles the DB side, but we also pick a new cover)
+              if (album?.coverMediaId != null && deletedIds.includes(album.coverMediaId)) {
+                const remainingIds = await albumMediaDb.getMediaIds(albumId);
+                await albumsDb.updateCover(albumId, remainingIds.length > 0 ? remainingIds[0] : null);
+                const updated = await albumsDb.getById(albumId);
+                if (updated) setAlbum(updated);
+              }
+
+              await queryClient.invalidateQueries({ queryKey: ['albumMedia', albumId] });
+              await queryClient.invalidateQueries({ queryKey: ['albumMediaCounts', isDecoyMode] });
+              await queryClient.invalidateQueries({ queryKey: ['albumCoverMedia', isDecoyMode] });
+              // Invalidate media type queries so doc/photo/video tabs update
+              await queryClient.invalidateQueries({ queryKey: ['media'] });
+              clearSelection();
+
+              if (result.failed.length > 0) {
+                alert(
+                  'Partial Deletion',
+                  `${result.deleted} deleted, ${result.failed.length} failed.\n\nFailed: ${result.failed.map(f => f.name).join(', ')}`,
+                );
+              } else {
+                alert('Deleted', `${result.deleted} item(s) permanently deleted.`);
+              }
+            } finally {
+              setIsDeleting(false);
+            }
+          },
+        },
+      ],
+    );
+  }, [onActivity, mediaItems, selectedIds, album, albumId, queryClient, isDecoyMode, clearSelection]);
 
   /** Share selected items */
   const handleShare = useCallback(async () => {
@@ -253,6 +320,7 @@ export function AlbumViewScreen(): React.JSX.Element {
           isLoading={isLoading}
           onItemPress={handleItemPress}
           onItemLongPress={handleItemLongPress}
+          numColumns={gridColumns}
         />
       ) : (
         <View style={styles.emptyContent}>
@@ -282,6 +350,7 @@ export function AlbumViewScreen(): React.JSX.Element {
         visible={showOverflowMenu}
         onClose={() => setShowOverflowMenu(false)}
         onMoveToAlbum={handleMoveToAlbumPress}
+        onPermanentDelete={handlePermanentDelete}
         onUnhide={handleUnhide}
         onRename={selectedIds.size === 1 ? handleRenamePress : undefined}
         onProperties={selectedIds.size === 1 ? handlePropertiesPress : undefined}

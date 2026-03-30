@@ -23,6 +23,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { VaultStackParamList } from '@typedefs/navigation';
 import { useThemeColors, type ColorTokens, typography, spacing, layout } from '@shared/theme';
+import { useOrientation } from '@shared/hooks';
 import { useAuthStore } from '@store/authStore';
 import { useSettingsStore } from '@store/settingsStore';
 import {
@@ -38,7 +39,6 @@ import { alert } from '@store/alertStore';
 type NavigationProp = NativeStackNavigationProp<VaultStackParamList, 'GalleryMediaSelect'>;
 type ScreenRoute = RouteProp<VaultStackParamList, 'GalleryMediaSelect'>;
 
-const NUM_COLUMNS = layout.vaultGridColumns;
 const GAP = layout.vaultGridGap;
 
 /** Format milliseconds to mm:ss */
@@ -53,6 +53,8 @@ export function GalleryMediaSelectScreen(): React.JSX.Element {
   const themeColors = useThemeColors();
   const styles = useMemo(() => createStyles(themeColors), [themeColors]);
   const navigation = useNavigation<NavigationProp>();
+  const { isLandscape } = useOrientation();
+  const numColumns = isLandscape ? 5 : layout.vaultGridColumns;
   const route = useRoute<ScreenRoute>();
   const queryClient = useQueryClient();
   const { bucketId, bucketName, mediaType } = route.params;
@@ -70,8 +72,8 @@ export function GalleryMediaSelectScreen(): React.JSX.Element {
   const [containerWidth, setContainerWidth] = useState(0);
   const itemSize = useMemo(() => {
     if (containerWidth === 0) return 0;
-    return (containerWidth - GAP * 2 - (NUM_COLUMNS - 1) * GAP) / NUM_COLUMNS;
-  }, [containerWidth]);
+    return (containerWidth - GAP * 2 - (numColumns - 1) * GAP) / numColumns;
+  }, [containerWidth, numColumns]);
 
   useEffect(() => {
     let cancelled = false;
@@ -269,7 +271,7 @@ export function GalleryMediaSelectScreen(): React.JSX.Element {
               data={items}
               renderItem={renderItem}
               keyExtractor={keyExtractor}
-              numColumns={NUM_COLUMNS}
+              numColumns={numColumns}
               ItemSeparatorComponent={ItemSeparator}
               contentContainerStyle={styles.gridContent}
               extraData={selectedIds}

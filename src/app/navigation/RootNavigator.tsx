@@ -13,7 +13,7 @@ import type { RootStackParamList } from '@typedefs/navigation';
 
 // Feature screens
 import { CalculatorScreen } from '@features/calculator/screens';
-import { PinSetupScreen, PatternUnlockScreen } from '@features/auth';
+import { PinSetupScreen, PatternUnlockScreen, ForgotPinScreen } from '@features/auth';
 import { WelcomeScreen, HowItWorksScreen, FirstImportScreen } from '@features/onboarding';
 import { VaultNavigator } from './VaultNavigator';
 import { useSettingsStore } from '@store/settingsStore';
@@ -77,6 +77,16 @@ export function RootNavigator(): React.JSX.Element {
         options={{
           animation: 'fade',
           gestureEnabled: false,
+        }}
+      />
+
+      {/* Forgot PIN Recovery */}
+      <Stack.Screen
+        name="ForgotPin"
+        component={ForgotPinScreen}
+        options={{
+          animation: 'slide_from_bottom',
+          presentation: 'modal',
         }}
       />
 

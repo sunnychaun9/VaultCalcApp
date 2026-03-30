@@ -67,6 +67,7 @@ class AppLockAccessibilityService : AccessibilityService() {
         super.onServiceConnected()
         lockManager = AppLockManager.getInstance(this)
         recentsCover = RecentsCoverManager(this)
+        RecentsCoverBridge.register(recentsCover!!)
 
         serviceInfo = serviceInfo.apply {
             eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED or
@@ -142,9 +143,6 @@ class AppLockAccessibilityService : AccessibilityService() {
         // ── This is a genuine user app transition ──
         currentUserApp = packageName
 
-        // Hide recents cover when entering any real app
-        recentsCover?.hideCover()
-
         // If the user left a locked app to go to a DIFFERENT real app,
         // revoke authentication so next open requires PIN again
         if (previousUserApp != null && previousUserApp != packageName
@@ -153,15 +151,21 @@ class AppLockAccessibilityService : AccessibilityService() {
         }
 
         // Check if this app needs locking
-        if (!manager.isAppLocked(packageName)) return
+        if (!manager.isAppLocked(packageName)) {
+            // Not a locked app — safe to hide the recents cover
+            recentsCover?.hideCover()
+            return
+        }
 
         // If user already authenticated for this app in this session, skip
-        if (manager.isAuthenticated(packageName)) return
+        if (manager.isAuthenticated(packageName)) {
+            recentsCover?.hideCover()
+            return
+        }
 
-        // Remove cover before showing lock screen
-        recentsCover?.hideCover()
-
-        // Launch lock screen
+        // App needs locking — keep cover visible while lock screen loads,
+        // then launch the lock screen on top
+        recentsCover?.showCover()
         launchLockScreen(packageName)
     }
 
@@ -178,6 +182,7 @@ class AppLockAccessibilityService : AccessibilityService() {
     }
 
     override fun onDestroy() {
+        RecentsCoverBridge.unregister()
         recentsCover?.destroy()
         screenOffReceiver?.let {
             try {

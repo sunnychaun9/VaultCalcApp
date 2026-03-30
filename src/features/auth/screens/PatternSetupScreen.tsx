@@ -10,7 +10,7 @@
  */
 
 import React, { useState, useCallback } from 'react';
-import { View, Text, Pressable, StyleSheet, Animated, StatusBar } from 'react-native';
+import { View, Text, Pressable, ScrollView, StyleSheet, Animated, StatusBar } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -137,6 +137,7 @@ export function PatternSetupScreen(): React.JSX.Element {
         <View style={styles.bgBottom} />
 
         <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+          <ScrollView contentContainerStyle={styles.scrollContent} bounces={false} showsVerticalScrollIndicator={false}>
           {/* Header */}
           <View style={styles.header}>
             <Pressable onPress={handleBack} style={styles.backButton}>
@@ -186,6 +187,7 @@ export function PatternSetupScreen(): React.JSX.Element {
               <Text style={styles.trustText}>Protected with encryption</Text>
             </View>
           </View>
+          </ScrollView>
         </SafeAreaView>
       </View>
     </Animated.View>
@@ -198,6 +200,7 @@ const styles = StyleSheet.create({
   bgTop: { ...StyleSheet.absoluteFillObject, backgroundColor: BG_TOP },
   bgBottom: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '55%', backgroundColor: BG_BOTTOM, borderTopLeftRadius: 40, borderTopRightRadius: 40 },
   safeArea: { flex: 1 },
+  scrollContent: { flexGrow: 1 },
   header: { alignItems: 'center', paddingTop: 20 },
   backButton: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center', alignSelf: 'flex-start', marginLeft: spacing.md },
   backButtonText: { fontSize: 24, color: TEXT_PRIMARY },
@@ -205,7 +208,7 @@ const styles = StyleSheet.create({
   lockIcon: { fontSize: 20 },
   title: { ...typography.headlineMedium, color: TEXT_PRIMARY, fontWeight: '600', marginBottom: spacing.xxs },
   subtitle: { ...typography.bodyMedium, color: TEXT_SECONDARY, textAlign: 'center' },
-  cardWrapper: { flex: 1, justifyContent: 'center', paddingHorizontal: spacing.lg, alignItems: 'center' },
+  cardWrapper: { flexGrow: 1, flexShrink: 0, justifyContent: 'center', paddingHorizontal: spacing.lg, alignItems: 'center' },
   card: { backgroundColor: CARD_BG, borderRadius: 24, borderWidth: 1, borderColor: CARD_BORDER, padding: spacing.lg, elevation: 8, width: '100%' },
   dotCount: { ...typography.labelSmall, color: TEXT_MUTED, marginTop: spacing.md },
   errorText: { ...typography.bodyMedium, color: ERROR_COLOR, textAlign: 'center', marginTop: spacing.xs },

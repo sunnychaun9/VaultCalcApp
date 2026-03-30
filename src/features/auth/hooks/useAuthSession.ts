@@ -55,7 +55,8 @@ export function useAuthSession() {
   // Refs for cleanup
   const timeoutCheckInterval = useRef<ReturnType<typeof setInterval> | null>(null);
   const appStateSubscription = useRef<ReturnType<typeof AppState.addEventListener> | null>(null);
-  const backgroundLockTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Timestamp when app went to background (null = foreground) */
+  const backgroundSince = useRef<number | null>(null);
 
   /**
    * Lock the vault and navigate to calculator
@@ -69,40 +70,33 @@ export function useAuthSession() {
   /**
    * Handle app state changes (foreground/background)
    *
-   * Uses a grace period to avoid locking during transient system dialogs
-   * (permission requests, file pickers, share sheets, etc.) that briefly
-   * put the app in background/inactive state.
+   * Records the timestamp when the app enters background. When the app
+   * returns to foreground, checks if the background duration exceeded the
+   * grace period and locks if so. This avoids race conditions with timers.
    */
   const handleAppStateChange = useCallback(
     (nextAppState: AppStateStatus) => {
-      // Skip if auto-lock is suppressed (file picker / import in progress)
-      if (!isAuthenticated || !lockOnBackground || suppressAutoLock) {
-        // Cancel any pending lock timer
-        if (backgroundLockTimer.current) {
-          clearTimeout(backgroundLockTimer.current);
-          backgroundLockTimer.current = null;
-        }
-        return;
-      }
-
       if (nextAppState === 'background') {
-        // Start grace period — only lock if app stays in background
-        // This prevents locking during permission dialogs, file pickers, etc.
-        if (!backgroundLockTimer.current) {
-          backgroundLockTimer.current = setTimeout(() => {
-            backgroundLockTimer.current = null;
-            // Re-check state before locking (user may have returned)
-            if (AppState.currentState !== 'active') {
-              lockVault();
-            }
-          }, BACKGROUND_LOCK_GRACE_MS);
+        // Record when the app went to background
+        if (backgroundSince.current === null) {
+          backgroundSince.current = Date.now();
         }
       } else if (nextAppState === 'active') {
-        // App came back to foreground — cancel the pending lock
-        if (backgroundLockTimer.current) {
-          clearTimeout(backgroundLockTimer.current);
-          backgroundLockTimer.current = null;
+        // App came back to foreground — check how long it was away
+        if (
+          backgroundSince.current !== null &&
+          isAuthenticated &&
+          lockOnBackground &&
+          !suppressAutoLock
+        ) {
+          const awayMs = Date.now() - backgroundSince.current;
+          if (awayMs >= BACKGROUND_LOCK_GRACE_MS) {
+            backgroundSince.current = null;
+            lockVault();
+            return;
+          }
         }
+        backgroundSince.current = null;
       }
       // 'inactive' is ignored — it fires for transient overlays
       // (permission dialogs, notification shade, etc.)
@@ -156,15 +150,12 @@ export function useAuthSession() {
     }
 
     return () => {
-      // Clean up listener and pending lock timer on unmount or when auth changes
+      // Clean up listener on unmount or when auth changes
       if (appStateSubscription.current) {
         appStateSubscription.current.remove();
         appStateSubscription.current = null;
       }
-      if (backgroundLockTimer.current) {
-        clearTimeout(backgroundLockTimer.current);
-        backgroundLockTimer.current = null;
-      }
+      backgroundSince.current = null;
     };
   }, [isAuthenticated, handleAppStateChange]);
 

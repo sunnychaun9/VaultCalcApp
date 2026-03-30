@@ -30,6 +30,7 @@ const PRODUCT_IDS = [
   'vaultcalc_premium_monthly',
   'vaultcalc_premium_yearly',
   'vaultcalc_premium_lifetime',
+  'vaultcalc_remove_ads',
 ];
 
 /** Synthetic product data for mock mode */
@@ -60,6 +61,16 @@ const MOCK_PRODUCTS: BillingProductInfo[] = [
     description: 'One-time lifetime purchase',
     price: '$79.99',
     priceMicros: 79_990_000,
+    currencyCode: 'USD',
+    productType: 'inapp',
+    offerToken: null,
+  },
+  {
+    productId: 'vaultcalc_remove_ads',
+    title: 'Remove Ads',
+    description: 'One-time purchase to remove all ads permanently',
+    price: '$2.99',
+    priceMicros: 2_990_000,
     currencyCode: 'USD',
     productType: 'inapp',
     offerToken: null,
