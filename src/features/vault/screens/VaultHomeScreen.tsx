@@ -14,11 +14,13 @@ import {
   Text,
   Pressable,
   ScrollView as RNScrollView,
-  PanResponder,
-  Modal,
   TextInput,
   StyleSheet,
 } from 'react-native';
+import type BottomSheetType from '@gorhom/bottom-sheet';
+import { BottomSheetTextInput } from '@gorhom/bottom-sheet';
+import { AppBottomSheet } from '@shared/components/AppBottomSheet';
+import PagerView from 'react-native-pager-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -32,6 +34,7 @@ import { useAuthStore } from '@store/authStore';
 import { useSettingsStore } from '@store/settingsStore';
 import { useThemeColors, type ColorTokens, typography, spacing, layout } from '@shared/theme';
 import { useOrientation } from '@shared/hooks';
+import { Icon } from '@shared/components/Icon';
 import { mediaItems as mediaItemsDb, albums as albumsDb, albumMedia as albumMediaDb, notes as notesDb, type MediaItem, type MediaType, type Album, type Note } from '@services/storage/database';
 import { pickFilesForTab } from '@services/filePicker';
 import { importFiles, type ImportProgress } from '@services/import';
@@ -80,13 +83,18 @@ export function VaultHomeScreen(): React.JSX.Element {
   const gridColumns = isLandscape ? 5 : layout.vaultGridColumns;
   const queryClient = useQueryClient();
   const tabScrollRef = useRef<RNScrollView>(null);
+  const pagerRef = useRef<PagerView>(null);
+  const sortSheetRef = useRef<BottomSheetType>(null);
+  const createAlbumSheetRef = useRef<BottomSheetType>(null);
+  const renameAlbumSheetRef = useRef<BottomSheetType>(null);
+  const createNoteSheetRef = useRef<BottomSheetType>(null);
   const [activeTab, setActiveTab] = useState<TabType>('images');
   const [isImporting, setIsImporting] = useState(false);
   const [importProgress, setImportProgress] = useState<ImportProgress | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
-  const [showSortModal, setShowSortModal] = useState(false);
+  // Sort sheet state removed — managed by sheet ref
   const [showOverflowMenu, setShowOverflowMenu] = useState(false);
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [showPropertiesModal, setShowPropertiesModal] = useState(false);
@@ -200,6 +208,7 @@ export function VaultHomeScreen(): React.JSX.Element {
   const handleCreateAlbum = useCallback(() => {
     onActivity();
     setShowCreateAlbum(true);
+    createAlbumSheetRef.current?.expand();
   }, [onActivity]);
 
   /**
@@ -250,6 +259,7 @@ export function VaultHomeScreen(): React.JSX.Element {
           setRenameAlbumTarget(album);
           setRenameAlbumName(album.name);
           setShowRenameAlbum(true);
+          renameAlbumSheetRef.current?.expand();
         },
       },
       {
@@ -300,6 +310,7 @@ export function VaultHomeScreen(): React.JSX.Element {
   const handleCreateNote = useCallback(() => {
     onActivity();
     setShowCreateNote(true);
+    createNoteSheetRef.current?.expand();
   }, [onActivity]);
 
   /**
@@ -458,6 +469,7 @@ export function VaultHomeScreen(): React.JSX.Element {
     pendingAddMediaIdsRef.current = Array.from(selectedIds);
     setShowAddToAlbum(false);
     setShowCreateAlbum(true);
+    createAlbumSheetRef.current?.expand();
   }, [selectedIds]);
 
   /**
@@ -537,6 +549,7 @@ export function VaultHomeScreen(): React.JSX.Element {
     if (mediaType !== null) {
       await queryClient.invalidateQueries({ queryKey: ['media', mediaType, isDecoyMode] });
     }
+    await queryClient.invalidateQueries({ queryKey: ['albumMedia'] });
 
     setShowRenameModal(false);
     clearSelection();
@@ -662,6 +675,8 @@ export function VaultHomeScreen(): React.JSX.Element {
     setShowFavoritesOnly(false);
     setSearchQuery('');
     setShowSearch(false);
+    const idx = TABS.findIndex(t => t.key === tab);
+    pagerRef.current?.setPage(idx);
   }, [onActivity]);
 
   // Auto-scroll tab bar to keep active tab visible
@@ -672,36 +687,23 @@ export function VaultHomeScreen(): React.JSX.Element {
     tabScrollRef.current?.scrollTo({ x: scrollX, animated: true });
   }, [activeTab]);
 
-  // Swipe between tabs
-  const swipeTab = useCallback((direction: 'left' | 'right') => {
-    setActiveTab(prev => {
-      const tabKeys = TABS.map(t => t.key);
-      const idx = tabKeys.indexOf(prev);
-      const nextIdx = direction === 'left' ? idx + 1 : idx - 1;
-      if (nextIdx < 0 || nextIdx >= tabKeys.length) return prev;
+  // Handle pager swipe — sync activeTab with the native pager position
+  const handlePageSelected = useCallback((e: { nativeEvent: { position: number } }) => {
+    const idx = e.nativeEvent.position;
+    const tab = TABS[idx]?.key;
+    if (tab && tab !== activeTab) {
+      onActivity();
+      setActiveTab(tab);
       setShowFavoritesOnly(false);
       setSearchQuery('');
       setShowSearch(false);
-      return tabKeys[nextIdx];
-    });
-  }, []);
-
-  const panResponder = useMemo(() => PanResponder.create({
-    onMoveShouldSetPanResponder: (_evt, gs) => {
-      // Only claim horizontal swipes (dx > 30px and mostly horizontal)
-      return Math.abs(gs.dx) > 30 && Math.abs(gs.dx) > Math.abs(gs.dy) * 1.8;
-    },
-    onPanResponderRelease: (_evt, gs) => {
-      if (Math.abs(gs.dx) > 50 && Math.abs(gs.dx) > Math.abs(gs.dy) * 1.5) {
-        swipeTab(gs.dx < 0 ? 'left' : 'right');
-      }
-    },
-  }), [swipeTab]);
+    }
+  }, [activeTab, onActivity]);
 
   /**
    * Handle grid item press
    */
-  const handleItemPress = useCallback((item: MediaItem) => {
+  const handleItemPress = useCallback((item: MediaItem, originRect?: { x: number; y: number; width: number; height: number }) => {
     if (isDeleting) return;
     onActivity();
     if (isSelectionMode) {
@@ -711,9 +713,9 @@ export function VaultHomeScreen(): React.JSX.Element {
       const siblingIds = filteredItems.map(i => i.id);
       navigation.navigate('AudioPlayer', { mediaId: item.id, mediaIds: siblingIds });
     } else {
-      // Pass sibling IDs for swipe navigation between items
+      // Pass sibling IDs + origin rect for hero transition
       const siblingIds = filteredItems.map(i => i.id);
-      navigation.navigate('MediaViewer', { mediaId: item.id, mediaIds: siblingIds });
+      navigation.navigate('MediaViewer', { mediaId: item.id, mediaIds: siblingIds, originRect });
     }
   }, [isDeleting, onActivity, isSelectionMode, toggleSelection, navigation, filteredItems]);
 
@@ -813,11 +815,35 @@ export function VaultHomeScreen(): React.JSX.Element {
     }
   }, [onActivity, filteredItems, selectedIds.size, clearSelection, selectAll]);
 
+  // Whether the current tab supports media actions (search, sort, fav, view toggle)
+  const isMediaTab = activeTab === 'images' || activeTab === 'videos' || activeTab === 'documents' || activeTab === 'audio';
+
+  // Section header text — e.g. "All Images" or "Favorites (3)"
+  const sectionTitle = useMemo(() => {
+    if (searchQuery.trim()) return `Results`;
+    if (showFavoritesOnly) return 'Favorites';
+    const labels: Record<TabType, string> = {
+      images: 'All Images',
+      videos: 'All Videos',
+      audio: 'All Audio',
+      documents: 'All Documents',
+      albums: 'Albums',
+      notes: 'Notes',
+    };
+    return labels[activeTab];
+  }, [activeTab, showFavoritesOnly, searchQuery]);
+
+  const itemCount = useMemo(() => {
+    if (activeTab === 'albums') return albumsData.length;
+    if (activeTab === 'notes') return notesData.length;
+    return filteredItems.length;
+  }, [activeTab, filteredItems.length, albumsData.length, notesData.length]);
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Header */}
+      {/* Header — compact: lock + title + search + settings */}
       <VaultHeader
-        title="Private Storage"
+        title="Vault"
         showSettings={true}
         onSettingsPress={handleSettingsPress}
         isSelectionMode={isSelectionMode}
@@ -825,9 +851,20 @@ export function VaultHomeScreen(): React.JSX.Element {
         totalCount={filteredItems.length}
         onClearSelection={clearSelection}
         onSelectAll={handleSelectAll}
+        onSearchPress={isMediaTab ? () => { setShowSearch(s => !s); if (showSearch) setSearchQuery(''); } : undefined}
+        isSearchActive={showSearch}
       />
 
-      {/* Tab Bar — horizontally scrollable so tabs never wrap */}
+      {/* Search bar — slides in below header when active */}
+      {showSearch && isMediaTab && (
+        <SearchBar
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          placeholder={`Search ${activeTab}...`}
+        />
+      )}
+
+      {/* Compact pill tabs */}
       <View style={styles.tabBar}>
         <RNScrollView
           ref={tabScrollRef}
@@ -856,140 +893,206 @@ export function VaultHomeScreen(): React.JSX.Element {
               >
                 {tab.label}
               </Text>
-              {activeTab === tab.key && <View style={styles.tabIndicator} />}
             </Pressable>
           ))}
         </RNScrollView>
+
+        {/* Inline sort/fav/view toggles — right side of tab row */}
+        {isMediaTab && !isSelectionMode && (
+          <View style={styles.tabTrailing}>
+            {(activeTab === 'images' || activeTab === 'videos') && (
+              <Pressable
+                onPress={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
+                style={styles.tabTrailingBtn}
+                accessibilityRole="button"
+                accessibilityLabel={viewMode === 'grid' ? 'Switch to list view' : 'Switch to grid view'}
+              >
+                <Icon
+                  name={viewMode === 'grid' ? 'list' : 'grid'}
+                  size={18}
+                  color={themeColors.textTertiary}
+                />
+              </Pressable>
+            )}
+            <Pressable
+              onPress={() => sortSheetRef.current?.expand()}
+              style={styles.tabTrailingBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Sort options"
+            >
+              <Icon
+                name="arrow-up-down"
+                size={18}
+                color={(sortBy !== 'date' || sortOrder !== 'desc') ? themeColors.accent : themeColors.textTertiary}
+              />
+            </Pressable>
+            <Pressable
+              onPress={() => setShowFavoritesOnly(prev => !prev)}
+              style={styles.tabTrailingBtn}
+              accessibilityRole="button"
+              accessibilityLabel={showFavoritesOnly ? 'Show all items' : 'Show favorites only'}
+            >
+              <Icon
+                name="star"
+                size={18}
+                color={showFavoritesOnly ? '#FFD700' : themeColors.textTertiary}
+                fill={showFavoritesOnly ? '#FFD700' : 'none'}
+              />
+            </Pressable>
+          </View>
+        )}
       </View>
 
-      {/* Action bar — search, view toggle, sort, favorites (media tabs only) */}
-      {(activeTab === 'images' || activeTab === 'videos' || activeTab === 'documents' || activeTab === 'audio') && (
-        <View style={styles.actionBar}>
-          <Pressable
-            onPress={() => { setShowSearch(s => !s); if (showSearch) setSearchQuery(''); }}
-            style={styles.actionButton}
-            accessibilityRole="button"
-            accessibilityLabel="Search"
-          >
-            <Text style={[styles.actionIcon, showSearch && styles.actionIconActive]}>
-              {'\u{1F50D}'}
-            </Text>
-          </Pressable>
-          {(activeTab === 'images' || activeTab === 'videos') && (
-            <Pressable
-              onPress={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
-              style={styles.actionButton}
-              accessibilityRole="button"
-              accessibilityLabel={viewMode === 'grid' ? 'Switch to list view' : 'Switch to grid view'}
-            >
-              <Text style={styles.actionIcon}>
-                {viewMode === 'grid' ? '\u2630' : '\u2637'}
-              </Text>
-            </Pressable>
-          )}
-          <Pressable
-            onPress={() => setShowSortModal(true)}
-            style={styles.actionButton}
-            accessibilityRole="button"
-            accessibilityLabel="Sort options"
-          >
-            <Text style={[
-              styles.actionIcon,
-              (sortBy !== 'date' || sortOrder !== 'desc') && styles.actionIconActive,
-            ]}>
-              {'\u2195'}
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={() => setShowFavoritesOnly(prev => !prev)}
-            style={styles.actionButton}
-            accessibilityRole="button"
-            accessibilityLabel={showFavoritesOnly ? 'Show all items' : 'Show favorites only'}
-          >
-            <Text style={[styles.actionIcon, showFavoritesOnly && styles.actionIconFav]}>
-              {showFavoritesOnly ? '\u2605' : '\u2606'}
-            </Text>
-          </Pressable>
+      {/* Section header — "All Images (24)" */}
+      {!isSelectionMode && itemCount > 0 && (
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>{sectionTitle}</Text>
+          <Text style={styles.sectionCount}>{itemCount}</Text>
         </View>
       )}
 
-      {/* Search bar — shown for media tabs when search is active */}
-      {showSearch && (activeTab === 'images' || activeTab === 'videos' || activeTab === 'documents') && (
-        <SearchBar
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          placeholder={`Search ${activeTab}...`}
-        />
-      )}
+      {/* Content Area — native swipeable pager between tabs */}
+      <PagerView
+        ref={pagerRef}
+        style={styles.content}
+        initialPage={0}
+        onPageSelected={handlePageSelected}
+        overdrag={false}
+      >
+        {/* Images page */}
+        <View key="images" style={styles.page}>
+          {activeTab === 'images' && (
+            filteredItems.length > 0 ? (
+              viewMode === 'list' ? (
+                <MediaList
+                  items={filteredItems}
+                  isLoading={isLoading}
+                  onItemPress={handleItemPress}
+                  onItemLongPress={handleItemLongPress}
+                />
+              ) : (
+                <MediaGrid
+                  items={filteredItems}
+                  isLoading={isLoading}
+                  onItemPress={handleItemPress}
+                  onItemLongPress={handleItemLongPress}
+                  numColumns={gridColumns}
+                />
+              )
+            ) : searchQuery.trim() ? (
+              <EmptyState contentType="search" />
+            ) : showFavoritesOnly ? (
+              <EmptyState contentType="favorites" />
+            ) : (
+              <EmptyState contentType="images" onAddPress={handleAddPress} />
+            )
+          )}
+        </View>
 
-      {/* Content Area — swipeable between tabs */}
-      <View style={styles.content} {...panResponder.panHandlers}>
-        {activeTab === 'albums' ? (
-          albumsData.length > 0 ? (
-            <AlbumList
-              albums={albumsData}
-              isLoading={albumsLoading}
-              mediaCounts={mediaCounts}
-              coverMediaMap={coverMediaMap}
-              onAlbumPress={handleAlbumPress}
-              onAlbumLongPress={handleAlbumLongPress}
-            />
-          ) : (
-            <EmptyState contentType="albums" onAddPress={handleCreateAlbum} />
-          )
-        ) : activeTab === 'notes' ? (
-          notesData.length > 0 ? (
-            <NoteList
-              notes={notesData}
-              isLoading={notesLoading}
-              onNotePress={handleNotePress}
-              onNoteLongPress={handleNoteLongPress}
-            />
-          ) : (
-            <EmptyState contentType="notes" onAddPress={handleCreateNote} />
-          )
-        ) : filteredItems.length > 0 ? (
-          activeTab === 'documents' ? (
-            <DocumentList
-              items={filteredItems}
-              isLoading={isLoading}
-              onItemPress={handleItemPress}
-              onItemLongPress={handleItemLongPress}
-            />
-          ) : activeTab === 'audio' ? (
-            <AudioList
-              items={filteredItems}
-              isLoading={isLoading}
-              onItemPress={handleItemPress}
-              onItemLongPress={handleItemLongPress}
-            />
-          ) : viewMode === 'list' ? (
-            <MediaList
-              items={filteredItems}
-              isLoading={isLoading}
-              onItemPress={handleItemPress}
-              onItemLongPress={handleItemLongPress}
-            />
-          ) : (
-            <MediaGrid
-              items={filteredItems}
-              isLoading={isLoading}
-              onItemPress={handleItemPress}
-              onItemLongPress={handleItemLongPress}
-              numColumns={gridColumns}
-            />
-          )
-        ) : searchQuery.trim() ? (
-          <EmptyState contentType="search" />
-        ) : showFavoritesOnly ? (
-          <EmptyState contentType="favorites" />
-        ) : (
-          <EmptyState
-            contentType={activeTab}
-            onAddPress={handleAddPress}
-          />
-        )}
-      </View>
+        {/* Videos page */}
+        <View key="videos" style={styles.page}>
+          {activeTab === 'videos' && (
+            filteredItems.length > 0 ? (
+              viewMode === 'list' ? (
+                <MediaList
+                  items={filteredItems}
+                  isLoading={isLoading}
+                  onItemPress={handleItemPress}
+                  onItemLongPress={handleItemLongPress}
+                />
+              ) : (
+                <MediaGrid
+                  items={filteredItems}
+                  isLoading={isLoading}
+                  onItemPress={handleItemPress}
+                  onItemLongPress={handleItemLongPress}
+                  numColumns={gridColumns}
+                />
+              )
+            ) : searchQuery.trim() ? (
+              <EmptyState contentType="search" />
+            ) : showFavoritesOnly ? (
+              <EmptyState contentType="favorites" />
+            ) : (
+              <EmptyState contentType="videos" onAddPress={handleAddPress} />
+            )
+          )}
+        </View>
+
+        {/* Audio page */}
+        <View key="audio" style={styles.page}>
+          {activeTab === 'audio' && (
+            filteredItems.length > 0 ? (
+              <AudioList
+                items={filteredItems}
+                isLoading={isLoading}
+                onItemPress={handleItemPress}
+                onItemLongPress={handleItemLongPress}
+              />
+            ) : searchQuery.trim() ? (
+              <EmptyState contentType="search" />
+            ) : showFavoritesOnly ? (
+              <EmptyState contentType="favorites" />
+            ) : (
+              <EmptyState contentType="audio" onAddPress={handleAddPress} />
+            )
+          )}
+        </View>
+
+        {/* Documents page */}
+        <View key="documents" style={styles.page}>
+          {activeTab === 'documents' && (
+            filteredItems.length > 0 ? (
+              <DocumentList
+                items={filteredItems}
+                isLoading={isLoading}
+                onItemPress={handleItemPress}
+                onItemLongPress={handleItemLongPress}
+              />
+            ) : searchQuery.trim() ? (
+              <EmptyState contentType="search" />
+            ) : showFavoritesOnly ? (
+              <EmptyState contentType="favorites" />
+            ) : (
+              <EmptyState contentType="documents" onAddPress={handleAddPress} />
+            )
+          )}
+        </View>
+
+        {/* Albums page */}
+        <View key="albums" style={styles.page}>
+          {activeTab === 'albums' && (
+            albumsData.length > 0 ? (
+              <AlbumList
+                albums={albumsData}
+                isLoading={albumsLoading}
+                mediaCounts={mediaCounts}
+                coverMediaMap={coverMediaMap}
+                onAlbumPress={handleAlbumPress}
+                onAlbumLongPress={handleAlbumLongPress}
+              />
+            ) : (
+              <EmptyState contentType="albums" onAddPress={handleCreateAlbum} />
+            )
+          )}
+        </View>
+
+        {/* Notes page */}
+        <View key="notes" style={styles.page}>
+          {activeTab === 'notes' && (
+            notesData.length > 0 ? (
+              <NoteList
+                notes={notesData}
+                isLoading={notesLoading}
+                onNotePress={handleNotePress}
+                onNoteLongPress={handleNoteLongPress}
+              />
+            ) : (
+              <EmptyState contentType="notes" onAddPress={handleCreateNote} />
+            )
+          )}
+        </View>
+      </PagerView>
 
       {/* Selection Bar or Floating Add Button */}
       {isSelectionMode ? (
@@ -1017,54 +1120,45 @@ export function VaultHomeScreen(): React.JSX.Element {
         <ImportProgressOverlay progress={importProgress} />
       )}
 
-      {/* Create Album Modal (ALBUM-001) */}
-      <Modal
-        visible={showCreateAlbum}
-        transparent
-        animationType="fade"
-        onRequestClose={() => {
+      {/* Create Album Sheet (ALBUM-001) */}
+      <AppBottomSheet
+        ref={createAlbumSheetRef}
+        snapPoints={[240]}
+        title="New Album"
+        onDismiss={() => {
           pendingAddMediaIdsRef.current = null;
           setShowCreateAlbum(false);
+          setNewAlbumName('');
         }}
       >
-        <Pressable
-          style={styles.modalOverlay}
-          onPress={() => setShowCreateAlbum(false)}
-        >
-          <Pressable style={styles.modalCard} onPress={() => {}}>
-            <Text style={styles.modalTitle}>New Album</Text>
-            <TextInput
-              ref={albumNameInputRef}
-              style={styles.modalInput}
-              placeholder="Album name"
-              placeholderTextColor={themeColors.textSecondary}
-              value={newAlbumName}
-              onChangeText={setNewAlbumName}
-              onSubmitEditing={handleConfirmCreateAlbum}
-              returnKeyType="done"
-              maxLength={100}
-            />
-            <View style={styles.modalButtons}>
-              <Pressable
-                style={styles.modalButton}
-                onPress={() => {
-                  pendingAddMediaIdsRef.current = null;
-                  setShowCreateAlbum(false);
-                  setNewAlbumName('');
-                }}
-              >
-                <Text style={styles.modalButtonText}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.modalButton, styles.modalButtonPrimary]}
-                onPress={handleConfirmCreateAlbum}
-              >
-                <Text style={styles.modalButtonPrimaryText}>Create</Text>
-              </Pressable>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
+        <View style={styles.sheetContent}>
+          <BottomSheetTextInput
+            style={styles.sheetInput}
+            placeholder="Album name"
+            placeholderTextColor={themeColors.textSecondary}
+            value={newAlbumName}
+            onChangeText={setNewAlbumName}
+            onSubmitEditing={handleConfirmCreateAlbum}
+            returnKeyType="done"
+            maxLength={100}
+            autoFocus
+          />
+          <View style={styles.sheetButtons}>
+            <Pressable
+              style={styles.sheetButton}
+              onPress={() => createAlbumSheetRef.current?.close()}
+            >
+              <Text style={styles.sheetButtonText}>Cancel</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.sheetButton, styles.sheetButtonPrimary]}
+              onPress={handleConfirmCreateAlbum}
+            >
+              <Text style={styles.sheetButtonPrimaryText}>Create</Text>
+            </Pressable>
+          </View>
+        </View>
+      </AppBottomSheet>
 
       {/* Add to Album Modal (ALBUM-003) */}
       <AddToAlbumModal
@@ -1076,154 +1170,128 @@ export function VaultHomeScreen(): React.JSX.Element {
         onClose={() => setShowAddToAlbum(false)}
       />
 
-      {/* Rename Album Modal (ALBUM-005) */}
-      <Modal
-        visible={showRenameAlbum}
-        transparent
-        animationType="fade"
-        onRequestClose={() => {
+      {/* Rename Album Sheet (ALBUM-005) */}
+      <AppBottomSheet
+        ref={renameAlbumSheetRef}
+        snapPoints={[240]}
+        title="Rename Album"
+        onDismiss={() => {
           setShowRenameAlbum(false);
           setRenameAlbumTarget(null);
           setRenameAlbumName('');
         }}
       >
-        <Pressable
-          style={styles.modalOverlay}
-          onPress={() => {
-            setShowRenameAlbum(false);
-            setRenameAlbumTarget(null);
-            setRenameAlbumName('');
-          }}
-        >
-          <Pressable style={styles.modalCard} onPress={() => {}}>
-            <Text style={styles.modalTitle}>Rename Album</Text>
-            <TextInput
-              ref={renameInputRef}
-              style={styles.modalInput}
-              placeholder="Album name"
-              placeholderTextColor={themeColors.textSecondary}
-              value={renameAlbumName}
-              onChangeText={setRenameAlbumName}
-              onSubmitEditing={handleConfirmRenameAlbum}
-              returnKeyType="done"
-              maxLength={100}
-            />
-            <View style={styles.modalButtons}>
-              <Pressable
-                style={styles.modalButton}
-                onPress={() => {
-                  setShowRenameAlbum(false);
-                  setRenameAlbumTarget(null);
-                  setRenameAlbumName('');
-                }}
-              >
-                <Text style={styles.modalButtonText}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.modalButton, styles.modalButtonPrimary]}
-                onPress={handleConfirmRenameAlbum}
-              >
-                <Text style={styles.modalButtonPrimaryText}>Rename</Text>
-              </Pressable>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
-
-      {/* Sort Options Modal (ENH-003) */}
-      <Modal
-        visible={showSortModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowSortModal(false)}
-      >
-        <Pressable
-          style={styles.modalOverlay}
-          onPress={() => setShowSortModal(false)}
-        >
-          <Pressable style={styles.modalCard} onPress={() => {}}>
-            <Text style={styles.modalTitle}>Sort By</Text>
-            {(['date', 'name', 'size'] as const).map((field) => (
-              <Pressable
-                key={field}
-                style={[styles.sortOption, sortBy === field && styles.sortOptionActive]}
-                onPress={() => {
-                  setSortBy(field);
-                  setShowSortModal(false);
-                }}
-              >
-                <Text style={[styles.sortOptionText, sortBy === field && styles.sortOptionTextActive]}>
-                  {field === 'date' ? 'Date' : field === 'name' ? 'Name' : 'Size'}
-                </Text>
-                {sortBy === field && (
-                  <Text style={styles.sortOptionCheck}>{'\u2713'}</Text>
-                )}
-              </Pressable>
-            ))}
+        <View style={styles.sheetContent}>
+          <BottomSheetTextInput
+            style={styles.sheetInput}
+            placeholder="Album name"
+            placeholderTextColor={themeColors.textSecondary}
+            value={renameAlbumName}
+            onChangeText={setRenameAlbumName}
+            onSubmitEditing={handleConfirmRenameAlbum}
+            returnKeyType="done"
+            maxLength={100}
+            autoFocus
+          />
+          <View style={styles.sheetButtons}>
             <Pressable
-              style={styles.sortDirectionRow}
+              style={styles.sheetButton}
+              onPress={() => renameAlbumSheetRef.current?.close()}
+            >
+              <Text style={styles.sheetButtonText}>Cancel</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.sheetButton, styles.sheetButtonPrimary]}
+              onPress={handleConfirmRenameAlbum}
+            >
+              <Text style={styles.sheetButtonPrimaryText}>Rename</Text>
+            </Pressable>
+          </View>
+        </View>
+      </AppBottomSheet>
+
+      {/* Sort Options Sheet (ENH-003) */}
+      <AppBottomSheet
+        ref={sortSheetRef}
+        snapPoints={[300]}
+        title="Sort By"
+        onDismiss={() => {}}
+      >
+        <View style={styles.sheetContent}>
+          {(['date', 'name', 'size'] as const).map((field) => (
+            <Pressable
+              key={field}
+              style={[styles.sortOption, sortBy === field && styles.sortOptionActive]}
               onPress={() => {
-                toggleSortOrder();
-                setShowSortModal(false);
+                setSortBy(field);
+                sortSheetRef.current?.close();
               }}
             >
-              <Text style={styles.sortDirectionText}>
-                {sortBy === 'date'
-                  ? (sortOrder === 'desc' ? 'Newest first' : 'Oldest first')
-                  : sortBy === 'name'
-                    ? (sortOrder === 'asc' ? 'A \u2192 Z' : 'Z \u2192 A')
-                    : (sortOrder === 'desc' ? 'Largest first' : 'Smallest first')}
+              <Text style={[styles.sortOptionText, sortBy === field && styles.sortOptionTextActive]}>
+                {field === 'date' ? 'Date' : field === 'name' ? 'Name' : 'Size'}
               </Text>
-              <Text style={styles.sortDirectionToggle}>{'\u21C5'}</Text>
+              {sortBy === field && (
+                <Icon name="check" size={18} color={themeColors.accent} />
+              )}
             </Pressable>
+          ))}
+          <Pressable
+            style={styles.sortDirectionRow}
+            onPress={() => {
+              toggleSortOrder();
+              sortSheetRef.current?.close();
+            }}
+          >
+            <Text style={styles.sortDirectionText}>
+              {sortBy === 'date'
+                ? (sortOrder === 'desc' ? 'Newest first' : 'Oldest first')
+                : sortBy === 'name'
+                  ? (sortOrder === 'asc' ? 'A \u2192 Z' : 'Z \u2192 A')
+                  : (sortOrder === 'desc' ? 'Largest first' : 'Smallest first')}
+            </Text>
+            <Icon name="arrow-up-down" size={18} color={themeColors.accent} />
           </Pressable>
-        </Pressable>
-      </Modal>
+        </View>
+      </AppBottomSheet>
 
-      {/* Create Note Modal (NOTES-001) */}
-      <Modal
-        visible={showCreateNote}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowCreateNote(false)}
+      {/* Create Note Sheet (NOTES-001) */}
+      <AppBottomSheet
+        ref={createNoteSheetRef}
+        snapPoints={[240]}
+        title="New Note"
+        onDismiss={() => {
+          setShowCreateNote(false);
+          setNewNoteTitle('');
+        }}
       >
-        <Pressable
-          style={styles.modalOverlay}
-          onPress={() => setShowCreateNote(false)}
-        >
-          <Pressable style={styles.modalCard} onPress={() => {}}>
-            <Text style={styles.modalTitle}>New Note</Text>
-            <TextInput
-              ref={noteNameInputRef}
-              style={styles.modalInput}
-              placeholder="Note title"
-              placeholderTextColor={themeColors.textSecondary}
-              value={newNoteTitle}
-              onChangeText={setNewNoteTitle}
-              onSubmitEditing={handleConfirmCreateNote}
-              returnKeyType="done"
-              maxLength={100}
-            />
-            <View style={styles.modalButtons}>
-              <Pressable
-                style={styles.modalButton}
-                onPress={() => {
-                  setShowCreateNote(false);
-                  setNewNoteTitle('');
-                }}
-              >
-                <Text style={styles.modalButtonText}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.modalButton, styles.modalButtonPrimary]}
-                onPress={handleConfirmCreateNote}
-              >
-                <Text style={styles.modalButtonPrimaryText}>Create</Text>
-              </Pressable>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
+        <View style={styles.sheetContent}>
+          <BottomSheetTextInput
+            style={styles.sheetInput}
+            placeholder="Note title"
+            placeholderTextColor={themeColors.textSecondary}
+            value={newNoteTitle}
+            onChangeText={setNewNoteTitle}
+            onSubmitEditing={handleConfirmCreateNote}
+            returnKeyType="done"
+            maxLength={100}
+            autoFocus
+          />
+          <View style={styles.sheetButtons}>
+            <Pressable
+              style={styles.sheetButton}
+              onPress={() => createNoteSheetRef.current?.close()}
+            >
+              <Text style={styles.sheetButtonText}>Cancel</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.sheetButton, styles.sheetButtonPrimary]}
+              onPress={handleConfirmCreateNote}
+            >
+              <Text style={styles.sheetButtonPrimaryText}>Create</Text>
+            </Pressable>
+          </View>
+        </View>
+      </AppBottomSheet>
 
       {/* Selection Overflow Menu */}
       <SelectionOverflowMenu
@@ -1261,112 +1329,111 @@ const createStyles = (c: ColorTokens) => StyleSheet.create({
     flex: 1,
     backgroundColor: c.vaultBackground,
   },
+  // ── Compact pill tabs ──
   tabBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.xs,
+    paddingLeft: spacing.md,
     backgroundColor: c.surface,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: c.border,
   },
   tabScrollContent: {
-    paddingHorizontal: spacing.sm,
+    gap: spacing.sm,
+    paddingRight: spacing.sm,
   },
   tab: {
     alignItems: 'center',
     justifyContent: 'center',
-    height: layout.tabBarHeight,
+    height: 32,
     paddingHorizontal: spacing.md,
-    position: 'relative',
+    borderRadius: 16,
+    backgroundColor: c.surfaceContainerHigh,
   },
-  tabActive: {},
+  tabActive: {
+    backgroundColor: c.accent,
+  },
   tabText: {
     ...typography.labelLarge,
     color: c.textSecondary,
+    fontSize: 13,
   },
   tabTextActive: {
-    color: c.accent,
-    fontWeight: '700',
+    color: c.textOnAccent,
+    fontWeight: '600',
   },
-  tabIndicator: {
-    position: 'absolute',
-    bottom: 0,
-    left: spacing.md,
-    right: spacing.md,
-    height: 3,
-    backgroundColor: c.accent,
-    borderRadius: 1.5,
-  },
-  actionBar: {
+  // Trailing sort/fav/view buttons — inline with tab row
+  tabTrailing: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
     alignItems: 'center',
-    paddingHorizontal: spacing.sm,
-    height: 36,
-    backgroundColor: c.surface,
+    marginLeft: 'auto',
+    paddingRight: spacing.sm,
+    gap: spacing.xxs,
   },
-  actionButton: {
-    width: 36,
-    height: 36,
+  tabTrailingBtn: {
+    width: 32,
+    height: 32,
     alignItems: 'center',
     justifyContent: 'center',
+    borderRadius: 16,
   },
-  actionIcon: {
-    fontSize: 16,
+  // ── Section header ──
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xs,
+  },
+  sectionTitle: {
+    ...typography.labelLarge,
+    color: c.textSecondary,
+    fontSize: 13,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  sectionCount: {
+    ...typography.labelLarge,
     color: c.textTertiary,
-  },
-  actionIconActive: {
-    color: c.accent,
-  },
-  actionIconFav: {
-    color: '#FFD700',
+    fontSize: 13,
+    marginLeft: spacing.xs,
   },
   content: {
     flex: 1,
   },
-  modalOverlay: {
+  page: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
-  modalCard: {
-    backgroundColor: c.surface,
-    borderRadius: 16,
-    padding: 24,
-    width: '85%',
-    maxWidth: 340,
+  // ── Bottom sheet styles ──
+  sheetContent: {
+    paddingHorizontal: spacing.lg,
   },
-  modalTitle: {
-    ...typography.titleLarge,
-    color: c.textPrimary,
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  modalInput: {
+  sheetInput: {
     ...typography.bodyMedium,
     color: c.textPrimary,
     backgroundColor: c.surfaceContainerHigh,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    marginBottom: 20,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginBottom: spacing.lg,
   },
-  modalButtons: {
+  sheetButtons: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
     gap: 12,
   },
-  modalButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
+  sheetButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
   },
-  modalButtonText: {
+  sheetButtonText: {
     ...typography.labelLarge,
     color: c.textSecondary,
   },
-  modalButtonPrimary: {
+  sheetButtonPrimary: {
     backgroundColor: c.accent,
   },
-  modalButtonPrimaryText: {
+  sheetButtonPrimaryText: {
     ...typography.labelLarge,
     color: c.textOnAccent,
   },

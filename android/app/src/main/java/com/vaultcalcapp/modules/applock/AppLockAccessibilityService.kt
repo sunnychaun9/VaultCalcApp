@@ -132,7 +132,10 @@ class AppLockAccessibilityService : AccessibilityService() {
         // If it's a launcher, handle recents cover but don't lock
         if (isLauncher) {
             if (previousUserApp != null && manager.isAppLocked(previousUserApp)) {
-                recentsCover?.showCover()
+                // Auto-hide after a short delay so the user can see and interact
+                // with the recents screen. The thumbnail is captured immediately,
+                // so a brief cover is enough to protect it.
+                recentsCover?.showCover(autoHide = true)
                 // Revoke auth for the app they left — next open will require PIN
                 manager.revokeAuth(previousUserApp)
             }

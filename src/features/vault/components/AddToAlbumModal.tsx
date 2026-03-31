@@ -1,24 +1,26 @@
 /**
- * VaultCalc - Add to Album Modal
+ * VaultCalc - Add to Album Bottom Sheet
  *
- * Modal allowing users to pick an existing album or create a new one
+ * Bottom sheet allowing users to pick an existing album or create a new one
  * for adding selected media items.
  *
  * @see FEATURE_INDEX.md ALBUM-003
  */
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef, useEffect } from 'react';
 import {
   View,
   Text,
   Pressable,
-  Modal,
   FlatList,
   ActivityIndicator,
   StyleSheet,
 } from 'react-native';
+import type BottomSheetType from '@gorhom/bottom-sheet';
 import type { Album } from '@services/storage/database';
 import { useThemeColors, type ColorTokens, typography, spacing } from '@shared/theme';
+import { AppBottomSheet } from '@shared/components/AppBottomSheet';
+import { Icon } from '@shared/components/Icon';
 
 interface AddToAlbumModalProps {
   visible: boolean;
@@ -39,6 +41,15 @@ export function AddToAlbumModal({
 }: AddToAlbumModalProps): React.JSX.Element {
   const themeColors = useThemeColors();
   const styles = useMemo(() => createStyles(themeColors), [themeColors]);
+  const sheetRef = useRef<BottomSheetType>(null);
+
+  useEffect(() => {
+    if (visible) {
+      sheetRef.current?.expand();
+    } else {
+      sheetRef.current?.close();
+    }
+  }, [visible]);
 
   const renderAlbumItem = ({ item }: { item: Album }) => (
     <Pressable
@@ -48,98 +59,90 @@ export function AddToAlbumModal({
       accessibilityRole="button"
       accessibilityLabel={`Add to ${item.name}`}
     >
-      <Text style={styles.albumIcon}>{'\u{1F4C1}'}</Text>
+      <Icon name="folder" size={20} color={themeColors.vaultFolderIcon} />
       <Text style={styles.albumName} numberOfLines={1}>{item.name}</Text>
     </Pressable>
   );
 
+  // Dynamic snap: compact (header + 3 albums) → expanded (all albums)
+  const compactHeight = Math.min(180 + Math.min(albums.length, 3) * 52, 340);
+  const expandedHeight = albums.length > 3 ? '70%' : compactHeight;
+  const snapPointsMemo = useMemo(
+    () => albums.length > 3 ? [compactHeight, expandedHeight] : [compactHeight],
+    [compactHeight, expandedHeight, albums.length],
+  );
+
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
+    <AppBottomSheet
+      ref={sheetRef}
+      snapPoints={snapPointsMemo}
+      title="Add to Album"
+      onDismiss={onClose}
+      backdropDismiss={!isAdding}
     >
-      <Pressable style={styles.overlay} onPress={isAdding ? undefined : onClose}>
-        <Pressable style={styles.card} onPress={() => {}}>
-          <Text style={styles.title}>Add to Album</Text>
-
-          {isAdding ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="small" color={themeColors.accent} />
-              <Text style={styles.loadingText}>Adding...</Text>
+      {isAdding ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="small" color={themeColors.accent} />
+          <Text style={styles.loadingText}>Adding...</Text>
+        </View>
+      ) : (
+        <View style={styles.content}>
+          {/* New Album row */}
+          <Pressable
+            style={({ pressed }) => [styles.newAlbumRow, pressed && styles.albumRowPressed]}
+            onPress={onCreateNewAlbum}
+            accessibilityRole="button"
+            accessibilityLabel="Create new album"
+          >
+            <View style={styles.newAlbumIcon}>
+              <Text style={styles.newAlbumPlus}>+</Text>
             </View>
-          ) : (
-            <>
-              {/* New Album row */}
-              <Pressable
-                style={({ pressed }) => [styles.newAlbumRow, pressed && styles.albumRowPressed]}
-                onPress={onCreateNewAlbum}
-                accessibilityRole="button"
-                accessibilityLabel="Create new album"
-              >
-                <Text style={styles.newAlbumIcon}>+</Text>
-                <Text style={styles.newAlbumText}>New Album</Text>
-              </Pressable>
+            <Text style={styles.newAlbumText}>New Album</Text>
+          </Pressable>
 
-              {/* Divider (only if albums exist) */}
-              {albums.length > 0 && <View style={styles.divider} />}
+          {/* Divider (only if albums exist) */}
+          {albums.length > 0 && <View style={styles.divider} />}
 
-              {/* Album list */}
-              {albums.length > 0 && (
-                <FlatList
-                  data={albums}
-                  keyExtractor={item => item.id}
-                  renderItem={renderAlbumItem}
-                  style={styles.list}
-                />
-              )}
-
-              {/* Cancel */}
-              <Pressable style={styles.cancelButton} onPress={onClose}>
-                <Text style={styles.cancelText}>Cancel</Text>
-              </Pressable>
-            </>
+          {/* Album list */}
+          {albums.length > 0 && (
+            <FlatList
+              data={albums}
+              keyExtractor={item => item.id}
+              renderItem={renderAlbumItem}
+              style={styles.list}
+            />
           )}
-        </Pressable>
-      </Pressable>
-    </Modal>
+        </View>
+      )}
+    </AppBottomSheet>
   );
 }
 
 const createStyles = (c: ColorTokens) => StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  card: {
-    backgroundColor: c.surface,
-    borderRadius: 16,
-    padding: 24,
-    width: '85%',
-    maxWidth: 340,
-  },
-  title: {
-    ...typography.titleLarge,
-    color: c.textPrimary,
-    marginBottom: spacing.base,
-    textAlign: 'center',
+  content: {
+    paddingHorizontal: spacing.sm,
   },
   newAlbumRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: spacing.md,
-    paddingHorizontal: spacing.sm,
-    borderRadius: 8,
+    paddingHorizontal: spacing.md,
+    borderRadius: 10,
   },
   newAlbumIcon: {
-    fontSize: 20,
-    color: c.accent,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: c.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.md,
+  },
+  newAlbumPlus: {
+    fontSize: 18,
+    color: c.textOnAccent,
     fontWeight: '600',
-    width: 32,
-    textAlign: 'center',
+    lineHeight: 20,
   },
   newAlbumText: {
     ...typography.bodyMedium,
@@ -149,25 +152,22 @@ const createStyles = (c: ColorTokens) => StyleSheet.create({
   divider: {
     height: StyleSheet.hairlineWidth,
     backgroundColor: c.border,
-    marginVertical: spacing.sm,
+    marginVertical: spacing.xs,
+    marginHorizontal: spacing.md,
   },
   list: {
-    maxHeight: 240,
+    maxHeight: 260,
   },
   albumRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: spacing.md,
-    paddingHorizontal: spacing.sm,
-    borderRadius: 8,
+    paddingHorizontal: spacing.md,
+    borderRadius: 10,
+    gap: spacing.md,
   },
   albumRowPressed: {
-    opacity: 0.7,
-  },
-  albumIcon: {
-    fontSize: 20,
-    width: 32,
-    textAlign: 'center',
+    backgroundColor: c.surfaceContainerHigh,
   },
   albumName: {
     ...typography.bodyMedium,
@@ -181,15 +181,6 @@ const createStyles = (c: ColorTokens) => StyleSheet.create({
   },
   loadingText: {
     ...typography.bodyMedium,
-    color: c.textSecondary,
-  },
-  cancelButton: {
-    alignItems: 'center',
-    paddingVertical: spacing.md,
-    marginTop: spacing.sm,
-  },
-  cancelText: {
-    ...typography.labelLarge,
     color: c.textSecondary,
   },
 });

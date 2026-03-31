@@ -1,20 +1,39 @@
 /**
- * VaultCalc - Empty State Component
+ * VaultCalc - Premium Empty State Component
  *
- * Displayed when vault has no files.
- * Provides guidance and CTA to add files.
+ * Shown when vault tabs have no content. Features:
+ * - Custom SVG illustrations (themed, not emoji)
+ * - Animated entry (fade-up with spring)
+ * - Title + subtitle + optional CTA button
  *
  * @see FEATURE_INDEX.md VAULT-007
  */
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import {
   View,
   Text,
   Pressable,
   StyleSheet,
 } from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withDelay,
+  withTiming,
+} from 'react-native-reanimated';
 import { useThemeColors, type ColorTokens, typography, spacing, layout } from '@shared/theme';
+import {
+  ImagesIllustration,
+  VideosIllustration,
+  AudioIllustration,
+  DocumentsIllustration,
+  AlbumsIllustration,
+  NotesIllustration,
+  FavoritesIllustration,
+  SearchIllustration,
+} from '@shared/illustrations/EmptyStateIllustrations';
 
 interface EmptyStateProps {
   /** Type of content (images, videos, docs, albums, notes, favorites, search) */
@@ -23,59 +42,77 @@ interface EmptyStateProps {
   onAddPress?: () => void;
 }
 
-const EMPTY_STATE_CONFIG = {
+interface EmptyConfig {
+  title: string;
+  description: string;
+  buttonText: string;
+}
+
+const EMPTY_STATE_CONFIG: Record<string, EmptyConfig> = {
   images: {
-    icon: '🖼',
     title: 'No images yet',
-    description: 'Tap the + button below or share images from other apps',
-    buttonText: '+ Add Images',
+    description: 'Import photos from your gallery or share them from other apps to keep them safe.',
+    buttonText: 'Add Images',
   },
   videos: {
-    icon: '🎬',
     title: 'No videos yet',
-    description: 'Tap the + button below or share videos from other apps',
-    buttonText: '+ Add Videos',
+    description: 'Import videos from your gallery or share them from other apps.',
+    buttonText: 'Add Videos',
   },
   documents: {
-    icon: '📄',
     title: 'No documents yet',
-    description: 'Tap the + button below or share documents from other apps',
-    buttonText: '+ Add Documents',
+    description: 'Import PDFs, spreadsheets, and other files to encrypt them.',
+    buttonText: 'Add Documents',
   },
   audio: {
-    icon: '🎵',
     title: 'No audio files yet',
-    description: 'Tap the + button below to import audio files',
-    buttonText: '+ Add Audio',
+    description: 'Import music or voice recordings to keep them private.',
+    buttonText: 'Add Audio',
   },
   albums: {
-    icon: '📁',
     title: 'No albums yet',
-    description: 'Create an album to organize your media',
-    buttonText: '+ Create Album',
+    description: 'Create albums to organize your photos and videos into collections.',
+    buttonText: 'Create Album',
   },
   notes: {
-    icon: '📝',
     title: 'No notes yet',
-    description: 'Create a note to store text securely',
-    buttonText: '+ Create Note',
+    description: 'Write encrypted notes that only you can read.',
+    buttonText: 'Create Note',
   },
   favorites: {
-    icon: '\u2B50',
     title: 'No favorites yet',
-    description: 'Star items to find them quickly',
+    description: 'Tap the star on any item to mark it as a favorite for quick access.',
     buttonText: '',
   },
   search: {
-    icon: '\u{1F50D}',
     title: 'No results found',
-    description: 'Try a different search term',
+    description: 'Try a different search term or check the spelling.',
     buttonText: '',
   },
-} as const;
+};
+
+/** Map content type → illustration component */
+function renderIllustration(
+  contentType: string,
+  color: string,
+  accent: string,
+): React.JSX.Element {
+  const props = { size: 140, color, accent };
+  switch (contentType) {
+    case 'images': return <ImagesIllustration {...props} />;
+    case 'videos': return <VideosIllustration {...props} />;
+    case 'audio': return <AudioIllustration {...props} />;
+    case 'documents': return <DocumentsIllustration {...props} />;
+    case 'albums': return <AlbumsIllustration {...props} />;
+    case 'notes': return <NotesIllustration {...props} />;
+    case 'favorites': return <FavoritesIllustration {...props} />;
+    case 'search': return <SearchIllustration {...props} />;
+    default: return <ImagesIllustration {...props} />;
+  }
+}
 
 /**
- * Empty state component for vault tabs
+ * Premium empty state component for vault tabs
  */
 export function EmptyState({
   contentType,
@@ -85,30 +122,71 @@ export function EmptyState({
   const styles = useMemo(() => createStyles(themeColors), [themeColors]);
   const config = EMPTY_STATE_CONFIG[contentType];
 
+  // ── Entry animation ──
+  const illustrationTranslateY = useSharedValue(20);
+  const illustrationOpacity = useSharedValue(0);
+  const textTranslateY = useSharedValue(12);
+  const textOpacity = useSharedValue(0);
+  const buttonScale = useSharedValue(0.9);
+  const buttonOpacity = useSharedValue(0);
+
+  useEffect(() => {
+    // Phase 1: Illustration floats up
+    illustrationTranslateY.value = withSpring(0, { damping: 18, stiffness: 160, mass: 0.8 });
+    illustrationOpacity.value = withTiming(1, { duration: 400 });
+
+    // Phase 2: Text fades in (staggered)
+    textTranslateY.value = withDelay(150, withSpring(0, { damping: 20, stiffness: 200 }));
+    textOpacity.value = withDelay(150, withTiming(1, { duration: 350 }));
+
+    // Phase 3: Button pops in
+    buttonScale.value = withDelay(300, withSpring(1, { damping: 14, stiffness: 200 }));
+    buttonOpacity.value = withDelay(300, withTiming(1, { duration: 300 }));
+  }, [contentType]);
+
+  const illustrationAnimStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: illustrationTranslateY.value }],
+    opacity: illustrationOpacity.value,
+  }));
+
+  const textAnimStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: textTranslateY.value }],
+    opacity: textOpacity.value,
+  }));
+
+  const buttonAnimStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: buttonScale.value }],
+    opacity: buttonOpacity.value,
+  }));
+
   return (
     <View style={styles.container}>
-      {/* Icon */}
-      <Text style={styles.icon}>{config.icon}</Text>
+      {/* Illustration */}
+      <Animated.View style={[styles.illustrationWrapper, illustrationAnimStyle]}>
+        {renderIllustration(contentType, themeColors.textTertiary, themeColors.accent)}
+      </Animated.View>
 
-      {/* Title */}
-      <Text style={styles.title}>{config.title}</Text>
+      {/* Text */}
+      <Animated.View style={[styles.textWrapper, textAnimStyle]}>
+        <Text style={styles.title}>{config.title}</Text>
+        <Text style={styles.description}>{config.description}</Text>
+      </Animated.View>
 
-      {/* Description */}
-      <Text style={styles.description}>{config.description}</Text>
-
-      {/* Add Button */}
-      {onAddPress && (
-        <Pressable
-          onPress={onAddPress}
-          style={({ pressed }) => [
-            styles.button,
-            pressed && styles.buttonPressed,
-          ]}
-          accessibilityRole="button"
-          accessibilityLabel={config.buttonText}
-        >
-          <Text style={styles.buttonText}>{config.buttonText}</Text>
-        </Pressable>
+      {/* CTA Button */}
+      {onAddPress && config.buttonText.length > 0 && (
+        <Animated.View style={buttonAnimStyle}>
+          <Pressable
+            onPress={onAddPress}
+            style={({ pressed }) => [
+              styles.button,
+              pressed && styles.buttonPressed,
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel={config.buttonText}
+          >
+            <Text style={styles.buttonText}>{config.buttonText}</Text>
+          </Pressable>
+        </Animated.View>
       )}
     </View>
   );
@@ -119,11 +197,15 @@ const createStyles = (c: ColorTokens) => StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: spacing['2xl'],
+    paddingHorizontal: spacing['2xl'],
+    paddingBottom: spacing['3xl'],
   },
-  icon: {
-    fontSize: 64,
-    marginBottom: spacing.lg,
+  illustrationWrapper: {
+    marginBottom: spacing.xl,
+  },
+  textWrapper: {
+    alignItems: 'center',
+    marginBottom: spacing.xl,
   },
   title: {
     ...typography.headlineMedium,
@@ -135,20 +217,27 @@ const createStyles = (c: ColorTokens) => StyleSheet.create({
     ...typography.bodyMedium,
     color: c.textSecondary,
     textAlign: 'center',
-    marginBottom: spacing.xl,
-    maxWidth: 280,
+    lineHeight: 22,
+    maxWidth: 300,
   },
   button: {
     backgroundColor: c.accent,
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.md,
+    paddingHorizontal: spacing['2xl'],
+    paddingVertical: spacing.md + 2,
     borderRadius: layout.buttonBorderRadius,
+    elevation: 2,
+    shadowColor: c.accent,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
   },
   buttonPressed: {
-    opacity: 0.8,
+    opacity: 0.85,
+    transform: [{ scale: 0.97 }],
   },
   buttonText: {
     ...typography.labelLarge,
     color: c.textOnAccent,
+    letterSpacing: 0.3,
   },
 });

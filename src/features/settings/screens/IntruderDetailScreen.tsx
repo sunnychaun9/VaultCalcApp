@@ -42,12 +42,9 @@ function getRiskColor(level: RiskLevel): string {
   }
 }
 
-function getRiskEmoji(level: RiskLevel): string {
-  switch (level) {
-    case 'HIGH': return '\uD83D\uDD34';
-    case 'MEDIUM': return '\uD83D\uDFE1';
-    case 'LOW': return '\uD83D\uDFE2';
-  }
+function getRiskIndicator(_level: RiskLevel): string {
+  // Use Unicode bullet ● colored by parent Text style
+  return '\u25CF';
 }
 
 function formatFullTimestamp(ms: number): string {
@@ -188,7 +185,7 @@ export function IntruderDetailScreen(): React.JSX.Element {
           {/* Risk badge */}
           <View style={[styles.riskOverlay, { backgroundColor: riskColor }]}>
             <Text style={styles.riskOverlayText}>
-              {log.riskLevel} RISK {getRiskEmoji(log.riskLevel)}
+              {log.riskLevel} RISK {getRiskIndicator(log.riskLevel)}
             </Text>
           </View>
         </Pressable>
@@ -207,7 +204,7 @@ export function IntruderDetailScreen(): React.JSX.Element {
           <DetailRow label="Failed Attempts" value={String(log.failedAttempts)} colors={themeColors} />
           <DetailRow
             label="Risk Level"
-            value={`${log.riskLevel} ${getRiskEmoji(log.riskLevel)}`}
+            value={`${log.riskLevel} ${getRiskIndicator(log.riskLevel)}`}
             valueColor={riskColor}
             colors={themeColors}
           />

@@ -1,14 +1,16 @@
 /**
  * VaultCalc - Selection Overflow Menu
  *
- * Popup menu for additional selection actions that don't fit
+ * Bottom sheet menu for additional selection actions that don't fit
  * inline in the SelectionBar (Add to Album, Move to Album,
  * Unhide, Rename, Properties).
  */
 
-import React, { useMemo } from 'react';
-import { View, Text, Pressable, Modal, StyleSheet } from 'react-native';
+import React, { useMemo, useRef, useEffect, useCallback } from 'react';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
+import type BottomSheetType from '@gorhom/bottom-sheet';
 import { useThemeColors, type ColorTokens, typography, spacing } from '@shared/theme';
+import { AppBottomSheet } from '@shared/components/AppBottomSheet';
 
 interface SelectionOverflowMenuProps {
   visible: boolean;
@@ -38,6 +40,20 @@ export function SelectionOverflowMenu({
 }: SelectionOverflowMenuProps): React.JSX.Element {
   const themeColors = useThemeColors();
   const styles = useMemo(() => createStyles(themeColors), [themeColors]);
+  const sheetRef = useRef<BottomSheetType>(null);
+
+  useEffect(() => {
+    if (visible) {
+      sheetRef.current?.expand();
+    } else {
+      sheetRef.current?.close();
+    }
+  }, [visible]);
+
+  const handleItemPress = useCallback((action: () => void) => {
+    onClose();
+    action();
+  }, [onClose]);
 
   const menuItems: MenuItem[] = useMemo(() => {
     const items: MenuItem[] = [];
@@ -62,65 +78,52 @@ export function SelectionOverflowMenu({
     return items;
   }, [onAddToAlbum, onMoveToAlbum, onPermanentDelete, onUnhide, onRename, onProperties]);
 
+  // Dynamic snap based on item count: each item ~52dp + handle + padding
+  const snapHeight = Math.min(menuItems.length * 52 + 40, 400);
+
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
+    <AppBottomSheet
+      ref={sheetRef}
+      snapPoints={[snapHeight]}
+      onDismiss={onClose}
+      title="Actions"
     >
-      <Pressable style={styles.backdrop} onPress={onClose}>
-        <View style={styles.menuContainer}>
-          <View style={styles.menu}>
-            {menuItems.map((item, index) => (
-              <Pressable
-                key={item.label}
-                style={({ pressed }) => [
-                  styles.menuItem,
-                  index < menuItems.length - 1 && styles.menuItemBorder,
-                  pressed && styles.menuItemPressed,
-                ]}
-                onPress={() => {
-                  onClose();
-                  item.onPress();
-                }}
-                accessibilityRole="menuitem"
-                accessibilityLabel={item.label}
-              >
-                <Text style={styles.menuItemText}>{item.label}</Text>
-              </Pressable>
-            ))}
-          </View>
-        </View>
-      </Pressable>
-    </Modal>
+      <View style={styles.menu}>
+        {menuItems.map((item, index) => (
+          <Pressable
+            key={item.label}
+            style={({ pressed }) => [
+              styles.menuItem,
+              index < menuItems.length - 1 && styles.menuItemBorder,
+              pressed && styles.menuItemPressed,
+            ]}
+            onPress={() => handleItemPress(item.onPress)}
+            accessibilityRole="menuitem"
+            accessibilityLabel={item.label}
+          >
+            <Text style={styles.menuItemText}>{item.label}</Text>
+          </Pressable>
+        ))}
+      </View>
+    </AppBottomSheet>
   );
 }
 
 const createStyles = (c: ColorTokens) => StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-  },
-  menuContainer: {
-    paddingHorizontal: spacing.base,
-    paddingBottom: spacing['2xl'],
-  },
   menu: {
-    backgroundColor: c.surface,
-    borderRadius: 14,
-    overflow: 'hidden',
+    paddingHorizontal: spacing.sm,
   },
   menuItem: {
     paddingVertical: 14,
-    paddingHorizontal: spacing.base,
+    paddingHorizontal: spacing.md,
     minHeight: 48,
     justifyContent: 'center',
+    borderRadius: 10,
   },
   menuItemBorder: {
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: c.border,
+    borderRadius: 0,
   },
   menuItemPressed: {
     backgroundColor: c.surfaceContainerHigh,

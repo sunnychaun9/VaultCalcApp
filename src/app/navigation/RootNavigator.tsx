@@ -17,6 +17,12 @@ import { PinSetupScreen, PatternUnlockScreen, ForgotPinScreen } from '@features/
 import { WelcomeScreen, HowItWorksScreen, FirstImportScreen } from '@features/onboarding';
 import { VaultNavigator } from './VaultNavigator';
 import { useSettingsStore } from '@store/settingsStore';
+import {
+  noTransition,
+  fadeTransition,
+  modalTransition,
+  pushTransition,
+} from './transitions';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -37,7 +43,7 @@ export function RootNavigator(): React.JSX.Element {
       initialRouteName={isFirstLaunch ? 'Onboarding' : 'Calculator'}
       screenOptions={{
         headerShown: false,
-        animation: 'none', // No animation between calc <-> vault per UX spec
+        ...noTransition,       // Default: no animation for security
         gestureEnabled: false, // Prevent swipe back for security
       }}
     >
@@ -46,7 +52,6 @@ export function RootNavigator(): React.JSX.Element {
         name="Calculator"
         component={CalculatorScreen}
         options={{
-          // Prevent going back from calculator
           gestureEnabled: false,
         }}
       />
@@ -55,9 +60,7 @@ export function RootNavigator(): React.JSX.Element {
       <Stack.Screen
         name="Vault"
         component={VaultNavigator}
-        options={{
-          animation: 'fade',
-        }}
+        options={fadeTransition}
       />
 
       {/* PIN Setup Screen (AUTH-004) */}
@@ -65,7 +68,7 @@ export function RootNavigator(): React.JSX.Element {
         name="PinSetup"
         component={PinSetupScreen}
         options={{
-          animation: 'slide_from_bottom',
+          ...modalTransition,
           presentation: 'modal',
         }}
       />
@@ -75,7 +78,7 @@ export function RootNavigator(): React.JSX.Element {
         name="PatternUnlock"
         component={PatternUnlockScreen}
         options={{
-          animation: 'fade',
+          ...fadeTransition,
           gestureEnabled: false,
         }}
       />
@@ -85,7 +88,7 @@ export function RootNavigator(): React.JSX.Element {
         name="ForgotPin"
         component={ForgotPinScreen}
         options={{
-          animation: 'slide_from_bottom',
+          ...modalTransition,
           presentation: 'modal',
         }}
       />
@@ -94,21 +97,21 @@ export function RootNavigator(): React.JSX.Element {
       <Stack.Screen
         name="Onboarding"
         component={WelcomeScreen}
-        options={{ animation: 'none' }}
+        options={noTransition}
       />
 
       {/* How It Works Tutorial (ONBOARD-004) */}
       <Stack.Screen
         name="HowItWorks"
         component={HowItWorksScreen}
-        options={{ animation: 'slide_from_right' }}
+        options={pushTransition}
       />
 
       {/* First Import Prompt (ONBOARD-005/006) */}
       <Stack.Screen
         name="FirstImport"
         component={FirstImportScreen}
-        options={{ animation: 'slide_from_right' }}
+        options={pushTransition}
       />
     </Stack.Navigator>
   );

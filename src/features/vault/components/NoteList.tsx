@@ -14,6 +14,7 @@ import type { Note } from '@services/storage/database';
 import { useVaultStore } from '@store/vaultStore';
 import { useThemeColors, type ColorTokens, typography, spacing } from '@shared/theme';
 import { NoteListItem } from './NoteListItem';
+import { ListSkeleton, useDelayedLoading } from '@shared/components/Skeleton';
 
 interface NoteListProps {
   notes: Note[];
@@ -24,10 +25,12 @@ interface NoteListProps {
 
 export function NoteList({
   notes: noteItems,
-  isLoading: _isLoading,
+  isLoading,
   onNotePress,
   onNoteLongPress,
 }: NoteListProps): React.JSX.Element {
+  const showSkeleton = useDelayedLoading(isLoading && noteItems.length === 0);
+  if (showSkeleton) return <ListSkeleton count={6} />;
   const selectedIds = useVaultStore(s => s.selectedIds);
   const themeColors = useThemeColors();
   const styles = useMemo(() => createStyles(themeColors), [themeColors]);
@@ -41,9 +44,10 @@ export function NoteList({
     return noteItems.filter(note => note.title.toLowerCase().includes(q));
   }, [noteItems, searchQuery]);
 
-  const renderItem = useCallback(({ item }: { item: Note }) => (
+  const renderItem = useCallback(({ item, index }: { item: Note; index: number }) => (
     <NoteListItem
       note={item}
+      index={index}
       isSelected={selectedIds.has(item.id)}
       onPress={onNotePress}
       onLongPress={onNoteLongPress}

@@ -117,6 +117,15 @@
         </intent-filter>
       </activity-alias>
 
+      <!-- Fake Crash Screen — translucent activity mimicking system crash dialog -->
+      <activity
+          android:name=".modules.fakecrash.FakeCrashActivity"
+          android:theme="@style/FakeCrashTheme"
+          android:exported="false"
+          android:excludeFromRecents="true"
+          android:taskAffinity=""
+          android:launchMode="singleTop" />
+
       <!-- Device Admin receiver for uninstall protection -->
       <receiver
           android:name=".modules.uninstallprotect.VaultDeviceAdminReceiver"

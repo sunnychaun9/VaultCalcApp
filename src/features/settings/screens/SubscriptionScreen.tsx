@@ -15,7 +15,8 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { VaultStackParamList } from '@typedefs/navigation';
 import { useActivityTracker } from '@features/auth';
-import { useThemeColors, type ColorTokens, typography, spacing, layout } from '@shared/theme';
+import { useThemeColors, colors, type ColorTokens, typography, spacing, layout, getSurfaceStyle } from '@shared/theme';
+import { Icon, IconButton } from '@shared/components/Icon';
 import { useSettingsStore } from '@store/settingsStore';
 import {
   getBillingService,
@@ -60,7 +61,8 @@ function getOfferToken(products: BillingProductInfo[], productId: string): strin
 
 export function SubscriptionScreen(): React.JSX.Element {
   const themeColors = useThemeColors();
-  const styles = useMemo(() => createStyles(themeColors), [themeColors]);
+  const isDark = themeColors === colors.dark;
+  const styles = useMemo(() => createStyles(themeColors, isDark), [themeColors, isDark]);
   const navigation = useNavigation<NativeStackNavigationProp<VaultStackParamList>>();
   const { onActivity } = useActivityTracker();
   const [selectedPlan, setSelectedPlan] = useState<PlanType>('yearly');
@@ -168,14 +170,13 @@ export function SubscriptionScreen(): React.JSX.Element {
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       {/* Header */}
       <View style={styles.header}>
-        <Pressable
+        <IconButton
+          name="arrow-left"
           onPress={handleBack}
-          style={styles.backButton}
-          accessibilityRole="button"
+          color={themeColors.textPrimary}
           accessibilityLabel="Go back"
-        >
-          <Text style={styles.backButtonText}>←</Text>
-        </Pressable>
+          containerStyle={styles.backButton}
+        />
         <Text style={styles.title}>Premium</Text>
         <View style={styles.placeholder} />
       </View>
@@ -203,7 +204,7 @@ export function SubscriptionScreen(): React.JSX.Element {
             <React.Fragment key={feature}>
               {index > 0 && <View style={styles.rowDivider} />}
               <View style={styles.featureRow}>
-                <Text style={styles.checkmark}>✓</Text>
+                <Icon name="check" size={20} color={themeColors.accent} />
                 <Text style={styles.featureLabel}>{feature}</Text>
               </View>
             </React.Fragment>
@@ -341,7 +342,7 @@ export function SubscriptionScreen(): React.JSX.Element {
   );
 }
 
-const createStyles = (c: ColorTokens) => StyleSheet.create({
+const createStyles = (c: ColorTokens, isDark: boolean) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: c.surface,
@@ -398,7 +399,7 @@ const createStyles = (c: ColorTokens) => StyleSheet.create({
 
   // Feature list
   sectionCard: {
-    backgroundColor: c.surfaceContainer,
+    ...getSurfaceStyle('level1', c, isDark),
     borderRadius: layout.cardBorderRadius,
     overflow: 'hidden',
     marginBottom: spacing.xl,

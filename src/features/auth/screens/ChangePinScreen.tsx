@@ -26,6 +26,7 @@ import { handleFailedAttempt } from '../services/failedAttempts';
 import { useActivityTracker } from '../hooks';
 import { useShakeAnimation, useDotScaleAnimations, useTapHaptic } from '../hooks/useLockAnimations';
 import { typography, spacing } from '@shared/theme';
+import { Icon } from '@shared/components/Icon';
 import { BG_TOP, BG_BOTTOM, TEXT_PRIMARY, TEXT_SECONDARY, TEXT_MUTED, CARD_BG, CARD_BORDER } from '../components/LockScreenContainer';
 
 type Phase = 'verify' | 'create' | 'confirm';
@@ -191,10 +192,10 @@ export function ChangePinScreen(): React.JSX.Element {
         {/* Header */}
         <View style={styles.header}>
           <Pressable onPress={handleBack} style={styles.backButton}>
-            <Text style={styles.backButtonText}>←</Text>
+            <Icon name="arrow-left" size={24} color="rgba(255,255,255,0.9)" />
           </Pressable>
           <View style={styles.lockIconWrapper}>
-            <Text style={styles.lockIcon}>{'\u{1F512}'}</Text>
+            <Icon name="lock" size={48} color="rgba(255,255,255,0.9)" />
           </View>
           <Text style={styles.title}>{config.title}</Text>
           <Text style={styles.subtitle}>{config.instruction}</Text>

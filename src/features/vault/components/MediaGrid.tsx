@@ -12,12 +12,13 @@ import { View, StyleSheet } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import type { MediaItem } from '@services/storage/database';
 import { layout } from '@shared/theme';
-import { MediaGridItem } from './MediaGridItem';
+import { MediaGridItem, type ThumbnailOriginRect } from './MediaGridItem';
+import { GridSkeleton, useDelayedLoading } from '@shared/components/Skeleton';
 
 interface MediaGridProps {
   items: MediaItem[];
   isLoading: boolean;
-  onItemPress: (item: MediaItem) => void;
+  onItemPress: (item: MediaItem, originRect?: ThumbnailOriginRect) => void;
   onItemLongPress: (item: MediaItem) => void;
   numColumns?: number;
 }
@@ -32,11 +33,12 @@ const separatorStyle = { height: GAP };
 
 export function MediaGrid({
   items,
-  isLoading: _isLoading,
+  isLoading,
   onItemPress,
   onItemLongPress,
   numColumns = layout.vaultGridColumns,
 }: MediaGridProps): React.JSX.Element {
+  const showSkeleton = useDelayedLoading(isLoading && items.length === 0);
   const [containerWidth, setContainerWidth] = useState(0);
 
   const itemSize = useMemo(() => {
@@ -71,6 +73,10 @@ export function MediaGrid({
     },
     [itemSize],
   );
+
+  if (showSkeleton) {
+    return <GridSkeleton columns={numColumns} />;
+  }
 
   return (
     <View style={styles.container} onLayout={handleLayout}>

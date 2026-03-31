@@ -33,18 +33,31 @@ class RecentsCoverManager(private val service: AccessibilityService) {
 
     private var overlayView: View? = null
     private val handler = Handler(Looper.getMainLooper())
+    private val autoHideRunnable = Runnable { hideCoverInternal() }
+
+    /** Auto-hide delay — enough for the system to capture a black recents thumbnail. */
+    private val AUTO_HIDE_DELAY_MS = 500L
 
     /**
      * Show the black cover overlay synchronously on the main thread.
      * Called when a locked app goes to background — must be immediate
      * so the recents thumbnail captures a black screen.
+     *
+     * @param autoHide If true, the cover hides itself after a short delay.
+     *                 Used for the recents/launcher transition so the user
+     *                 can still see and interact with the recents screen.
      */
-    fun showCover() {
+    fun showCover(autoHide: Boolean = false) {
+        // Cancel any pending auto-hide from a previous call
+        handler.removeCallbacks(autoHideRunnable)
         // Run synchronously if already on main thread, otherwise post
         if (Looper.myLooper() == Looper.getMainLooper()) {
             showCoverInternal()
         } else {
             handler.post { showCoverInternal() }
+        }
+        if (autoHide) {
+            handler.postDelayed(autoHideRunnable, AUTO_HIDE_DELAY_MS)
         }
     }
 
@@ -101,6 +114,7 @@ class RecentsCoverManager(private val service: AccessibilityService) {
      * Called when the user switches to another app or unlocks.
      */
     fun hideCover() {
+        handler.removeCallbacks(autoHideRunnable)
         if (Looper.myLooper() == Looper.getMainLooper()) {
             hideCoverInternal()
         } else {

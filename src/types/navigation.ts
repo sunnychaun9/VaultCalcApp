@@ -39,7 +39,12 @@ export type VaultStackParamList = {
   /** Vault home with tabs (Photos/Videos/Docs) */
   VaultHome: undefined;
   /** Full-screen media viewer — mediaIds for swipe navigation between siblings */
-  MediaViewer: { mediaId: string; mediaIds?: string[] };
+  MediaViewer: {
+    mediaId: string;
+    mediaIds?: string[];
+    /** Origin rect for hero transition (from grid thumbnail) */
+    originRect?: { x: number; y: number; width: number; height: number };
+  };
   /** Audio player screen */
   AudioPlayer: { mediaId: string; mediaIds?: string[] };
   /** Album detail view */

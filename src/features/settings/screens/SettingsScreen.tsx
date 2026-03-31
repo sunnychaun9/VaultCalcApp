@@ -12,9 +12,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
-  Pressable,
   ScrollView,
-  Switch,
   StyleSheet,
   PermissionsAndroid,
 } from 'react-native';
@@ -31,8 +29,11 @@ import { signInToGoogle, signOutFromGoogle } from '@services/googleDrive';
 import { uploadBackupToDrive, restoreBackupFromDrive, type BackupUploadProgress, type RestoreProgress } from '@services/backup';
 import { BackupProgressOverlay } from '../components/BackupProgressOverlay';
 import { RestoreProgressOverlay } from '../components/RestoreProgressOverlay';
-import { useThemeColors, type ColorTokens, typography, spacing, layout } from '@shared/theme';
+import { useThemeColors, colors, type ColorTokens, typography, spacing, layout } from '@shared/theme';
 import { alert } from '@store/alertStore';
+import { IconButton } from '@shared/components/Icon';
+import { SettingsSection } from '../components/SettingsSection';
+import { SettingsRow } from '../components/SettingsRow';
 import { enableStealth, disableStealth } from '@services/security/stealth';
 import { setAppIcon as nativeSetAppIcon, type AppIconAlias } from '@services/appicon';
 
@@ -45,18 +46,6 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
-/** Format a timestamp to relative time string */
-function formatLastBackup(timestamp: number): string {
-  const diff = Date.now() - timestamp;
-  const seconds = Math.floor(diff / 1000);
-  if (seconds < 60) return 'Just now';
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
-}
 
 interface StorageStats {
   totalSize: number;
@@ -96,7 +85,8 @@ const THEME_LABELS: Record<string, string> = {
  */
 export function SettingsScreen(): React.JSX.Element {
   const themeColors = useThemeColors();
-  const styles = useMemo(() => createStyles(themeColors), [themeColors]);
+  const isDark = themeColors === colors.dark;
+  const styles = useMemo(() => createStyles(themeColors, isDark), [themeColors, isDark]);
   const navigation = useNavigation<NativeStackNavigationProp<VaultStackParamList>>();
   const { onActivity } = useActivityTracker();
 
@@ -127,7 +117,6 @@ export function SettingsScreen(): React.JSX.Element {
     appIcon,
     setAppIcon,
     googleDriveEmail,
-    googleDriveDisplayName,
     setGoogleDriveConnection,
     lastBackupAt,
     setLastBackupAt,
@@ -525,14 +514,13 @@ export function SettingsScreen(): React.JSX.Element {
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       {/* Header */}
       <View style={styles.header}>
-        <Pressable
+        <IconButton
+          name="arrow-left"
           onPress={handleBack}
-          style={styles.backButton}
-          accessibilityRole="button"
+          color={themeColors.textPrimary}
           accessibilityLabel="Go back"
-        >
-          <Text style={styles.backButtonText}>←</Text>
-        </Pressable>
+          containerStyle={styles.backButton}
+        />
         <Text style={styles.title}>Settings</Text>
         <View style={styles.placeholder} />
       </View>
@@ -542,578 +530,125 @@ export function SettingsScreen(): React.JSX.Element {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* SECURITY Section */}
-        <Text style={styles.sectionHeader}>SECURITY</Text>
-        <View style={styles.sectionCard}>
-          {/* Change PIN — hidden in decoy mode (DECOY-005) */}
+        {/* ── SECURITY ── */}
+        <SettingsSection title="Security" description="Protect your vault">
           {!isDecoyMode && (
-            <>
-              <Pressable
-                onPress={handleChangePin}
-                style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-                accessibilityRole="button"
-                accessibilityLabel="Change PIN"
-              >
-                <Text style={styles.rowLabel}>Change PIN</Text>
-                <Text style={styles.rowChevron}>→</Text>
-              </Pressable>
-
-              <View style={styles.rowDivider} />
-            </>
+            <SettingsRow type="navigation" icon="key" title="Change PIN" onPress={handleChangePin} />
           )}
-
-          {/* Unlock method — hidden in decoy mode (AUTH-009) */}
           {!isDecoyMode && (
+            <SettingsRow type="value" icon="lock" title="Unlock method" value={unlockMethod === 'pattern' ? 'Pattern' : 'PIN'} onPress={handleCycleUnlockMethod} />
+          )}
+          {!isDecoyMode && unlockMethod === 'pattern' && isPatternConfigured() && (
             <>
-              <Pressable
-                onPress={handleCycleUnlockMethod}
-                style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-                accessibilityRole="button"
-                accessibilityLabel={`Unlock method: ${unlockMethod === 'pattern' ? 'Pattern' : 'PIN'}`}
-              >
-                <Text style={styles.rowLabel}>Unlock method</Text>
-                <Text style={styles.rowValue}>
-                  {unlockMethod === 'pattern' ? 'Pattern' : 'PIN'}
-                </Text>
-              </Pressable>
-
-              <View style={styles.rowDivider} />
-
-              {/* Pattern setup / change */}
-              {unlockMethod === 'pattern' && isPatternConfigured() ? (
-                <>
-                  <Pressable
-                    onPress={handleChangePattern}
-                    style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-                    accessibilityRole="button"
-                    accessibilityLabel="Change pattern"
-                  >
-                    <Text style={styles.rowLabel}>Change pattern</Text>
-                    <Text style={styles.rowChevron}>→</Text>
-                  </Pressable>
-
-                  <View style={styles.rowDivider} />
-
-                  <View style={styles.row}>
-                    <Text style={styles.rowLabel}>Show pattern path</Text>
-                    <Switch
-                      value={showPatternPath}
-                      onValueChange={handleToggleShowPatternPath}
-                      trackColor={{ false: themeColors.surfaceContainerHigh, true: themeColors.accent }}
-                      thumbColor={themeColors.surface}
-                    />
-                  </View>
-
-                  <View style={styles.rowDivider} />
-                </>
-              ) : unlockMethod !== 'pattern' ? (
-                <>
-                  <Pressable
-                    onPress={handlePatternSetup}
-                    style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-                    accessibilityRole="button"
-                    accessibilityLabel="Set up pattern lock"
-                  >
-                    <Text style={styles.rowLabel}>Set up pattern lock</Text>
-                    <Text style={styles.rowChevron}>→</Text>
-                  </Pressable>
-
-                  <View style={styles.rowDivider} />
-                </>
-              ) : (
-                <>
-                  <Pressable
-                    onPress={handlePatternSetup}
-                    style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-                    accessibilityRole="button"
-                    accessibilityLabel="Set up pattern"
-                  >
-                    <Text style={styles.rowLabel}>Set up pattern</Text>
-                    <Text style={[styles.rowValue, { color: themeColors.warning }]}>Not set</Text>
-                  </Pressable>
-
-                  <View style={styles.rowDivider} />
-                </>
-              )}
+              <SettingsRow type="navigation" icon="grid" title="Change pattern" onPress={handleChangePattern} />
+              <SettingsRow type="toggle" icon="scan" title="Show pattern path" value={showPatternPath} onValueChange={handleToggleShowPatternPath} />
             </>
           )}
-
-          {/* Auto-lock timeout */}
-          <Pressable
-            onPress={handleCycleTimeout}
-            style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-            accessibilityRole="button"
-            accessibilityLabel={`Auto-lock after ${TIMEOUT_LABELS[lockTimeout]}`}
-          >
-            <Text style={styles.rowLabel}>Auto-lock after</Text>
-            <Text style={styles.rowValue}>{TIMEOUT_LABELS[lockTimeout]}</Text>
-          </Pressable>
-
-          <View style={styles.rowDivider} />
-
-          {/* Lock on background */}
-          <View style={styles.row}>
-            <Text style={styles.rowLabel}>Lock on background</Text>
-            <Switch
-              value={lockOnBackground}
-              onValueChange={handleToggleLockOnBackground}
-              trackColor={{ false: themeColors.surfaceContainerHigh, true: themeColors.accent }}
-              thumbColor={themeColors.surface}
-            />
-          </View>
-
-          {/* Panic Mode — hidden in decoy mode (ENH-005) */}
+          {!isDecoyMode && unlockMethod === 'pattern' && !isPatternConfigured() && (
+            <SettingsRow type="navigation" icon="grid" title="Set up pattern" onPress={handlePatternSetup} value="Not set" />
+          )}
+          {!isDecoyMode && unlockMethod !== 'pattern' && (
+            <SettingsRow type="navigation" icon="grid" title="Set up pattern lock" onPress={handlePatternSetup} />
+          )}
+          <SettingsRow type="value" icon="clock" title="Auto-lock after" value={TIMEOUT_LABELS[lockTimeout]} onPress={handleCycleTimeout} />
+          <SettingsRow type="toggle" icon="lock" title="Lock on background" subtitle="Lock vault when app goes to background" value={lockOnBackground} onValueChange={handleToggleLockOnBackground} />
           {!isDecoyMode && (
-            <>
-              <View style={styles.rowDivider} />
-
-              <View style={styles.row}>
-                <Text style={styles.rowLabel}>Panic mode</Text>
-                <Switch
-                  value={panicButtonEnabled}
-                  onValueChange={handleTogglePanicButton}
-                  trackColor={{ false: themeColors.surfaceContainerHigh, true: themeColors.accent }}
-                  thumbColor={themeColors.surface}
-                />
-              </View>
-
-              <View style={styles.storageDetailRow}>
-                <Text style={styles.storageDetailText}>
-                  Instantly hides your vault if someone sees your phone.
-                </Text>
-              </View>
-
-              {panicButtonEnabled && (
-                <>
-                  <View style={styles.rowDivider} />
-                  <View style={styles.row}>
-                    <Text style={styles.rowLabel}>  Shake device</Text>
-                    <Switch
-                      value={true}
-                      disabled
-                      trackColor={{ false: themeColors.surfaceContainerHigh, true: themeColors.accent }}
-                      thumbColor={themeColors.surface}
-                    />
-                  </View>
-
-                  <View style={styles.rowDivider} />
-                  <View style={styles.row}>
-                    <Text style={styles.rowLabel}>  Triple press volume down</Text>
-                    <Switch
-                      value={panicTriggerVolume}
-                      onValueChange={handleTogglePanicVolume}
-                      trackColor={{ false: themeColors.surfaceContainerHigh, true: themeColors.accent }}
-                      thumbColor={themeColors.surface}
-                    />
-                  </View>
-
-                  <View style={styles.rowDivider} />
-                  <View style={styles.row}>
-                    <Text style={styles.rowLabel}>  Triple press power button</Text>
-                    <Switch
-                      value={panicTriggerPower}
-                      onValueChange={handleTogglePanicPower}
-                      trackColor={{ false: themeColors.surfaceContainerHigh, true: themeColors.accent }}
-                      thumbColor={themeColors.surface}
-                    />
-                  </View>
-                </>
-              )}
-            </>
+            <SettingsRow type="toggle" icon="fingerprint" title="Biometric unlock" subtitle={biometricStatus !== 'available' && biometricStatus !== 'unknown' ? getBiometricStatusMessage(biometricStatus) : 'Use fingerprint or face to unlock'} value={biometricEnabled} onValueChange={handleToggleBiometric} highlighted />
           )}
+        </SettingsSection>
 
-          {/* Biometric unlock — hidden in decoy mode (DECOY-005) */}
-          {!isDecoyMode && (
-            <>
-              <View style={styles.rowDivider} />
-
-              <View style={styles.row}>
-                <Text style={styles.rowLabel}>Biometric unlock</Text>
-                <Switch
-                  value={biometricEnabled}
-                  onValueChange={handleToggleBiometric}
-                  trackColor={{ false: themeColors.surfaceContainerHigh, true: themeColors.accent }}
-                  thumbColor={themeColors.surface}
-                />
-              </View>
-              {biometricStatus !== 'available' && biometricStatus !== 'unknown' && (
-                <View style={styles.storageDetailRow}>
-                  <Text style={styles.storageDetailText}>
-                    {getBiometricStatusMessage(biometricStatus)}
-                  </Text>
-                </View>
-              )}
-            </>
-          )}
-
-          {/* App Lock — hidden in decoy mode */}
-          {!isDecoyMode && (
-            <>
-              <View style={styles.rowDivider} />
-
-              <Pressable
-                onPress={() => navigation.navigate('AppLock')}
-                style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-                accessibilityRole="button"
-                accessibilityLabel="App Lock"
-              >
-                <Text style={styles.rowLabel}>App Lock</Text>
-                <Text style={styles.rowChevron}>→</Text>
-              </Pressable>
-            </>
-          )}
-
-          {/* Notification Privacy — hidden in decoy mode */}
-          {!isDecoyMode && (
-            <>
-              <View style={styles.rowDivider} />
-
-              <Pressable
-                onPress={() => navigation.navigate('NotificationPrivacy')}
-                style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-                accessibilityRole="button"
-                accessibilityLabel="Notification Privacy"
-              >
-                <Text style={styles.rowLabel}>Notification Privacy</Text>
-                <Text style={styles.rowChevron}>{'\u2192'}</Text>
-              </Pressable>
-            </>
-          )}
-
-          {/* Uninstall Protection — hidden in decoy mode */}
-          {!isDecoyMode && (
-            <>
-              <View style={styles.rowDivider} />
-
-              <Pressable
-                onPress={() => navigation.navigate('UninstallProtection')}
-                style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-                accessibilityRole="button"
-                accessibilityLabel="Uninstall Protection"
-              >
-                <Text style={styles.rowLabel}>Uninstall Protection</Text>
-                <Text style={styles.rowChevron}>{'\u2192'}</Text>
-              </Pressable>
-            </>
-          )}
-
-          {/* Decoy vault — hidden in decoy mode (DECOY-005) */}
-          {!isDecoyMode && (
-            <>
-              <View style={styles.rowDivider} />
-
-              <Pressable
-                onPress={handleDecoySetup}
-                style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-                accessibilityRole="button"
-                accessibilityLabel="Decoy vault"
-              >
-                <Text style={styles.rowLabel}>Decoy vault</Text>
-                <Text style={styles.rowValue}>
-                  {decoyVaultConfigured ? 'Configured' : 'Not set'}
-                </Text>
-              </Pressable>
-            </>
-          )}
-
-          {/* Intruder detection — hidden in decoy mode (SEC-004) */}
-          {!isDecoyMode && (
-            <>
-              <View style={styles.rowDivider} />
-
-              <View style={styles.row}>
-                <Text style={styles.rowLabel}>Intruder detection</Text>
-                <Switch
-                  value={intruderDetectionEnabled}
-                  onValueChange={handleToggleIntruderDetection}
-                  trackColor={{ false: themeColors.surfaceContainerHigh, true: themeColors.accent }}
-                  thumbColor={themeColors.surface}
-                />
-              </View>
-            </>
-          )}
-
-          {/* Intruder log — hidden in decoy mode, only when detection enabled (SEC-003) */}
-          {!isDecoyMode && intruderDetectionEnabled && (
-            <>
-              <View style={styles.rowDivider} />
-
-              <Pressable
-                onPress={handleIntruderLogs}
-                style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-                accessibilityRole="button"
-                accessibilityLabel="Intruder log"
-              >
-                <Text style={styles.rowLabel}>Intruder log</Text>
-                <Text style={styles.rowChevron}>→</Text>
-              </Pressable>
-            </>
-          )}
-
-          {/* Stealth mode — hidden in decoy mode (STEALTH-001) */}
-          {!isDecoyMode && (
-            <>
-              <View style={styles.rowDivider} />
-
-              <View style={styles.row}>
-                <Text style={styles.rowLabel}>Hide app icon</Text>
-                <Switch
-                  value={stealthModeEnabled}
-                  onValueChange={handleToggleStealth}
-                  trackColor={{ false: themeColors.surfaceContainerHigh, true: themeColors.accent }}
-                  thumbColor={themeColors.surface}
-                />
-              </View>
-
-              <View style={styles.storageDetailRow}>
-                <Text style={styles.storageDetailText}>
-                  {stealthModeEnabled
-                    ? 'App is hidden. Tap notification to open.'
-                    : 'Hide from launcher. Open via notification.'}
-                </Text>
-              </View>
-            </>
-          )}
-        </View>
-
-        {/* APP APPEARANCE Section — hidden in decoy mode and stealth mode */}
-        {!isDecoyMode && !stealthModeEnabled && (
-          <>
-            <Text style={styles.sectionHeader}>APP APPEARANCE</Text>
-            <View style={styles.sectionCard}>
-              {(['default', 'calculator', 'weather', 'notes'] as const).map((alias, idx) => {
-                const labels: Record<AppIconAlias, string> = {
-                  default: 'Default (VaultCalc)',
-                  calculator: 'Calculator',
-                  weather: 'Weather',
-                  notes: 'Notes',
-                };
-                return (
-                  <React.Fragment key={alias}>
-                    {idx > 0 && <View style={styles.rowDivider} />}
-                    <Pressable
-                      onPress={() => handleChangeAppIcon(alias)}
-                      style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-                      accessibilityRole="radio"
-                      accessibilityState={{ selected: appIcon === alias }}
-                    >
-                      <Text style={styles.rowLabel}>{labels[alias]}</Text>
-                      {appIcon === alias && (
-                        <Text style={[styles.rowValue, { color: themeColors.accent }]}>Selected</Text>
-                      )}
-                    </Pressable>
-                  </React.Fragment>
-                );
-              })}
-            </View>
-          </>
-        )}
-
-        {/* CLOUD BACKUP Section — hidden in decoy mode (CLOUD-001) */}
+        {/* ── PRIVACY ── */}
         {!isDecoyMode && (
-          <>
-            <Text style={styles.sectionHeader}>CLOUD BACKUP</Text>
-            <View style={styles.sectionCard}>
-              {googleDriveEmail ? (
-                <>
-                  <View style={styles.row}>
-                    <Text style={styles.rowLabel}>Google Drive</Text>
-                    <Text style={styles.rowValue}>Connected</Text>
-                  </View>
-
-                  <View style={styles.rowDivider} />
-
-                  <View style={styles.storageDetailRow}>
-                    <Text style={styles.storageDetailText}>
-                      {googleDriveDisplayName ?? googleDriveEmail}
-                    </Text>
-                    <Text style={styles.storageDetailText}>
-                      {googleDriveDisplayName ? googleDriveEmail : ''}
-                    </Text>
-                  </View>
-
-                  <View style={styles.rowDivider} />
-
-                  <Pressable
-                    onPress={handleBackupNow}
-                    style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-                    accessibilityRole="button"
-                    accessibilityLabel="Back up now"
-                  >
-                    <Text style={styles.rowLabel}>
-                      {isBackingUp ? 'Backing Up...' : 'Back Up Now'}
-                    </Text>
-                    <Text style={styles.rowChevron}>→</Text>
-                  </Pressable>
-
-                  <View style={styles.rowDivider} />
-
-                  <View style={styles.row}>
-                    <Text style={styles.rowLabel}>Backup status</Text>
-                    <Text style={[styles.rowValue, { color: backupStatusColor }]}>
-                      {backupStatusLabel}
-                    </Text>
-                  </View>
-
-                  {lastBackupAt !== null && (
-                    <>
-                      <View style={styles.rowDivider} />
-
-                      <View style={styles.storageDetailRow}>
-                        <Text style={styles.storageDetailText}>
-                          {lastBackupItemCount !== null ? `${lastBackupItemCount} items · ` : ''}{formatLastBackup(lastBackupAt)}
-                        </Text>
-                      </View>
-                    </>
-                  )}
-
-                  <View style={styles.rowDivider} />
-
-                  <View style={styles.row}>
-                    <Text style={styles.rowLabel}>Auto-backup</Text>
-                    <Switch
-                      value={autoBackupEnabled}
-                      onValueChange={handleToggleAutoBackup}
-                      trackColor={{ false: themeColors.surfaceContainerHigh, true: themeColors.accent }}
-                      thumbColor={themeColors.surface}
-                    />
-                  </View>
-
-                  <View style={styles.rowDivider} />
-
-                  <Pressable
-                    onPress={handleRestoreFromDrive}
-                    style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-                    accessibilityRole="button"
-                    accessibilityLabel="Restore from backup"
-                  >
-                    <Text style={styles.rowLabel}>
-                      {isRestoring ? 'Restoring...' : 'Restore from Backup'}
-                    </Text>
-                    <Text style={styles.rowChevron}>→</Text>
-                  </Pressable>
-
-                  <View style={styles.rowDivider} />
-
-                  <Pressable
-                    onPress={handleGoogleDriveDisconnect}
-                    style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-                    accessibilityRole="button"
-                    accessibilityLabel="Disconnect Google Drive"
-                  >
-                    <Text style={[styles.rowLabel, { color: themeColors.error }]}>Disconnect</Text>
-                  </Pressable>
-                </>
-              ) : (
-                <Pressable
-                  onPress={handleGoogleDriveConnect}
-                  style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-                  accessibilityRole="button"
-                  accessibilityLabel="Connect Google Drive"
-                >
-                  <Text style={styles.rowLabel}>
-                    {isConnecting ? 'Connecting...' : 'Connect Google Drive'}
-                  </Text>
-                  <Text style={styles.rowChevron}>→</Text>
-                </Pressable>
-              )}
-            </View>
-          </>
+          <SettingsSection title="Privacy" description="Advanced protection features">
+            <SettingsRow type="toggle" icon="shield" title="Panic mode" subtitle="Instantly hides vault when someone sees your phone" value={panicButtonEnabled} onValueChange={handleTogglePanicButton} highlighted />
+            {panicButtonEnabled && (
+              <>
+                <SettingsRow type="toggle" icon="shield" title="Shake device" value={true} onValueChange={() => {}} disabled subtitle="Always enabled" />
+                <SettingsRow type="toggle" icon="shield" title="Triple press volume" value={panicTriggerVolume} onValueChange={handleTogglePanicVolume} />
+                <SettingsRow type="toggle" icon="shield" title="Triple press power" value={panicTriggerPower} onValueChange={handleTogglePanicPower} />
+              </>
+            )}
+            <SettingsRow type="toggle" icon="scan" title="Intruder detection" subtitle="Capture photo on failed unlock" value={intruderDetectionEnabled} onValueChange={handleToggleIntruderDetection} highlighted />
+            {intruderDetectionEnabled && (
+              <SettingsRow type="navigation" icon="scan" title="Intruder log" subtitle="View captured reports" onPress={handleIntruderLogs} />
+            )}
+            <SettingsRow type="navigation" icon="lock" title="App Lock" subtitle="Lock other apps with PIN or pattern" onPress={() => navigation.navigate('AppLock')} />
+            <SettingsRow type="navigation" icon="lock" title="Notification Privacy" subtitle="Mask notification content" onPress={() => navigation.navigate('NotificationPrivacy')} />
+            <SettingsRow type="navigation" icon="shield" title="Uninstall Protection" subtitle="Prevent app removal" onPress={() => navigation.navigate('UninstallProtection')} />
+            <SettingsRow type="navigation" icon="key" title="Decoy vault" subtitle="Secondary vault with separate PIN" onPress={handleDecoySetup} value={decoyVaultConfigured ? 'Configured' : 'Not set'} />
+            <SettingsRow type="toggle" icon="scan" title="Hide app icon" subtitle={stealthModeEnabled ? 'App is hidden. Tap notification to open.' : 'Hide from launcher. Open via notification.'} value={stealthModeEnabled} onValueChange={handleToggleStealth} showDivider={false} />
+          </SettingsSection>
         )}
 
-        {/* STORAGE Section */}
-        <Text style={styles.sectionHeader}>STORAGE</Text>
-        <View style={styles.sectionCard}>
-          {/* Delete originals after import */}
-          <View style={styles.row}>
-            <Text style={styles.rowLabel}>Delete originals after import</Text>
-            <Switch
-              value={deleteOriginalsAfterImport}
-              onValueChange={handleToggleDeleteOriginals}
-              trackColor={{ false: themeColors.surfaceContainerHigh, true: themeColors.accent }}
-              thumbColor={themeColors.surface}
-            />
-          </View>
+        {/* ── APP APPEARANCE — hidden in decoy mode and stealth mode ── */}
+        {!isDecoyMode && !stealthModeEnabled && (
+          <SettingsSection title="App Appearance" description="Change how the app looks on your home screen">
+            {(['default', 'calculator', 'weather', 'notes'] as const).map((alias, idx, arr) => {
+              const labels: Record<AppIconAlias, string> = {
+                default: 'Default (VaultCalc)',
+                calculator: 'Calculator',
+                weather: 'Weather',
+                notes: 'Notes',
+              };
+              const icons: Record<AppIconAlias, 'calculator' | 'image' | 'pencil' | 'settings'> = {
+                default: 'settings',
+                calculator: 'calculator',
+                weather: 'image',
+                notes: 'pencil',
+              };
+              return (
+                <SettingsRow
+                  key={alias}
+                  type="value"
+                  icon={icons[alias]}
+                  title={labels[alias]}
+                  value={appIcon === alias ? 'Selected' : ''}
+                  valueColor={themeColors.accent}
+                  onPress={() => handleChangeAppIcon(alias)}
+                  showDivider={idx < arr.length - 1}
+                />
+              );
+            })}
+          </SettingsSection>
+        )}
 
-          <View style={styles.rowDivider} />
+        {/* ── CLOUD BACKUP — hidden in decoy mode ── */}
+        {!isDecoyMode && (
+          <SettingsSection title="Cloud Backup" description="Keep your vault safe in the cloud">
+            {googleDriveEmail ? (
+              <>
+                <SettingsRow type="value" icon="folder" title="Google Drive" value="Connected" valueColor={themeColors.success} />
+                <SettingsRow type="navigation" icon="folder" title={isBackingUp ? 'Backing Up...' : 'Back Up Now'} onPress={handleBackupNow} />
+                <SettingsRow type="value" icon="clock" title="Backup status" value={backupStatusLabel} valueColor={backupStatusColor} />
+                <SettingsRow type="toggle" icon="folder" title="Auto-backup" subtitle="Back up automatically when files change" value={autoBackupEnabled} onValueChange={handleToggleAutoBackup} />
+                <SettingsRow type="navigation" icon="folder" title={isRestoring ? 'Restoring...' : 'Restore from Backup'} onPress={handleRestoreFromDrive} />
+                <SettingsRow type="navigation" icon="trash" title="Disconnect" onPress={handleGoogleDriveDisconnect} destructive showDivider={false} />
+              </>
+            ) : (
+              <SettingsRow type="navigation" icon="folder" title={isConnecting ? 'Connecting...' : 'Connect Google Drive'} onPress={handleGoogleDriveConnect} showDivider={false} />
+            )}
+          </SettingsSection>
+        )}
 
-          {/* Storage usage (SETTINGS-005) */}
-          <View style={styles.row}>
-            <Text style={styles.rowLabel}>Vault size</Text>
-            <Text style={styles.rowValue}>
-              {storageStats !== null ? formatBytes(storageStats.totalSize) : '...'}
-            </Text>
-          </View>
+        {/* ── STORAGE ── */}
+        <SettingsSection title="Storage" description="Manage vault files and space">
+          <SettingsRow type="toggle" icon="trash" title="Delete originals after import" subtitle="Removes source files from gallery" value={deleteOriginalsAfterImport} onValueChange={handleToggleDeleteOriginals} />
+          <SettingsRow type="value" icon="folder" title="Vault size" value={storageStats !== null ? formatBytes(storageStats.totalSize) : '...'} subtitle={storageStats !== null ? `${storageStats.photoCount} photos, ${storageStats.videoCount} videos, ${storageStats.docCount} docs` : undefined} showDivider={false} />
+        </SettingsSection>
 
-          <View style={styles.rowDivider} />
+        {/* ── APPEARANCE ── */}
+        <SettingsSection title="Appearance">
+          <SettingsRow type="value" icon="settings" title="Theme" value={THEME_LABELS[themeMode]} onPress={handleCycleTheme} />
+          <SettingsRow type="toggle" icon="settings" title="Haptic feedback" subtitle="Vibrate on button presses" value={hapticEnabled} onValueChange={handleToggleHaptic} showDivider={false} />
+        </SettingsSection>
 
-          <View style={styles.storageDetailRow}>
-            <Text style={styles.storageDetailText}>
-              {storageStats !== null
-                ? `${storageStats.photoCount} photos, ${storageStats.videoCount} videos, ${storageStats.docCount} docs`
-                : '...'}
-            </Text>
-          </View>
-        </View>
-
-        {/* APPEARANCE Section */}
-        <Text style={styles.sectionHeader}>APPEARANCE</Text>
-        <View style={styles.sectionCard}>
-          {/* Theme */}
-          <Pressable
-            onPress={handleCycleTheme}
-            style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-            accessibilityRole="button"
-            accessibilityLabel={`Theme: ${THEME_LABELS[themeMode]}`}
-          >
-            <Text style={styles.rowLabel}>Theme</Text>
-            <Text style={styles.rowValue}>{THEME_LABELS[themeMode]}</Text>
-          </Pressable>
-
-          <View style={styles.rowDivider} />
-
-          {/* Haptic feedback */}
-          <View style={styles.row}>
-            <Text style={styles.rowLabel}>Haptic feedback</Text>
-            <Switch
-              value={hapticEnabled}
-              onValueChange={handleToggleHaptic}
-              trackColor={{ false: themeColors.surfaceContainerHigh, true: themeColors.accent }}
-              thumbColor={themeColors.surface}
-            />
-          </View>
-        </View>
-
-        {/* ABOUT Section */}
-        <Text style={styles.sectionHeader}>ABOUT</Text>
-        <View style={styles.sectionCard}>
-          {/* VaultCalc Premium — hidden in decoy mode (PREMIUM-001) */}
+        {/* ── ABOUT ── */}
+        <SettingsSection title="About">
           {!isDecoyMode && (
-            <>
-              <Pressable
-                onPress={handleSubscription}
-                style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-                accessibilityRole="button"
-                accessibilityLabel="VaultCalc Premium"
-              >
-                <Text style={styles.rowLabel}>VaultCalc Premium</Text>
-                <Text style={styles.rowChevron}>→</Text>
-              </Pressable>
-
-              <View style={styles.rowDivider} />
-            </>
+            <SettingsRow type="navigation" icon="star" title="VaultCalc Premium" subtitle="Unlock all features" onPress={handleSubscription} highlighted />
           )}
-
-          <Pressable
-            onPress={handleAbout}
-            style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-            accessibilityRole="button"
-            accessibilityLabel="About VaultCalc"
-          >
-            <Text style={styles.rowLabel}>About VaultCalc</Text>
-            <Text style={styles.rowChevron}>→</Text>
-          </Pressable>
-        </View>
+          <SettingsRow type="navigation" icon="settings" title="About VaultCalc" onPress={handleAbout} showDivider={false} />
+        </SettingsSection>
       </ScrollView>
 
       {isBackingUp && backupProgress && (
@@ -1127,7 +662,7 @@ export function SettingsScreen(): React.JSX.Element {
   );
 }
 
-const createStyles = (c: ColorTokens) => StyleSheet.create({
+const createStyles = (c: ColorTokens, _isDark: boolean) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: c.surface,
@@ -1163,54 +698,5 @@ const createStyles = (c: ColorTokens) => StyleSheet.create({
   scrollContent: {
     paddingHorizontal: spacing.base,
     paddingBottom: spacing.xl,
-  },
-  sectionHeader: {
-    ...typography.labelMedium,
-    color: c.textTertiary,
-    marginTop: spacing.xl,
-    marginBottom: spacing.sm,
-    marginLeft: spacing.xs,
-  },
-  sectionCard: {
-    backgroundColor: c.surfaceContainer,
-    borderRadius: layout.cardBorderRadius,
-    overflow: 'hidden',
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: layout.cardPadding,
-    minHeight: layout.minTouchTarget,
-  },
-  rowPressed: {
-    backgroundColor: c.surfaceContainerHigh,
-  },
-  rowDivider: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: c.border,
-    marginLeft: layout.cardPadding,
-  },
-  rowLabel: {
-    ...typography.bodyLarge,
-    color: c.textPrimary,
-    flex: 1,
-  },
-  rowValue: {
-    ...typography.bodyMedium,
-    color: c.textSecondary,
-  },
-  rowChevron: {
-    ...typography.bodyLarge,
-    color: c.textTertiary,
-  },
-  storageDetailRow: {
-    paddingHorizontal: layout.cardPadding,
-    paddingTop: spacing.xs,
-    paddingBottom: spacing.sm,
-  },
-  storageDetailText: {
-    ...typography.bodySmall,
-    color: c.textTertiary,
   },
 });

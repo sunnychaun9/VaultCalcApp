@@ -14,6 +14,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '@typedefs/navigation';
 import { useThemeColors, type ColorTokens, typography, spacing, layout } from '@shared/theme';
+import { Icon, ICON_SIZE } from '@shared/components/Icon';
 import { pickFilesForTab } from '@services/filePicker';
 import { importFiles } from '@services/import';
 import { useSettingsStore } from '@store/settingsStore';
@@ -72,7 +73,7 @@ export function FirstImportScreen(): React.JSX.Element {
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.content}>
-        <Text style={styles.icon}>🛡️</Text>
+        <Icon name="shield" size={ICON_SIZE.xl} color={themeColors.accent} style={styles.icon} />
         <Text style={styles.title}>Add Your First Photos</Text>
         <Text style={styles.subtitle}>
           Your photos will be encrypted and hidden inside the calculator app.

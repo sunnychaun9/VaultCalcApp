@@ -12,6 +12,7 @@ import React, { useMemo } from 'react';
 import { View, Text, ScrollView, StyleSheet, StatusBar } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { typography, spacing } from '@shared/theme';
+import { Icon } from '@shared/components/Icon';
 
 /** Dark gradient colors */
 const BG_TOP = '#0F172A';
@@ -68,7 +69,7 @@ export function LockScreenContainer({
         <View style={styles.topSection}>
           {/* Lock icon */}
           <View style={styles.lockIconWrapper}>
-            <Text style={styles.lockIcon}>{'\u{1F512}'}</Text>
+            <Icon name="lock" size={48} color="rgba(255,255,255,0.9)" />
           </View>
 
           {/* Title */}
@@ -97,7 +98,7 @@ export function LockScreenContainer({
 
           {/* Trust indicator */}
           <View style={styles.trustRow}>
-            <Text style={styles.trustIcon}>{'\u{1F6E1}'}</Text>
+            <Icon name="shield" size={16} color="rgba(255,255,255,0.4)" />
             <Text style={styles.trustText}>Protected with encryption</Text>
           </View>
         </View>

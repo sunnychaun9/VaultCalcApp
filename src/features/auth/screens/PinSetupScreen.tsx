@@ -32,6 +32,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { setupPin, getPinRules } from '../services/authService';
 import { SECURITY_QUESTIONS, setupRecovery } from '../services/recoveryService';
 import { typography, spacing } from '@shared/theme';
+import { Icon } from '@shared/components/Icon';
 import { useShakeAnimation, useDotScaleAnimations, useTapHaptic } from '../hooks/useLockAnimations';
 import type { RootStackParamList, RootStackScreenProps } from '@typedefs/navigation';
 import { BG_TOP, BG_BOTTOM, TEXT_PRIMARY, TEXT_SECONDARY, TEXT_MUTED, CARD_BG, CARD_BORDER } from '../components/LockScreenContainer';
@@ -215,11 +216,11 @@ export function PinSetupScreen(): React.JSX.Element {
         <View style={styles.header}>
           {(mode === 'confirm' || mode === 'recovery' || !isInitialSetup) ? (
             <Pressable onPress={handleBack} style={styles.backButton}>
-              <Text style={styles.backButtonText}>{mode === 'recovery' ? 'Skip' : '←'}</Text>
+              {mode === 'recovery' ? <Text style={styles.backButtonText}>Skip</Text> : <Icon name="arrow-left" size={24} color="rgba(255,255,255,0.9)" />}
             </Pressable>
           ) : <View style={styles.backButton} />}
           <View style={styles.lockIconWrapper}>
-            <Text style={styles.lockIcon}>{mode === 'recovery' ? '\u{1F6E1}' : '\u{1F512}'}</Text>
+            <Icon name={mode === 'recovery' ? 'shield' : 'lock'} size={48} color="rgba(255,255,255,0.9)" />
           </View>
           <Text style={styles.title}>
             {mode === 'create' ? 'Create PIN' : mode === 'confirm' ? 'Confirm PIN' : 'Recovery Setup'}
@@ -354,7 +355,7 @@ export function PinSetupScreen(): React.JSX.Element {
           </Pressable>
 
           <View style={styles.trustRow}>
-            <Text style={styles.trustIcon}>{'\u{1F6E1}'}</Text>
+            <Icon name="shield" size={16} color="rgba(255,255,255,0.4)" />
             <Text style={styles.trustText}>{mode === 'recovery' ? 'Helps recover your PIN if forgotten' : 'Protected with encryption'}</Text>
           </View>
         </View>

@@ -22,6 +22,7 @@ import { useNavigation, useRoute, type RouteProp } from '@react-navigation/nativ
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { VaultStackParamList } from '@typedefs/navigation';
 import { useThemeColors, type ColorTokens, typography, spacing, layout } from '@shared/theme';
+import { Icon } from '@shared/components/Icon';
 import {
   getAlbums,
   requestGalleryPermissions,
@@ -103,7 +104,7 @@ export function GalleryAlbumListScreen(): React.JSX.Element {
         <Text style={styles.albumName} numberOfLines={1}>{item.bucketName}</Text>
         <Text style={styles.albumCount}>{item.itemCount}</Text>
       </View>
-      <Text style={styles.chevron}>{'\u203A'}</Text>
+      <Icon name="chevron-right" size={20} color={themeColors.textSecondary} />
     </Pressable>
   ), [handleAlbumPress, styles]);
 
@@ -119,7 +120,7 @@ export function GalleryAlbumListScreen(): React.JSX.Element {
           accessibilityRole="button"
           accessibilityLabel="Go back"
         >
-          <Text style={styles.headerButtonText}>{'\u2190'}</Text>
+          <Icon name="arrow-left" size={24} color={themeColors.textPrimary} />
         </Pressable>
         <Text style={styles.headerTitle}>Select Album</Text>
         <View style={styles.headerButton} />

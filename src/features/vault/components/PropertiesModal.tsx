@@ -1,14 +1,17 @@
 /**
- * VaultCalc - Properties Modal
+ * VaultCalc - Properties Bottom Sheet
  *
- * Read-only modal showing metadata for a single media item:
+ * Read-only bottom sheet showing metadata for a single media item:
  * name, type, size, dimensions, duration, dates, favorite status.
  */
 
-import React, { useMemo } from 'react';
-import { View, Text, Pressable, Modal, ScrollView, StyleSheet } from 'react-native';
+import React, { useMemo, useRef, useEffect } from 'react';
+import { View, Text, StyleSheet } from 'react-native';
+import type BottomSheetType from '@gorhom/bottom-sheet';
+import { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import type { MediaItem } from '@services/storage/database';
 import { useThemeColors, type ColorTokens, typography, spacing } from '@shared/theme';
+import { AppBottomSheet } from '@shared/components/AppBottomSheet';
 import { formatFileSize, formatDateTime, formatDuration, formatMimeType } from '@shared/utils/formatters';
 
 interface PropertiesModalProps {
@@ -29,6 +32,15 @@ export function PropertiesModal({
 }: PropertiesModalProps): React.JSX.Element {
   const themeColors = useThemeColors();
   const styles = useMemo(() => createStyles(themeColors), [themeColors]);
+  const sheetRef = useRef<BottomSheetType>(null);
+
+  useEffect(() => {
+    if (visible) {
+      sheetRef.current?.expand();
+    } else {
+      sheetRef.current?.close();
+    }
+  }, [visible]);
 
   const rows: PropertyRow[] = useMemo(() => {
     if (item === null) return [];
@@ -44,10 +56,8 @@ export function PropertiesModal({
       r.push({ label: 'Duration', value: formatDuration(item.durationMs) });
     }
     r.push({ label: 'Last modified', value: formatDateTime(item.createdAt) });
-    // Original path from metadata (stored during import)
     const originalUri = item.metadata?.originalUri as string | undefined;
     if (originalUri) {
-      // Convert content:// URI to a readable path or show as-is
       const displayPath = originalUri.startsWith('content://')
         ? decodeURIComponent(originalUri.replace(/^content:\/\/[^/]+\//, '/'))
         : originalUri;
@@ -58,59 +68,32 @@ export function PropertiesModal({
   }, [item]);
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
+    <AppBottomSheet
+      ref={sheetRef}
+      snapPoints={['40%', '75%']}
+      title="Properties"
+      onDismiss={onClose}
     >
-      <Pressable style={styles.overlay} onPress={onClose}>
-        <Pressable style={styles.card} onPress={() => {}}>
-          <Text style={styles.title}>Properties</Text>
-          <ScrollView style={styles.scroll}>
-            {rows.map((row) => (
-              <View key={row.label} style={styles.row}>
-                <Text style={styles.label}>{row.label}</Text>
-                <Text style={styles.value} selectable>{row.value}</Text>
-              </View>
-            ))}
-          </ScrollView>
-          <Pressable style={styles.closeButton} onPress={onClose}>
-            <Text style={styles.closeText}>Close</Text>
-          </Pressable>
-        </Pressable>
-      </Pressable>
-    </Modal>
+      <BottomSheetScrollView style={styles.scroll}>
+        {rows.map((row) => (
+          <View key={row.label} style={styles.row}>
+            <Text style={styles.label}>{row.label}</Text>
+            <Text style={styles.value} selectable>{row.value}</Text>
+          </View>
+        ))}
+      </BottomSheetScrollView>
+    </AppBottomSheet>
   );
 }
 
 const createStyles = (c: ColorTokens) => StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  card: {
-    backgroundColor: c.surface,
-    borderRadius: 16,
-    padding: 24,
-    width: '85%',
-    maxWidth: 340,
-  },
-  title: {
-    ...typography.titleLarge,
-    color: c.textPrimary,
-    marginBottom: 16,
-    textAlign: 'center',
-  },
   scroll: {
-    maxHeight: 400,
+    paddingHorizontal: spacing.lg,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    paddingVertical: 10,
+    paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: c.border,
   },
@@ -124,16 +107,5 @@ const createStyles = (c: ColorTokens) => StyleSheet.create({
     ...typography.bodyMedium,
     color: c.textPrimary,
     flex: 1,
-  },
-  closeButton: {
-    alignItems: 'center',
-    paddingVertical: spacing.md,
-    marginTop: spacing.md,
-    backgroundColor: c.surfaceContainerHigh,
-    borderRadius: 8,
-  },
-  closeText: {
-    ...typography.labelLarge,
-    color: c.textPrimary,
   },
 });

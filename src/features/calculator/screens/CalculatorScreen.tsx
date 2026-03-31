@@ -21,8 +21,20 @@ import { usePinAuth, useBiometricAuth, useFailedAttempts, isPatternConfigured, i
 import { isRecoveryConfigured } from '@features/auth/services/recoveryService';
 import { useSettingsStore } from '@store/settingsStore';
 import { recordIntruderAttempt } from '@services/intruderCamera';
-import { colors, useThemeColors, type ColorTokens } from '@shared/theme';
+import { colors, useThemeColors, type ColorTokens, elevationLevels } from '@shared/theme';
 import { useOrientation } from '@shared/hooks';
+import { Icon, IconButton } from '@shared/components/Icon';
+
+function formatHistoryTime(timestamp: number): string {
+  if (!timestamp) return '';
+  const now = Date.now();
+  const diff = now - timestamp;
+  if (diff < 60_000) return 'Just now';
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
+  const d = new Date(timestamp);
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
 
 /**
  * Calculator Screen Component
@@ -91,7 +103,7 @@ export function CalculatorScreen(): React.JSX.Element {
     }
   }, [unlockMethod, rootNav]);
 
-  const { display, expression, memoryHasValue, handleButtonPress, history } = useCalculator({
+  const { display, expression, memoryHasValue, handleButtonPress, history, clearHistory } = useCalculator({
     onPinCheck: handlePinCheck,
   });
 
@@ -110,12 +122,20 @@ export function CalculatorScreen(): React.JSX.Element {
         {!isLandscape && (
           <View style={styles.topBar}>
             <View style={{ flex: 1 }} />
-            <Pressable onPress={() => setShowHistory(true)} style={styles.topBarIcon}>
-              <Text style={styles.topBarIconText}>{'\u{1F553}'}</Text>
-            </Pressable>
-            <Pressable onPress={() => setShowMenu(!showMenu)} style={styles.topBarIcon}>
-              <Text style={styles.topBarIconText}>{'\u22EE'}</Text>
-            </Pressable>
+            <IconButton
+              name="clock"
+              size={20}
+              onPress={() => setShowHistory(true)}
+              color={themeColors.textSecondary}
+              accessibilityLabel="History"
+            />
+            <IconButton
+              name="more-vertical"
+              size={20}
+              onPress={() => setShowMenu(!showMenu)}
+              color={themeColors.textSecondary}
+              accessibilityLabel="Menu"
+            />
           </View>
         )}
 
@@ -135,7 +155,7 @@ export function CalculatorScreen(): React.JSX.Element {
           <CalcDisplay
             expression={expression}
             result={display}
-            history={history}
+            history={history.slice(-3)}
             warningMessage={warningMessage}
             warningLevel={warningLevel}
             lockoutTime={isLockedOut ? lockoutTimeRemaining : undefined}
@@ -152,7 +172,7 @@ export function CalculatorScreen(): React.JSX.Element {
               accessibilityRole="button"
               accessibilityLabel="Unlock with pattern"
             >
-              <Text style={styles.bioButtonIcon}>{'\u229E'}</Text>
+              <Icon name="grid" size={18} color={themeColors.textSecondary} />
             </Pressable>
           )}
           {/* Biometric re-trigger button (BIO-004) */}
@@ -166,7 +186,7 @@ export function CalculatorScreen(): React.JSX.Element {
               accessibilityRole="button"
               accessibilityLabel="Unlock with fingerprint"
             >
-              <Text style={styles.bioButtonIcon}>{'\u{1F512}'}</Text>
+              <Icon name="fingerprint" size={18} color={themeColors.textSecondary} />
             </Pressable>
           )}
           {/* Forgot PIN? — shown after 3+ failed attempts */}
@@ -196,11 +216,25 @@ export function CalculatorScreen(): React.JSX.Element {
       <Modal visible={showHistory} animationType="slide" onRequestClose={() => setShowHistory(false)}>
         <View style={styles.historyContainer}>
           <View style={styles.historyHeader}>
-            <Pressable onPress={() => setShowHistory(false)} style={styles.historyBackBtn}>
-              <Text style={styles.historyBackText}>{'\u2190'}</Text>
-            </Pressable>
+            <IconButton
+              name="arrow-left"
+              size={22}
+              onPress={() => setShowHistory(false)}
+              color={themeColors.textPrimary}
+              accessibilityLabel="Close history"
+              hitSize={44}
+            />
             <Text style={styles.historyTitle}>History</Text>
-            <View style={{ width: 44 }} />
+            {history.length > 0 ? (
+              <Pressable
+                onPress={clearHistory}
+                style={styles.historyClearBtn}
+              >
+                <Text style={styles.historyClearText}>Clear</Text>
+              </Pressable>
+            ) : (
+              <View style={{ width: 44 }} />
+            )}
           </View>
           <ScrollView style={styles.historyScroll} contentContainerStyle={styles.historyScrollContent}>
             {history.length === 0 ? (
@@ -210,7 +244,7 @@ export function CalculatorScreen(): React.JSX.Element {
             ) : (
               history.slice().reverse().map((entry, idx) => (
                 <View key={idx} style={styles.historyEntry}>
-                  <Text style={styles.historyTimestamp}>Just now</Text>
+                  <Text style={styles.historyTimestamp}>{formatHistoryTime(entry.timestamp)}</Text>
                   <Text style={styles.historyExpression}>{entry.expression}</Text>
                   <Text style={styles.historyResult}>{entry.result}</Text>
                 </View>
@@ -304,10 +338,10 @@ const createStyles = (c: ColorTokens, isLandscape: boolean) => StyleSheet.create
     top: isLandscape ? 8 : 52,
     right: 12,
     backgroundColor: c.surfaceContainerHigh,
-    borderRadius: 8,
+    borderRadius: 12,
     paddingVertical: 4,
     minWidth: 140,
-    elevation: 8,
+    ...elevationLevels.level2.shadow,
     zIndex: 101,
   },
   menuItem: {
@@ -347,6 +381,17 @@ const createStyles = (c: ColorTokens, isLandscape: boolean) => StyleSheet.create
     color: c.textPrimary,
     flex: 1,
     marginLeft: 4,
+  },
+  historyClearBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  historyClearText: {
+    fontSize: 14,
+    color: c.accent,
+    fontWeight: '500',
   },
   historyScroll: {
     flex: 1,

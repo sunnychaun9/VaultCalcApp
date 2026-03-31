@@ -20,6 +20,9 @@ export interface AlertButton {
   style?: 'default' | 'cancel' | 'destructive';
 }
 
+/** Visual variant — auto-detected from buttons or set explicitly */
+export type AlertVariant = 'info' | 'destructive';
+
 /**
  * Alert state when visible
  */
@@ -27,6 +30,8 @@ interface AlertData {
   title: string;
   message?: string;
   buttons: AlertButton[];
+  /** Visual variant — 'destructive' shows red accent + warning icon + shake */
+  variant: AlertVariant;
 }
 
 interface AlertState {
@@ -41,12 +46,16 @@ export const useAlertStore = create<AlertState>((set) => ({
   data: null,
 
   show: (title, message, buttons) => {
+    const resolvedButtons = buttons ?? [{ text: 'OK' }];
+    // Auto-detect destructive variant from button styles
+    const hasDestructive = resolvedButtons.some((b) => b.style === 'destructive');
     set({
       visible: true,
       data: {
         title,
         message,
-        buttons: buttons ?? [{ text: 'OK' }],
+        buttons: resolvedButtons,
+        variant: hasDestructive ? 'destructive' : 'info',
       },
     });
   },

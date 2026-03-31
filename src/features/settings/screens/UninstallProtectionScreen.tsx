@@ -19,6 +19,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeModules } from 'react-native';
 import { useActivityTracker } from '@features/auth';
 import { useThemeColors, type ColorTokens, typography, spacing } from '@shared/theme';
+import { Icon } from '@shared/components/Icon';
 import { alert } from '@store/alertStore';
 
 const { UninstallProtectModule } = NativeModules;
@@ -88,7 +89,8 @@ export function UninstallProtectionScreen(): React.JSX.Element {
       {/* Header */}
       <View style={styles.header}>
         <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Text style={styles.backText}>{'\u2190'} Back</Text>
+          <Icon name="arrow-left" size={20} color={themeColors.textPrimary} />
+          <Text style={styles.backText}> Back</Text>
         </Pressable>
         <Text style={styles.title}>Uninstall Protection</Text>
         <View style={styles.backButton} />

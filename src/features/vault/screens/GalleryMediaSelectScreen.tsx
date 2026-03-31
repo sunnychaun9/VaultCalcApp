@@ -23,6 +23,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { VaultStackParamList } from '@typedefs/navigation';
 import { useThemeColors, type ColorTokens, typography, spacing, layout } from '@shared/theme';
+import { Icon } from '@shared/components/Icon';
 import { useOrientation } from '@shared/hooks';
 import { useAuthStore } from '@store/authStore';
 import { useSettingsStore } from '@store/settingsStore';
@@ -199,7 +200,7 @@ export function GalleryMediaSelectScreen(): React.JSX.Element {
         {isSelected && <View style={styles.selectionOverlay} />}
         {/* Checkbox */}
         <View style={[styles.checkbox, isSelected && styles.checkboxSelected]}>
-          {isSelected && <Text style={styles.checkmark}>{'\u2713'}</Text>}
+          {isSelected && <Icon name="check" size={14} color="#FFFFFF" strokeWidth={3} />}
         </View>
         {/* Duration badge for videos */}
         {item.durationMs != null && item.durationMs > 0 && (
@@ -225,7 +226,7 @@ export function GalleryMediaSelectScreen(): React.JSX.Element {
           accessibilityRole="button"
           accessibilityLabel="Go back"
         >
-          <Text style={styles.headerButtonText}>{'\u2190'}</Text>
+          <Icon name="arrow-left" size={24} color={themeColors.textPrimary} />
         </Pressable>
         <Text style={styles.headerTitle} numberOfLines={1}>{bucketName}</Text>
         <Pressable

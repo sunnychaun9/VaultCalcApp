@@ -18,6 +18,9 @@ import type { VaultStackParamList, VaultStackScreenProps } from '@typedefs/navig
 import { albums as albumsDb, albumMedia as albumMediaDb, mediaItems as mediaItemsDb, type Album, type MediaItem } from '@services/storage/database';
 import { useThemeColors, type ColorTokens, typography, spacing, layout } from '@shared/theme';
 import { useOrientation } from '@shared/hooks';
+import { Icon } from '@shared/components/Icon';
+import Animated, { FadeInUp } from 'react-native-reanimated';
+import { AlbumsIllustration } from '@shared/illustrations/EmptyStateIllustrations';
 import { useAlbumMediaQuery, useAlbumsQuery } from '../hooks';
 import { useVaultStore } from '@store/vaultStore';
 import { useAuthStore } from '@store/authStore';
@@ -67,12 +70,12 @@ export function AlbumViewScreen(): React.JSX.Element {
     return () => { clearSelection(); };
   }, [clearSelection]);
 
-  const handleItemPress = useCallback((item: MediaItem) => {
+  const handleItemPress = useCallback((item: MediaItem, originRect?: { x: number; y: number; width: number; height: number }) => {
     if (isSelectionMode) {
       toggleSelection(item.id);
     } else {
       const siblingIds = mediaItems.map(i => i.id);
-      navigation.navigate('MediaViewer', { mediaId: item.id, mediaIds: siblingIds });
+      navigation.navigate('MediaViewer', { mediaId: item.id, mediaIds: siblingIds, originRect });
     }
   }, [isSelectionMode, toggleSelection, navigation, mediaItems]);
 
@@ -278,6 +281,7 @@ export function AlbumViewScreen(): React.JSX.Element {
 
     await mediaItemsDb.rename(id, newName);
     await queryClient.invalidateQueries({ queryKey: ['albumMedia', albumId] });
+    await queryClient.invalidateQueries({ queryKey: ['media'] });
     setShowRenameModal(false);
     clearSelection();
   }, [selectedIds, albumId, queryClient, clearSelection]);
@@ -305,7 +309,8 @@ export function AlbumViewScreen(): React.JSX.Element {
       {/* Header */}
       <View style={styles.header}>
         <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Text style={styles.backText}>{'\u2190'} Back</Text>
+          <Icon name="arrow-left" size={20} color={themeColors.textPrimary} />
+          <Text style={styles.backText}> Back</Text>
         </Pressable>
         <Text style={styles.title} numberOfLines={1}>
           {isSelectionMode ? `${selectedIds.size} selected` : (album?.name ?? 'Album')}
@@ -323,13 +328,13 @@ export function AlbumViewScreen(): React.JSX.Element {
           numColumns={gridColumns}
         />
       ) : (
-        <View style={styles.emptyContent}>
-          <Text style={styles.emptyIcon}>{'\u{1F4C1}'}</Text>
+        <Animated.View entering={FadeInUp.springify().damping(18).stiffness(160)} style={styles.emptyContent}>
+          <AlbumsIllustration size={140} color={themeColors.textTertiary} accent={themeColors.accent} />
           <Text style={styles.emptyTitle}>{album?.name ?? 'Album'}</Text>
           <Text style={styles.emptyDescription}>
-            No items in this album yet
+            This album is empty. Add photos or videos from your vault.
           </Text>
-        </View>
+        </Animated.View>
       )}
 
       {/* Selection Bar */}

@@ -28,6 +28,7 @@ import { handleFailedAttempt } from '../services/failedAttempts';
 import { useActivityTracker } from '../hooks';
 import { useSettingsStore } from '@store/settingsStore';
 import { useThemeColors, type ColorTokens, typography, spacing } from '@shared/theme';
+import { Icon } from '@shared/components/Icon';
 import { alert } from '@store/alertStore';
 
 /** Setup phases */
@@ -240,7 +241,7 @@ export function DecoyPinSetupScreen(): React.JSX.Element {
           accessibilityRole="button"
           accessibilityLabel="Go back"
         >
-          <Text style={styles.backButtonText}>←</Text>
+          <Icon name="arrow-left" size={24} color="rgba(255,255,255,0.9)" />
         </Pressable>
         <Text style={styles.title}>{config.title}</Text>
         <View style={styles.placeholder} />

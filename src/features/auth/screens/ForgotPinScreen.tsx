@@ -32,6 +32,7 @@ import {
 import { getPinRules } from '../services/authService';
 import { useShakeAnimation, useDotScaleAnimations, useTapHaptic } from '../hooks/useLockAnimations';
 import { typography, spacing } from '@shared/theme';
+import { Icon } from '@shared/components/Icon';
 import { BG_TOP, BG_BOTTOM, TEXT_PRIMARY, TEXT_SECONDARY, TEXT_MUTED, CARD_BG, CARD_BORDER } from '../components/LockScreenContainer';
 
 type Phase = 'question' | 'newpin' | 'confirmpin';
@@ -201,7 +202,7 @@ export function ForgotPinScreen(): React.JSX.Element {
         <View style={styles.bgBottom} />
         <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
           <View style={styles.centeredContent}>
-            <Text style={{ fontSize: 48, marginBottom: 16 }}>{'\u{1F512}'}</Text>
+            <Icon name="lock" size={48} color="rgba(255,255,255,0.9)" />
             <Text style={styles.title}>No Recovery Set Up</Text>
             <Text style={[styles.subtitle, { marginBottom: 32 }]}>
               Recovery was not configured during PIN setup. Unfortunately, your PIN cannot be reset without it.
@@ -228,10 +229,10 @@ export function ForgotPinScreen(): React.JSX.Element {
         {/* Header */}
         <View style={styles.header}>
           <Pressable onPress={handleBack} style={styles.backButton}>
-            <Text style={styles.backButtonText}>←</Text>
+            <Icon name="arrow-left" size={24} color="rgba(255,255,255,0.9)" />
           </Pressable>
           <View style={styles.lockIconWrapper}>
-            <Text style={styles.lockIcon}>{phase === 'question' ? '\u{1F511}' : '\u{1F512}'}</Text>
+            <Icon name={phase === 'question' ? 'key' : 'lock'} size={48} color="rgba(255,255,255,0.9)" />
           </View>
           <Text style={styles.title}>
             {phase === 'question' ? 'Forgot PIN' : phase === 'newpin' ? 'New PIN' : 'Confirm PIN'}

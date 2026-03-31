@@ -31,6 +31,7 @@ import { useFailedAttempts, useBiometricAuth } from '../hooks';
 import { useShakeAnimation, useSuccessAnimation } from '../hooks/useLockAnimations';
 import { recordIntruderAttempt } from '@services/intruderCamera';
 import { typography, spacing } from '@shared/theme';
+import { Icon } from '@shared/components/Icon';
 import { isRecoveryConfigured } from '../services/recoveryService';
 
 /** Colors for the dark lock screen */
@@ -152,7 +153,7 @@ export function PatternUnlockScreen(): React.JSX.Element {
                 accessibilityRole="button"
                 accessibilityLabel="Unlock with fingerprint"
               >
-                <Text style={styles.bioIcon}>{'\u{1F9B6}'}</Text>
+                <Icon name="fingerprint" size={24} color="rgba(255,255,255,0.7)" />
               </Pressable>
             )}
           </View>

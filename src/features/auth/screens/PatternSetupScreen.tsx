@@ -21,6 +21,7 @@ import { useSettingsStore } from '@store/settingsStore';
 import { useActivityTracker } from '../hooks';
 import { useShakeAnimation, useSuccessAnimation } from '../hooks/useLockAnimations';
 import { typography, spacing } from '@shared/theme';
+import { Icon } from '@shared/components/Icon';
 import { BG_TOP, BG_BOTTOM, TEXT_PRIMARY, TEXT_SECONDARY, TEXT_MUTED, CARD_BG, CARD_BORDER } from '../components/LockScreenContainer';
 
 type SetupPhase = 'draw' | 'confirm';
@@ -141,10 +142,10 @@ export function PatternSetupScreen(): React.JSX.Element {
           {/* Header */}
           <View style={styles.header}>
             <Pressable onPress={handleBack} style={styles.backButton}>
-              <Text style={styles.backButtonText}>←</Text>
+              <Icon name="arrow-left" size={24} color="rgba(255,255,255,0.9)" />
             </Pressable>
             <View style={styles.lockIconWrapper}>
-              <Text style={styles.lockIcon}>{'\u{1F512}'}</Text>
+              <Icon name="lock" size={48} color="rgba(255,255,255,0.9)" />
             </View>
             <Text style={styles.title}>
               {phase === 'draw' ? 'Draw Pattern' : 'Confirm Pattern'}
@@ -183,7 +184,7 @@ export function PatternSetupScreen(): React.JSX.Element {
               <Text style={styles.processingText}>Saving pattern...</Text>
             )}
             <View style={styles.trustRow}>
-              <Text style={styles.trustIcon}>{'\u{1F6E1}'}</Text>
+              <Icon name="shield" size={16} color="rgba(255,255,255,0.4)" />
               <Text style={styles.trustText}>Protected with encryption</Text>
             </View>
           </View>

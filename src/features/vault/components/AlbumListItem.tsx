@@ -9,9 +9,12 @@
 
 import React, { useMemo } from 'react';
 import { View, Text, Pressable, Image, StyleSheet } from 'react-native';
+import Animated from 'react-native-reanimated';
 import type { Album, CoverMediaInfo } from '@services/storage/database';
 import { useThemeColors, type ColorTokens, typography, spacing, layout } from '@shared/theme';
 import { useDecryptedThumbnail } from '../hooks';
+import { Icon } from '@shared/components/Icon';
+import { useListItemAnimation, usePressAnimation } from '@shared/hooks/useAnimations';
 
 interface AlbumListItemProps {
   album: Album;
@@ -19,6 +22,8 @@ interface AlbumListItemProps {
   coverMedia?: CoverMediaInfo;
   onPress: (album: Album) => void;
   onLongPress: (album: Album) => void;
+  /** List index for staggered entry animation */
+  index?: number;
 }
 
 /** Format timestamp to short date string */
@@ -36,6 +41,7 @@ export const AlbumListItem = React.memo(function AlbumListItem({
   coverMedia,
   onPress,
   onLongPress,
+  index = 0,
 }: AlbumListItemProps): React.JSX.Element {
   const themeColors = useThemeColors();
   const styles = useMemo(() => createStyles(themeColors), [themeColors]);
@@ -48,14 +54,18 @@ export const AlbumListItem = React.memo(function AlbumListItem({
   const count = mediaCount ?? 0;
   const countLabel = count === 1 ? '1 item' : `${count} items`;
 
+  const entryStyle = useListItemAnimation({ index });
+  const { animatedStyle: pressStyle, onPressIn, onPressOut } = usePressAnimation({ scaleDown: 0.98, opacityDown: 0.9 });
+
   return (
+    <Animated.View style={entryStyle}>
+    <Animated.View style={pressStyle}>
     <Pressable
       onPress={() => onPress(album)}
       onLongPress={() => onLongPress(album)}
-      style={({ pressed }) => [
-        styles.container,
-        pressed && styles.containerPressed,
-      ]}
+      onPressIn={onPressIn}
+      onPressOut={onPressOut}
+      style={styles.container}
       accessibilityRole="button"
       accessibilityLabel={album.name}
     >
@@ -64,7 +74,7 @@ export const AlbumListItem = React.memo(function AlbumListItem({
         {coverUri !== null ? (
           <Image source={{ uri: coverUri }} style={styles.coverImage} resizeMode="cover" />
         ) : (
-          <Text style={styles.icon}>{'\u{1F4C1}'}</Text>
+          <Icon name="folder" size={24} color={themeColors.vaultFolderIcon} />
         )}
       </View>
 
@@ -79,8 +89,10 @@ export const AlbumListItem = React.memo(function AlbumListItem({
       </View>
 
       {/* Chevron */}
-      <Text style={styles.chevron}>{'\u203A'}</Text>
+      <Icon name="chevron-right" size={20} color={themeColors.textSecondary} />
     </Pressable>
+    </Animated.View>
+    </Animated.View>
   );
 });
 
@@ -93,9 +105,6 @@ const createStyles = (c: ColorTokens) => StyleSheet.create({
     backgroundColor: c.surface,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: c.border,
-  },
-  containerPressed: {
-    opacity: 0.7,
   },
   iconBox: {
     width: 44,

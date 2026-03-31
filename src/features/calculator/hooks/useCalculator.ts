@@ -8,7 +8,7 @@
  * @see FEATURE_INDEX.md CALC-002, AUTH-001
  */
 
-import { useState, useCallback, useMemo, useRef } from 'react';
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import {
   evaluate,
   formatDisplay,
@@ -19,6 +19,7 @@ import {
   getOperatorDisplay,
   type Operator,
 } from '../utils/calculatorEngine';
+import { storage } from '@services/storage/mmkv';
 
 /** PIN check callback type */
 export type PinCheckCallback = (input: string) => Promise<{
@@ -30,6 +31,24 @@ export type PinCheckCallback = (input: string) => Promise<{
 export interface HistoryEntry {
   expression: string;
   result: string;
+  timestamp: number;
+}
+
+const HISTORY_STORAGE_KEY = 'calc-history';
+const HISTORY_LIMIT = 50;
+
+function loadPersistedHistory(): HistoryEntry[] {
+  try {
+    const raw = storage.getString(HISTORY_STORAGE_KEY);
+    if (!raw) return [];
+    return JSON.parse(raw) as HistoryEntry[];
+  } catch {
+    return [];
+  }
+}
+
+function persistHistory(history: HistoryEntry[]): void {
+  storage.set(HISTORY_STORAGE_KEY, JSON.stringify(history));
 }
 
 interface CalculatorState {
@@ -47,7 +66,7 @@ interface CalculatorState {
   memory: number | null;
   /** Last operator and operand for repeat equals */
   lastOperation: { operator: Operator; operand: string } | null;
-  /** Calculation history (last 3 operations, in-memory only) */
+  /** Calculation history (persisted via MMKV) */
   history: HistoryEntry[];
   /** Raw digit buffer for PIN detection (not affected by leading-zero replacement) */
   pinBuffer: string;
@@ -61,7 +80,7 @@ const initialState: CalculatorState = {
   justEvaluated: false,
   memory: null,
   lastOperation: null,
-  history: [],
+  history: loadPersistedHistory(),
   pinBuffer: '',
 };
 
@@ -81,8 +100,10 @@ export interface UseCalculatorReturn {
   handleButtonPress: (value: string) => void;
   /** Current raw input value (for PIN detection) */
   rawInput: string;
-  /** Calculation history (last 3, in-memory only) */
+  /** Calculation history (persisted via MMKV) */
   history: HistoryEntry[];
+  /** Clear all history entries */
+  clearHistory: () => void;
 }
 
 /**
@@ -270,7 +291,7 @@ export function useCalculator(options?: UseCalculatorOptions): UseCalculatorRetu
           currentInput: formattedResult,
           expression: displayExpression,
           justEvaluated: true,
-          history: [...prev.history, { expression: displayExpression, result: formattedResult }].slice(-3),
+          history: [...prev.history, { expression: displayExpression, result: formattedResult, timestamp: Date.now() }].slice(-HISTORY_LIMIT),
         };
       }
 
@@ -305,7 +326,7 @@ export function useCalculator(options?: UseCalculatorOptions): UseCalculatorRetu
         expression: displayExpression,
         justEvaluated: true,
         lastOperation: { operator: prev.operator, operand: prev.currentInput },
-        history: [...prev.history, { expression: displayExpression, result: formattedResult }].slice(-3),
+        history: [...prev.history, { expression: displayExpression, result: formattedResult, timestamp: Date.now() }].slice(-HISTORY_LIMIT),
       };
     });
   }, [state, options]);
@@ -315,11 +336,12 @@ export function useCalculator(options?: UseCalculatorOptions): UseCalculatorRetu
    */
   const clearAll = useCallback(() => {
     setState((prev) => {
-      // If current is already 0, clear everything including history
+      // If current is already 0, clear everything (preserve memory + history)
       if (prev.currentInput === '0') {
         return {
           ...initialState,
-          memory: prev.memory, // Preserve memory
+          memory: prev.memory,
+          history: prev.history,
         };
       }
       // Otherwise just clear current
@@ -530,6 +552,18 @@ export function useCalculator(options?: UseCalculatorOptions): UseCalculatorRetu
     ]
   );
 
+  // Persist history to MMKV whenever it changes
+  useEffect(() => {
+    persistHistory(state.history);
+  }, [state.history]);
+
+  /**
+   * Clear all calculation history
+   */
+  const clearHistory = useCallback(() => {
+    setState(prev => ({ ...prev, history: [] }));
+  }, []);
+
   // Format display with thousands separators
   const formattedDisplay = useMemo(() => {
     return formatWithSeparators(state.currentInput);
@@ -542,5 +576,6 @@ export function useCalculator(options?: UseCalculatorOptions): UseCalculatorRetu
     handleButtonPress,
     rawInput: state.currentInput,
     history: state.history,
+    clearHistory,
   };
 }

@@ -1,8 +1,8 @@
 /**
  * VaultCalc - Vault Header Component
  *
- * Header for the vault screen with title and lock button.
- * Lock button returns user to calculator (locks vault).
+ * Compact header with lock button and up to 2 trailing action slots.
+ * Selection mode swaps to count + select-all / close controls.
  *
  * @see FEATURE_INDEX.md VAULT-001, VAULT-006
  */
@@ -17,6 +17,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { useAuthStore } from '@store/authStore';
 import { useThemeColors, type ColorTokens, typography, spacing, layout } from '@shared/theme';
+import { IconButton } from '@shared/components/Icon';
 
 interface VaultHeaderProps {
   /** Title to display */
@@ -35,13 +36,17 @@ interface VaultHeaderProps {
   onClearSelection?: () => void;
   /** Called when user taps Select All */
   onSelectAll?: () => void;
+  /** Search toggle handler */
+  onSearchPress?: () => void;
+  /** Whether search is active (for icon highlight) */
+  isSearchActive?: boolean;
 }
 
 /**
  * Vault header component with lock button
  */
 export function VaultHeader({
-  title = 'Private Storage',
+  title = 'Vault',
   showSettings = true,
   onSettingsPress,
   isSelectionMode = false,
@@ -49,6 +54,8 @@ export function VaultHeader({
   totalCount = 0,
   onClearSelection,
   onSelectAll,
+  onSearchPress,
+  isSearchActive = false,
 }: VaultHeaderProps): React.JSX.Element {
   const themeColors = useThemeColors();
   const styles = useMemo(() => createStyles(themeColors), [themeColors]);
@@ -79,17 +86,12 @@ export function VaultHeader({
     return (
       <View style={styles.container}>
         {/* Close selection */}
-        <Pressable
-          onPress={onClearSelection}
-          style={({ pressed }) => [
-            styles.iconButton,
-            pressed && styles.iconButtonPressed,
-          ]}
-          accessibilityRole="button"
+        <IconButton
+          name="x"
+          onPress={onClearSelection!}
+          color={themeColors.textPrimary}
           accessibilityLabel="Exit selection mode"
-        >
-          <Text style={styles.iconText}>{'\u2715'}</Text>
-        </Pressable>
+        />
 
         {/* Selection count */}
         <Text style={styles.title} numberOfLines={1}>
@@ -101,7 +103,7 @@ export function VaultHeader({
           onPress={onSelectAll}
           style={({ pressed }) => [
             styles.selectAllButton,
-            pressed && styles.iconButtonPressed,
+            pressed && styles.pressed,
           ]}
           accessibilityRole="button"
           accessibilityLabel={allSelected ? 'Deselect all' : 'Select all'}
@@ -117,39 +119,39 @@ export function VaultHeader({
   return (
     <View style={styles.container}>
       {/* Lock/Calculator Button */}
-      <Pressable
+      <IconButton
+        name="calculator"
         onPress={handleLockPress}
-        style={({ pressed }) => [
-          styles.iconButton,
-          pressed && styles.iconButtonPressed,
-        ]}
-        accessibilityRole="button"
+        color={themeColors.textPrimary}
         accessibilityLabel="Lock vault and return to calculator"
-      >
-        <Text style={styles.iconText}>⊞</Text>
-      </Pressable>
+      />
 
-      {/* Title */}
+      {/* Title — left-aligned for modern feel */}
       <Text style={styles.title} numberOfLines={1}>
         {title}
       </Text>
 
-      {/* Settings Button */}
-      {showSettings ? (
-        <Pressable
-          onPress={onSettingsPress}
-          style={({ pressed }) => [
-            styles.iconButton,
-            pressed && styles.iconButtonPressed,
-          ]}
-          accessibilityRole="button"
-          accessibilityLabel="Open settings"
-        >
-          <Text style={styles.iconText}>⚙</Text>
-        </Pressable>
-      ) : (
-        <View style={styles.iconButton} />
-      )}
+      {/* Trailing actions: search + settings (2 max) */}
+      <View style={styles.trailing}>
+        {onSearchPress && (
+          <IconButton
+            name="search"
+            size={20}
+            onPress={onSearchPress}
+            color={isSearchActive ? themeColors.accent : themeColors.textSecondary}
+            accessibilityLabel="Search"
+          />
+        )}
+        {showSettings && (
+          <IconButton
+            name="settings"
+            size={20}
+            onPress={onSettingsPress!}
+            color={themeColors.textSecondary}
+            accessibilityLabel="Open settings"
+          />
+        )}
+      </View>
     </View>
   );
 }
@@ -158,18 +160,20 @@ const createStyles = (c: ColorTokens) => StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     height: layout.topBarHeight,
-    paddingHorizontal: spacing.sm,
+    paddingLeft: spacing.xs,
+    paddingRight: spacing.xs,
     backgroundColor: c.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: c.border,
   },
   title: {
     ...typography.titleLarge,
     color: c.textPrimary,
     flex: 1,
-    textAlign: 'center',
+    marginLeft: spacing.xs,
+  },
+  trailing: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   iconButton: {
     width: 40,
@@ -178,12 +182,8 @@ const createStyles = (c: ColorTokens) => StyleSheet.create({
     alignItems: 'center',
     borderRadius: 20,
   },
-  iconButtonPressed: {
-    backgroundColor: c.overlay,
-  },
-  iconText: {
-    fontSize: 24,
-    color: c.textPrimary,
+  pressed: {
+    opacity: 0.6,
   },
   selectAllButton: {
     height: 40,

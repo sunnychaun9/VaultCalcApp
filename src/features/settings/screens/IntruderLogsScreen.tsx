@@ -29,6 +29,8 @@ import { decryptFile, getVaultDirectory } from '@services/crypto';
 import { deleteFile } from '@services/media';
 import { useThemeColors, type ColorTokens, typography, spacing, layout } from '@shared/theme';
 import { alert } from '@store/alertStore';
+import Animated, { FadeInUp } from 'react-native-reanimated';
+import { ShieldIllustration } from '@shared/illustrations/EmptyStateIllustrations';
 
 type NavProp = NativeStackNavigationProp<VaultStackParamList>;
 
@@ -42,12 +44,8 @@ function getRiskColor(level: RiskLevel): string {
   }
 }
 
-function getRiskEmoji(level: RiskLevel): string {
-  switch (level) {
-    case 'HIGH': return '\uD83D\uDD34';
-    case 'MEDIUM': return '\uD83D\uDFE1';
-    case 'LOW': return '\uD83D\uDFE2';
-  }
+function getRiskIndicator(_level: RiskLevel): string {
+  return '\u25CF';
 }
 
 function formatTime(ms: number): string {
@@ -169,7 +167,7 @@ function IntruderCard({
         <View style={styles.cardInfoRow}>
           <Text style={styles.cardInfoLabel}>Risk</Text>
           <Text style={[styles.cardInfoValue, { color: riskColor }]}>
-            {log.riskLevel} {getRiskEmoji(log.riskLevel)}
+            {log.riskLevel} {getRiskIndicator(log.riskLevel)}
           </Text>
         </View>
         <View style={styles.cardInfoRow}>
@@ -283,14 +281,14 @@ export function IntruderLogsScreen(): React.JSX.Element {
   const keyExtractor = useCallback((item: IntruderLog) => item.id, []);
 
   const renderEmpty = useCallback(() => (
-    <View style={styles.emptyContainer}>
-      <Text style={styles.emptyIcon}>&#x1F6E1;&#xFE0F;</Text>
-      <Text style={styles.emptyTitle}>No Intruder Reports</Text>
+    <Animated.View entering={FadeInUp.springify().damping(18).stiffness(160)} style={styles.emptyContainer}>
+      <ShieldIllustration size={140} color={themeColors.textTertiary} accent={themeColors.accent} />
+      <Text style={styles.emptyTitle}>All Clear</Text>
       <Text style={styles.emptyText}>
-        When someone enters a wrong PIN, a detailed report will appear here.
+        No failed unlock attempts detected. When someone enters a wrong PIN, a detailed report with photo evidence will appear here.
       </Text>
-    </View>
-  ), [styles]);
+    </Animated.View>
+  ), [styles, themeColors]);
 
   const renderListHeader = useCallback(() => {
     if (logs.length === 0) return null;
@@ -490,9 +488,8 @@ const createStyles = (c: ColorTokens) => StyleSheet.create({
   listContent: {
     paddingBottom: spacing['2xl'],
   },
-  emptyIcon: {
-    fontSize: 48,
-    marginBottom: spacing.base,
+  emptyIllustration: {
+    marginBottom: spacing.lg,
   },
   emptyTitle: {
     ...typography.titleMedium,

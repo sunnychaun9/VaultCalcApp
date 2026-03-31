@@ -7,11 +7,15 @@
 
 import React, { useMemo } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
+import Animated from 'react-native-reanimated';
+import { useListItemAnimation, usePressAnimation } from '@shared/hooks/useAnimations';
 import type { MediaItem } from '@services/storage/database';
 import { useThemeColors, type ColorTokens, typography, spacing, layout } from '@shared/theme';
+import { Icon } from '@shared/components/Icon';
 
 interface AudioListItemProps {
   item: MediaItem;
+  index?: number;
   isSelected: boolean;
   onPress: (item: MediaItem) => void;
   onLongPress: (item: MediaItem) => void;
@@ -37,22 +41,25 @@ function formatFileSize(bytes: number): string {
 
 export const AudioListItem = React.memo(function AudioListItem({
   item,
+  index = 0,
   isSelected,
   onPress,
   onLongPress,
 }: AudioListItemProps): React.JSX.Element {
   const themeColors = useThemeColors();
   const styles = useMemo(() => createStyles(themeColors), [themeColors]);
+  const entryStyle = useListItemAnimation({ index });
+  const { animatedStyle: pressStyle, onPressIn, onPressOut } = usePressAnimation({ scaleDown: 0.98, opacityDown: 0.9 });
 
   return (
+    <Animated.View style={entryStyle}>
+    <Animated.View style={pressStyle}>
     <Pressable
       onPress={() => onPress(item)}
       onLongPress={() => onLongPress(item)}
-      style={({ pressed }) => [
-        styles.container,
-        isSelected && styles.containerSelected,
-        pressed && styles.containerPressed,
-      ]}
+      onPressIn={onPressIn}
+      onPressOut={onPressOut}
+      style={[styles.container, isSelected && styles.containerSelected]}
       accessibilityRole="button"
       accessibilityLabel={item.originalName}
       accessibilityState={{ selected: isSelected }}
@@ -60,9 +67,9 @@ export const AudioListItem = React.memo(function AudioListItem({
       {/* Icon */}
       <View style={[styles.iconBox, isSelected && styles.iconBoxSelected]}>
         {isSelected ? (
-          <Text style={styles.checkmark}>{'\u2713'}</Text>
+          <Icon name="check" size={18} color={themeColors.textOnAccent} strokeWidth={3} />
         ) : (
-          <Text style={styles.icon}>{'\u{1F3B5}'}</Text>
+          <Icon name="music" size={22} color={themeColors.textTertiary} />
         )}
       </View>
 
@@ -71,7 +78,7 @@ export const AudioListItem = React.memo(function AudioListItem({
         <Text style={styles.name} numberOfLines={1}>
           {item.originalName}
           {item.isFavorite && !isSelected && (
-            <Text style={styles.favStar}>{' \u2605'}</Text>
+            <Text style={styles.favStar}>{' '}<Icon name="star" size={14} color={themeColors.accent} fill={themeColors.accent} /></Text>
           )}
         </Text>
         <Text style={styles.meta}>
@@ -79,6 +86,8 @@ export const AudioListItem = React.memo(function AudioListItem({
         </Text>
       </View>
     </Pressable>
+    </Animated.View>
+    </Animated.View>
   );
 });
 
@@ -94,9 +103,6 @@ const createStyles = (c: ColorTokens) => StyleSheet.create({
   },
   containerSelected: {
     backgroundColor: c.surfaceContainerHigh,
-  },
-  containerPressed: {
-    opacity: 0.7,
   },
   iconBox: {
     width: 44,

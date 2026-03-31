@@ -9,7 +9,8 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { StatusBar } from 'react-native';
+import { StatusBar, StyleSheet } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { QueryClientProvider } from '@tanstack/react-query';
@@ -82,6 +83,7 @@ function App(): React.JSX.Element {
   }, []);
 
   return (
+    <GestureHandlerRootView style={gestureRootStyle.flex}>
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <SafeAreaProvider>
@@ -102,7 +104,10 @@ function App(): React.JSX.Element {
         </SafeAreaProvider>
       </QueryClientProvider>
     </ErrorBoundary>
+    </GestureHandlerRootView>
   );
 }
+
+const gestureRootStyle = StyleSheet.create({ flex: { flex: 1 } });
 
 export default App;

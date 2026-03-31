@@ -37,6 +37,8 @@ import { shareMediaItems } from '@services/share';
 import { getPageCount, renderPage, type PdfPageResult } from '@services/pdf';
 import { ZoomableImage } from '../components/ZoomableImage';
 import { useThemeColors, type ColorTokens, typography, spacing } from '@shared/theme';
+import { Icon, IconButton } from '@shared/components/Icon';
+import { HeroTransition } from '@shared/components/HeroTransition';
 import {
   NativeVideoPlayerView,
   loadVideo,
@@ -132,7 +134,7 @@ function ImagePagerItem({ itemId, width }: { itemId: string; width: number }): R
 }
 
 export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Element {
-  const { mediaId, mediaIds } = route.params;
+  const { mediaId, mediaIds, originRect } = route.params;
   const themeColors = useThemeColors();
   const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = useWindowDimensions();
   const styles = useMemo(() => createStyles(themeColors, SCREEN_WIDTH, SCREEN_HEIGHT), [themeColors, SCREEN_WIDTH, SCREEN_HEIGHT]);
@@ -418,6 +420,7 @@ export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Eleme
     await mediaItems.rename(item.id, newName);
     setItem(prev => prev ? { ...prev, name: newName } : null);
     queryClient.invalidateQueries({ queryKey: ['media'] });
+    queryClient.invalidateQueries({ queryKey: ['albumMedia'] });
     setShowRename(false);
   }, [item, renameValue, queryClient]);
 
@@ -466,13 +469,15 @@ export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Eleme
     );
   }, [item, queryClient, navigation]);
 
-  // ── Loading state ──
+  // ── Loading state — hero transition plays during decryption ──
   if (isLoading) {
     return (
-      <View style={styles.container}>
-        <ActivityIndicator size="large" color={themeColors.accent} />
-        <Text style={styles.loadingText}>Decrypting...</Text>
-      </View>
+      <HeroTransition originRect={originRect}>
+        <View style={styles.container}>
+          <ActivityIndicator size="large" color={themeColors.accent} />
+          <Text style={styles.loadingText}>Decrypting...</Text>
+        </View>
+      </HeroTransition>
     );
   }
 
@@ -511,24 +516,24 @@ export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Eleme
             <View style={styles.menuContainer}>
               <Text style={styles.menuTitle}>Video Options</Text>
               <Pressable style={styles.menuItem} onPress={handleShowDetails}>
-                <Text style={styles.menuItemIcon}>{'\u2139'}</Text>
+                <Icon name="file-text" size={20} color={themeColors.textPrimary} />
                 <Text style={styles.menuItemText}>Details</Text>
               </Pressable>
               <Pressable style={styles.menuItem} onPress={handleShowMoveToAlbum}>
-                <Text style={styles.menuItemIcon}>{'\uD83D\uDCC1'}</Text>
+                <Icon name="folder" size={20} color={themeColors.textPrimary} />
                 <Text style={styles.menuItemText}>Move to Album</Text>
               </Pressable>
               <Pressable style={styles.menuItem} onPress={handleShowRename}>
-                <Text style={styles.menuItemIcon}>{'\u270F'}</Text>
+                <Icon name="pencil" size={20} color={themeColors.textPrimary} />
                 <Text style={styles.menuItemText}>Rename</Text>
               </Pressable>
               <Pressable style={styles.menuItem} onPress={handleShare}>
-                <Text style={styles.menuItemIcon}>{'\u2B06'}</Text>
+                <Icon name="share" size={20} color={themeColors.textPrimary} />
                 <Text style={styles.menuItemText}>Share</Text>
               </Pressable>
               <View style={styles.menuDivider} />
               <Pressable style={styles.menuItem} onPress={handleDelete}>
-                <Text style={[styles.menuItemIcon, styles.dangerText]}>{'\uD83D\uDDD1'}</Text>
+                <Icon name="trash" size={20} color={themeColors.error} />
                 <Text style={[styles.menuItemText, styles.dangerText]}>Delete</Text>
               </Pressable>
             </View>
@@ -612,7 +617,7 @@ export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Eleme
                       style={styles.albumPickerItem}
                       onPress={() => handleMoveToAlbum(album.id)}
                     >
-                      <Text style={styles.albumPickerItemIcon}>{'\uD83D\uDCC2'}</Text>
+                      <Icon name="folder-open" size={20} color={themeColors.vaultFolderIcon} />
                       <Text style={styles.albumPickerItemText}>{album.name}</Text>
                     </Pressable>
                   )}
@@ -634,18 +639,18 @@ export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Eleme
     <View style={styles.container}>
       {/* Header overlay */}
       <SafeAreaView edges={['top']} style={styles.headerOverlay}>
-        <Pressable onPress={handleBack} style={styles.iconButton}>
-          <Text style={styles.iconText}>{'\u2190'}</Text>
-        </Pressable>
+        <IconButton name="arrow-left" onPress={handleBack} color="#FFFFFF" accessibilityLabel="Go back" />
         <Text style={styles.headerTitle} numberOfLines={1}>
           {item?.originalName ?? ''}
         </Text>
-        <Pressable onPress={handleToggleFavorite} style={styles.iconButton}>
-          <Text style={styles.favIconText}>{isFavorite ? '\u2605' : '\u2606'}</Text>
-        </Pressable>
-        <Pressable onPress={handleShare} style={styles.iconButton}>
-          <Text style={styles.iconText}>{'\u2B06'}</Text>
-        </Pressable>
+        <IconButton
+          name="star"
+          onPress={handleToggleFavorite}
+          color={isFavorite ? '#FFD700' : '#FFFFFF'}
+          fill={isFavorite ? '#FFD700' : 'none'}
+          accessibilityLabel={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+        />
+        <IconButton name="share" onPress={handleShare} color="#FFFFFF" accessibilityLabel="Share" />
       </SafeAreaView>
 
       {isPdf && decryptedPath && pdfPageCount > 0 ? (
@@ -665,7 +670,7 @@ export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Eleme
         />
       ) : item?.type === 'document' ? (
         <View style={styles.documentInfo}>
-          <Text style={styles.documentIcon}>{'\u{1F4C4}'}</Text>
+          <Icon name="file-text" size={48} color={themeColors.textTertiary} />
           <Text style={styles.documentName}>{item.originalName}</Text>
           <Text style={styles.documentMeta}>
             {item.mimeType} {'\u00B7'} {formatFileSize(item.sizeBytes)}

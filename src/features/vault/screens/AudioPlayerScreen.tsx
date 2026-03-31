@@ -30,6 +30,7 @@ import { mediaItems, type MediaItem } from '@services/storage/database';
 import { useAuthStore } from '@store/authStore';
 import { decryptFileStreaming, getVaultDirectory } from '@services/crypto';
 import { deleteFile } from '@services/media';
+import { Icon, IconButton } from '@shared/components/Icon';
 
 type Props = VaultStackScreenProps<'AudioPlayer'>;
 
@@ -222,14 +223,18 @@ export function AudioPlayerScreen({ navigation, route }: Props): React.JSX.Eleme
 
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         {/* Back button */}
-        <Pressable onPress={handleBack} style={styles.backButton}>
-          <Text style={styles.backIcon}>{'\u2039'}</Text>
-        </Pressable>
+        <IconButton
+          name="arrow-left"
+          onPress={handleBack}
+          color="#FFFFFF"
+          accessibilityLabel="Go back"
+          containerStyle={styles.backButton}
+        />
 
         {/* Album art area */}
         <View style={styles.artContainer}>
           <View style={[styles.artBox, { width: artSize, height: artSize }]}>
-            <Text style={styles.artIcon}>{'\u{1F3B5}'}</Text>
+            <Icon name="music" size={64} color="rgba(255,255,255,0.3)" />
           </View>
         </View>
 
@@ -248,7 +253,7 @@ export function AudioPlayerScreen({ navigation, route }: Props): React.JSX.Eleme
           {/* Skip / Speed row */}
           <View style={styles.skipRow}>
             <Pressable onPress={() => handleSkip(-5000)} style={styles.skipButton}>
-              <Text style={styles.skipIcon}>{'\u21BA'}</Text>
+              <Icon name="rotate-ccw" size={20} color="rgba(255,255,255,0.7)" />
               <Text style={styles.skipLabel}>5</Text>
             </Pressable>
 
@@ -260,7 +265,7 @@ export function AudioPlayerScreen({ navigation, route }: Props): React.JSX.Eleme
             </Pressable>
 
             <Pressable onPress={() => handleSkip(5000)} style={styles.skipButton}>
-              <Text style={styles.skipIcon}>{'\u21BB'}</Text>
+              <Icon name="rotate-cw" size={20} color="rgba(255,255,255,0.7)" />
               <Text style={styles.skipLabel}>5</Text>
             </Pressable>
           </View>
@@ -295,27 +300,17 @@ export function AudioPlayerScreen({ navigation, route }: Props): React.JSX.Eleme
 
           {/* Playback controls */}
           <View style={styles.playbackRow}>
-            <Pressable onPress={() => {/* shuffle placeholder */}} style={styles.controlButton}>
-              <Text style={styles.controlIcon}>{'\u21C4'}</Text>
-            </Pressable>
+            <IconButton name="shuffle" size={20} onPress={() => {}} color="rgba(255,255,255,0.5)" accessibilityLabel="Shuffle" />
 
-            <Pressable onPress={handlePrev} style={styles.controlButton}>
-              <Text style={styles.controlIconLarge}>{'\u23EE'}</Text>
-            </Pressable>
+            <IconButton name="skip-back" size={28} onPress={handlePrev} color="#FFFFFF" accessibilityLabel="Previous" />
 
             <Pressable onPress={handlePlayPause} style={styles.playButton}>
-              <Text style={styles.playIcon}>
-                {isPlaying ? '\u23F8' : '\u25B6'}
-              </Text>
+              <Icon name={isPlaying ? 'pause' : 'play'} size={32} color="#FFFFFF" fill="#FFFFFF" />
             </Pressable>
 
-            <Pressable onPress={handleNext} style={styles.controlButton}>
-              <Text style={styles.controlIconLarge}>{'\u23ED'}</Text>
-            </Pressable>
+            <IconButton name="skip-forward" size={28} onPress={handleNext} color="#FFFFFF" accessibilityLabel="Next" />
 
-            <Pressable onPress={() => setShowPlaylist(true)} style={styles.controlButton}>
-              <Text style={styles.controlIcon}>{'\u2630'}</Text>
-            </Pressable>
+            <IconButton name="list-music" size={20} onPress={() => setShowPlaylist(true)} color="rgba(255,255,255,0.5)" accessibilityLabel="Playlist" />
           </View>
         </View>
       </SafeAreaView>
@@ -347,7 +342,7 @@ export function AudioPlayerScreen({ navigation, route }: Props): React.JSX.Eleme
           <View style={styles.playlistSheet}>
             <View style={styles.playlistHeader}>
               <Pressable onPress={() => setShowPlaylist(false)}>
-                <Text style={styles.playlistClose}>{'\u2715'}</Text>
+                <Icon name="x" size={20} color="#FFFFFF" />
               </Pressable>
               <Text style={styles.playlistTitle}>Playlist ({audioSiblings.length})</Text>
               <View style={{ width: 32 }} />
@@ -361,7 +356,7 @@ export function AudioPlayerScreen({ navigation, route }: Props): React.JSX.Eleme
                   style={[styles.playlistItem, index === currentIndex && styles.playlistItemActive]}
                 >
                   <View style={styles.playlistItemIcon}>
-                    <Text style={{ fontSize: 16 }}>{index === currentIndex ? '\u{1F50A}' : '\u{1F3B5}'}</Text>
+                    <Icon name={index === currentIndex ? 'volume' : 'music'} size={16} color={index === currentIndex ? '#3B82F6' : 'rgba(255,255,255,0.5)'} />
                   </View>
                   <View style={styles.playlistItemText}>
                     <Text

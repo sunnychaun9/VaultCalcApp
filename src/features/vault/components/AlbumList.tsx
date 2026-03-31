@@ -12,6 +12,7 @@ import { View, StyleSheet } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import type { Album, CoverMediaInfo } from '@services/storage/database';
 import { AlbumListItem } from './AlbumListItem';
+import { ListSkeleton, useDelayedLoading } from '@shared/components/Skeleton';
 
 interface AlbumListProps {
   albums: Album[];
@@ -24,19 +25,23 @@ interface AlbumListProps {
 
 export function AlbumList({
   albums: albumsData,
-  isLoading: _isLoading,
+  isLoading,
   mediaCounts,
   coverMediaMap,
   onAlbumPress,
   onAlbumLongPress,
 }: AlbumListProps): React.JSX.Element {
-  const renderItem = useCallback(({ item }: { item: Album }) => (
+  const showSkeleton = useDelayedLoading(isLoading && albumsData.length === 0);
+  if (showSkeleton) return <ListSkeleton count={4} />;
+
+  const renderItem = useCallback(({ item, index }: { item: Album; index: number }) => (
     <AlbumListItem
       album={item}
       mediaCount={mediaCounts?.[item.id]}
       coverMedia={coverMediaMap?.[item.id]}
       onPress={onAlbumPress}
       onLongPress={onAlbumLongPress}
+      index={index}
     />
   ), [mediaCounts, coverMediaMap, onAlbumPress, onAlbumLongPress]);
 

@@ -2,7 +2,7 @@
  * VaultCalc - Floating Add Button Component
  *
  * FAB for adding files to the vault.
- * Positioned at bottom of screen.
+ * Positioned at bottom of screen with spring-physics press feedback.
  *
  * @see FEATURE_INDEX.md VAULT-001
  */
@@ -13,7 +13,9 @@ import {
   Text,
   StyleSheet,
 } from 'react-native';
-import { useThemeColors, type ColorTokens, typography, spacing } from '@shared/theme';
+import Animated from 'react-native-reanimated';
+import { useThemeColors, type ColorTokens, typography, spacing, elevationLevels } from '@shared/theme';
+import { usePressAnimation } from '@shared/hooks/useAnimations';
 
 interface FloatingAddButtonProps {
   /** Handler for button press */
@@ -34,42 +36,43 @@ export function FloatingAddButton({
 }: FloatingAddButtonProps): React.JSX.Element {
   const themeColors = useThemeColors();
   const styles = useMemo(() => createStyles(themeColors), [themeColors]);
+  const { animatedStyle, onPressIn, onPressOut } = usePressAnimation({
+    scaleDown: 0.94,
+    opacityDown: 0.9,
+  });
 
   return (
-    <Pressable
-      onPress={onPress}
-      disabled={disabled}
-      style={({ pressed }) => [
-        styles.button,
-        pressed && styles.buttonPressed,
-        disabled && styles.buttonDisabled,
-      ]}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-    >
-      <Text style={styles.buttonText}>{label}</Text>
-    </Pressable>
+    <Animated.View style={[styles.wrapper, animatedStyle]}>
+      <Pressable
+        onPress={onPress}
+        onPressIn={onPressIn}
+        onPressOut={onPressOut}
+        disabled={disabled}
+        style={[
+          styles.button,
+          disabled && styles.buttonDisabled,
+        ]}
+        accessibilityRole="button"
+        accessibilityLabel={label}
+      >
+        <Text style={styles.buttonText}>{label}</Text>
+      </Pressable>
+    </Animated.View>
   );
 }
 
 const createStyles = (c: ColorTokens) => StyleSheet.create({
-  button: {
+  wrapper: {
     position: 'absolute',
     bottom: spacing.xl,
     alignSelf: 'center',
+  },
+  button: {
     backgroundColor: c.accent,
     paddingHorizontal: spacing.xl,
     paddingVertical: spacing.md,
     borderRadius: 28,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-  },
-  buttonPressed: {
-    opacity: 0.9,
-    transform: [{ scale: 0.98 }],
+    ...elevationLevels.level2.shadow,
   },
   buttonDisabled: {
     opacity: 0.5,

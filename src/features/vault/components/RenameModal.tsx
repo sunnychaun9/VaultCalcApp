@@ -1,14 +1,17 @@
 /**
- * VaultCalc - Rename Modal
+ * VaultCalc - Rename Bottom Sheet
  *
- * Modal with TextInput for renaming a single media item.
+ * Bottom sheet with TextInput for renaming a single media item.
  * Pre-fills with current name (without extension), appends
  * original extension on save.
  */
 
-import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { View, Text, Pressable, Modal, TextInput, StyleSheet } from 'react-native';
-import { useThemeColors, type ColorTokens, typography } from '@shared/theme';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
+import type BottomSheetType from '@gorhom/bottom-sheet';
+import { BottomSheetTextInput } from '@gorhom/bottom-sheet';
+import { useThemeColors, type ColorTokens, typography, spacing } from '@shared/theme';
+import { AppBottomSheet } from '@shared/components/AppBottomSheet';
 import { sanitizeUserInput } from '@shared/utils/formatters';
 
 interface RenameModalProps {
@@ -35,17 +38,18 @@ export function RenameModal({
 }: RenameModalProps): React.JSX.Element {
   const themeColors = useThemeColors();
   const styles = useMemo(() => createStyles(themeColors), [themeColors]);
-  const inputRef = useRef<TextInput>(null);
+  const sheetRef = useRef<BottomSheetType>(null);
 
   const [baseName, extension] = splitNameAndExtension(currentName);
   const [value, setValue] = useState(baseName);
 
-  // Reset value when modal opens with a new name
   useEffect(() => {
     if (visible) {
       const [newBase] = splitNameAndExtension(currentName);
       setValue(newBase);
-      setTimeout(() => inputRef.current?.focus(), 100);
+      sheetRef.current?.expand();
+    } else {
+      sheetRef.current?.close();
     }
   }, [visible, currentName]);
 
@@ -56,86 +60,67 @@ export function RenameModal({
   };
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
+    <AppBottomSheet
+      ref={sheetRef}
+      snapPoints={[260]}
+      title="Rename"
+      onDismiss={onClose}
     >
-      <Pressable style={styles.overlay} onPress={onClose}>
-        <Pressable style={styles.card} onPress={() => {}}>
-          <Text style={styles.title}>Rename</Text>
-          <View style={styles.inputRow}>
-            <TextInput
-              ref={inputRef}
-              style={styles.input}
-              value={value}
-              onChangeText={setValue}
-              onSubmitEditing={handleSubmit}
-              returnKeyType="done"
-              maxLength={200}
-              selectTextOnFocus
-              placeholderTextColor={themeColors.textSecondary}
-            />
-            {extension.length > 0 && (
-              <Text style={styles.extension}>{extension}</Text>
-            )}
-          </View>
-          <View style={styles.buttons}>
-            <Pressable style={styles.button} onPress={onClose}>
-              <Text style={styles.buttonText}>Cancel</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.button, styles.buttonPrimary]}
-              onPress={handleSubmit}
-            >
-              <Text style={styles.buttonPrimaryText}>Rename</Text>
-            </Pressable>
-          </View>
-        </Pressable>
-      </Pressable>
-    </Modal>
+      <View style={styles.content}>
+        <View style={styles.inputRow}>
+          <BottomSheetTextInput
+            style={styles.input}
+            value={value}
+            onChangeText={setValue}
+            onSubmitEditing={handleSubmit}
+            returnKeyType="done"
+            maxLength={200}
+            selectTextOnFocus
+            autoFocus
+            placeholderTextColor={themeColors.textSecondary}
+          />
+          {extension.length > 0 && (
+            <Text style={styles.extension}>{extension}</Text>
+          )}
+        </View>
+        <View style={styles.buttons}>
+          <Pressable style={styles.button} onPress={() => sheetRef.current?.close()}>
+            <Text style={styles.buttonText}>Cancel</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.button, styles.buttonPrimary]}
+            onPress={handleSubmit}
+          >
+            <Text style={styles.buttonPrimaryText}>Rename</Text>
+          </Pressable>
+        </View>
+      </View>
+    </AppBottomSheet>
   );
 }
 
 const createStyles = (c: ColorTokens) => StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  card: {
-    backgroundColor: c.surface,
-    borderRadius: 16,
-    padding: 24,
-    width: '85%',
-    maxWidth: 340,
-  },
-  title: {
-    ...typography.titleLarge,
-    color: c.textPrimary,
-    marginBottom: 16,
-    textAlign: 'center',
+  content: {
+    paddingHorizontal: spacing.lg,
   },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: spacing.lg,
   },
   input: {
     ...typography.bodyMedium,
     color: c.textPrimary,
     backgroundColor: c.surfaceContainerHigh,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     flex: 1,
   },
   extension: {
     ...typography.bodyMedium,
     color: c.textSecondary,
-    marginLeft: 4,
+    marginLeft: spacing.xs,
   },
   buttons: {
     flexDirection: 'row',
@@ -143,9 +128,9 @@ const createStyles = (c: ColorTokens) => StyleSheet.create({
     gap: 12,
   },
   button: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
   },
   buttonText: {
     ...typography.labelLarge,

@@ -10,6 +10,7 @@
 import React, { useMemo } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useThemeColors, type ColorTokens, typography, spacing, layout } from '@shared/theme';
+import { IconButton } from '@shared/components/Icon';
 
 interface SelectionBarProps {
   selectedCount: number;
@@ -55,47 +56,43 @@ export function SelectionBar({
 
       <View style={styles.actions}>
         {onFavorite != null && (
-          <Pressable
+          <IconButton
+            name="star"
+            size={20}
             onPress={onFavorite}
-            style={styles.actionButton}
             disabled={isDeleting || isSharing}
-            accessibilityRole="button"
+            color={themeColors.accent}
             accessibilityLabel={`Favorite ${selectedCount} selected items`}
-          >
-            <Text style={[styles.favText, (isDeleting || isSharing) && styles.disabledText]}>Fav</Text>
-          </Pressable>
+          />
         )}
         {onShare != null && (
-          <Pressable
+          <IconButton
+            name="share"
+            size={20}
             onPress={onShare}
-            style={styles.actionButton}
             disabled={isDeleting || isSharing}
-            accessibilityRole="button"
+            color={themeColors.accent}
             accessibilityLabel={`Share ${selectedCount} selected items`}
-          >
-            <Text style={[styles.shareText, (isDeleting || isSharing) && styles.disabledText]}>Share</Text>
-          </Pressable>
+          />
         )}
         {onMore != null && (
-          <Pressable
+          <IconButton
+            name="more-vertical"
+            size={20}
             onPress={onMore}
-            style={styles.actionButton}
             disabled={isDeleting || isSharing}
-            accessibilityRole="button"
+            color={themeColors.accent}
             accessibilityLabel="More actions"
-          >
-            <Text style={[styles.moreText, (isDeleting || isSharing) && styles.disabledText]}>{'\u22EE'}</Text>
-          </Pressable>
+          />
         )}
-        <Pressable
+        <IconButton
+          name="trash"
+          size={20}
           onPress={onDelete}
-          style={styles.actionButton}
           disabled={isDeleting || isSharing}
-          accessibilityRole="button"
+          color={themeColors.error}
           accessibilityLabel={`Delete ${selectedCount} selected items`}
-        >
-          <Text style={[styles.deleteText, (isDeleting || isSharing) && styles.disabledText]}>Delete</Text>
-        </Pressable>
+        />
       </View>
     </View>
   );

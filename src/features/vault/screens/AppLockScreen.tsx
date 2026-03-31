@@ -13,7 +13,6 @@ import {
   Text,
   Pressable,
   FlatList,
-  Switch,
   TextInput,
   Image,
   StyleSheet,
@@ -24,6 +23,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeModules } from 'react-native';
 import { useActivityTracker } from '@features/auth';
 import { useThemeColors, type ColorTokens, typography, spacing } from '@shared/theme';
+import { PremiumSwitch } from '@shared/components/PremiumSwitch';
 import { alert } from '@store/alertStore';
 
 const { AppLockModule } = NativeModules;
@@ -197,10 +197,11 @@ export function AppLockScreen(): React.JSX.Element {
             </Pressable>
           )}
         </View>
-        <Switch
+        <PremiumSwitch
           value={isLocked}
           onValueChange={(value) => handleToggleLock(item.packageName, value)}
-          trackColor={{ false: themeColors.surfaceContainerHigh, true: themeColors.accent }}
+          trackColorOff={themeColors.surfaceContainerHigh}
+          trackColorOn={themeColors.accent}
           thumbColor={themeColors.surface}
           disabled={!isEnabled}
         />
@@ -229,10 +230,11 @@ export function AppLockScreen(): React.JSX.Element {
               : 'Accessibility service not enabled.'}
           </Text>
         </View>
-        <Switch
+        <PremiumSwitch
           value={isEnabled}
           onValueChange={handleToggleEnabled}
-          trackColor={{ false: themeColors.surfaceContainerHigh, true: themeColors.accent }}
+          trackColorOff={themeColors.surfaceContainerHigh}
+          trackColorOn={themeColors.accent}
           thumbColor={themeColors.surface}
         />
       </View>

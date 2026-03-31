@@ -13,6 +13,7 @@ import { FlashList } from '@shopify/flash-list';
 import type { MediaItem } from '@services/storage/database';
 import { layout } from '@shared/theme';
 import { MediaListItem } from './MediaListItem';
+import { ListSkeleton, useDelayedLoading } from '@shared/components/Skeleton';
 
 interface MediaListProps {
   items: MediaItem[];
@@ -23,13 +24,16 @@ interface MediaListProps {
 
 export function MediaList({
   items,
-  isLoading: _isLoading,
+  isLoading,
   onItemPress,
   onItemLongPress,
 }: MediaListProps): React.JSX.Element {
-  const renderItem = useCallback(({ item }: { item: MediaItem }) => (
+  const showSkeleton = useDelayedLoading(isLoading && items.length === 0);
+  if (showSkeleton) return <ListSkeleton />;
+  const renderItem = useCallback(({ item, index }: { item: MediaItem; index: number }) => (
     <MediaListItem
       item={item}
+      index={index}
       onPress={onItemPress}
       onLongPress={onItemLongPress}
     />

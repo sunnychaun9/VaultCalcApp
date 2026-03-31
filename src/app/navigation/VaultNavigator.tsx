@@ -16,6 +16,12 @@ import { AuthGuard, ChangePinScreen, DecoyPinSetupScreen, PatternSetupScreen, Ch
 import { VaultHomeScreen } from '@features/vault';
 import { MediaViewerScreen, AlbumViewScreen, NoteEditorScreen, GalleryAlbumListScreen, GalleryMediaSelectScreen, AudioPlayerScreen, AppLockScreen } from '@features/vault/screens';
 import { SettingsScreen, AboutScreen, IntruderLogsScreen, IntruderDetailScreen, SubscriptionScreen, NotificationPrivacyScreen, UninstallProtectionScreen } from '@features/settings';
+import {
+  pushTransition,
+  fadeUpTransition,
+  fadeTransition,
+  modalTransition,
+} from './transitions';
 
 const Stack = createNativeStackNavigator<VaultStackParamList>();
 
@@ -39,7 +45,7 @@ export function VaultNavigator(): React.JSX.Element {
         initialRouteName="VaultHome"
         screenOptions={{
           headerShown: false,
-          animation: 'fade',
+          ...fadeTransition,
         }}
       >
         {/* Vault Home Screen */}
@@ -52,18 +58,14 @@ export function VaultNavigator(): React.JSX.Element {
         <Stack.Screen
           name="ChangePin"
           component={ChangePinScreen}
-          options={{
-            animation: 'slide_from_right',
-          }}
+          options={pushTransition}
         />
 
         {/* Decoy PIN Setup - DECOY-001 */}
         <Stack.Screen
           name="DecoyPinSetup"
           component={DecoyPinSetupScreen}
-          options={{
-            animation: 'slide_from_right',
-          }}
+          options={pushTransition}
         />
 
         {/* Media Viewer - VAULT-005 */}
@@ -71,7 +73,7 @@ export function VaultNavigator(): React.JSX.Element {
           name="MediaViewer"
           component={MediaViewerScreen}
           options={{
-            animation: 'fade',
+            ...fadeUpTransition,
             presentation: 'fullScreenModal',
           }}
         />
@@ -80,135 +82,104 @@ export function VaultNavigator(): React.JSX.Element {
         <Stack.Screen
           name="AudioPlayer"
           component={AudioPlayerScreen}
-          options={{
-            animation: 'slide_from_bottom',
-            presentation: 'fullScreenModal',
-          }}
+          options={modalTransition}
         />
 
         {/* Album View - ALBUM-001 */}
         <Stack.Screen
           name="AlbumView"
           component={AlbumViewScreen}
-          options={{
-            animation: 'slide_from_right',
-          }}
+          options={pushTransition}
         />
 
         {/* Note Editor - NOTES-002 */}
         <Stack.Screen
           name="NoteEditor"
           component={NoteEditorScreen}
-          options={{
-            animation: 'slide_from_right',
-          }}
+          options={pushTransition}
         />
 
         {/* Gallery Album List - GALLERY-001 */}
         <Stack.Screen
           name="GalleryAlbumList"
           component={GalleryAlbumListScreen}
-          options={{
-            animation: 'slide_from_bottom',
-          }}
+          options={modalTransition}
         />
 
         {/* Gallery Media Select - GALLERY-001 */}
         <Stack.Screen
           name="GalleryMediaSelect"
           component={GalleryMediaSelectScreen}
-          options={{
-            animation: 'slide_from_right',
-          }}
+          options={pushTransition}
         />
 
         {/* App Lock */}
         <Stack.Screen
           name="AppLock"
           component={AppLockScreen}
-          options={{
-            animation: 'slide_from_right',
-          }}
+          options={pushTransition}
         />
 
         {/* Notification Privacy */}
         <Stack.Screen
           name="NotificationPrivacy"
           component={NotificationPrivacyScreen}
-          options={{
-            animation: 'slide_from_right',
-          }}
+          options={pushTransition}
         />
 
         {/* Pattern Setup - AUTH-009 */}
         <Stack.Screen
           name="PatternSetup"
           component={PatternSetupScreen}
-          options={{
-            animation: 'slide_from_right',
-          }}
+          options={pushTransition}
         />
 
         {/* Change Pattern - AUTH-009 */}
         <Stack.Screen
           name="ChangePattern"
           component={ChangePatternScreen}
-          options={{
-            animation: 'slide_from_right',
-          }}
+          options={pushTransition}
         />
 
         {/* Settings - SETTINGS-001 */}
         <Stack.Screen
           name="Settings"
           component={SettingsScreen}
-          options={{
-            animation: 'slide_from_right',
-          }}
+          options={pushTransition}
         />
 
         {/* About - SETTINGS-006 */}
         <Stack.Screen
           name="About"
           component={AboutScreen}
-          options={{
-            animation: 'slide_from_right',
-          }}
+          options={pushTransition}
         />
 
         {/* Intruder Reports Dashboard - SEC-003/SEC-005 */}
         <Stack.Screen
           name="IntruderLogs"
           component={IntruderLogsScreen}
-          options={{
-            animation: 'slide_from_right',
-          }}
+          options={pushTransition}
         />
 
         {/* Intruder Detail Report - SEC-005 */}
         <Stack.Screen
           name="IntruderDetail"
           component={IntruderDetailScreen}
-          options={{
-            animation: 'slide_from_right',
-          }}
+          options={pushTransition}
         />
 
         {/* Subscription - PREMIUM-001 */}
         <Stack.Screen
           name="Subscription"
           component={SubscriptionScreen}
-          options={{
-            animation: 'slide_from_right',
-          }}
+          options={pushTransition}
         />
         {/* Uninstall Protection */}
         <Stack.Screen
           name="UninstallProtection"
           component={UninstallProtectionScreen}
-          options={{
-            animation: 'slide_from_right',
-          }}
+          options={pushTransition}
         />
       </Stack.Navigator>
     </AuthGuard>

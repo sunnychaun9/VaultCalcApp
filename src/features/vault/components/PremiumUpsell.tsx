@@ -15,6 +15,7 @@ import {
   StyleSheet,
 } from 'react-native';
 import { useThemeColors, type ColorTokens, typography, spacing, layout } from '@shared/theme';
+import { Icon, ICON_SIZE } from '@shared/components/Icon';
 
 interface PremiumUpsellProps {
   /** Feature name to display (e.g. "Secure Notes") */
@@ -35,7 +36,7 @@ export function PremiumUpsell({
 
   return (
     <View style={styles.container}>
-      <Text style={styles.icon}>🔒</Text>
+      <Icon name="lock" size={ICON_SIZE.xl} color={themeColors.textTertiary} style={styles.icon} />
 
       <Text style={styles.title}>
         &quot;{feature}&quot; is a Premium feature
@@ -68,7 +69,6 @@ const createStyles = (c: ColorTokens) => StyleSheet.create({
     padding: spacing['2xl'],
   },
   icon: {
-    fontSize: 64,
     marginBottom: spacing.lg,
   },
   title: {

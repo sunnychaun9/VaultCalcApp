@@ -12,38 +12,47 @@
  * @see FEATURE_INDEX.md VAULT-003, VAULT-004
  */
 
-import React, { useMemo, useRef } from 'react';
+import React, { useMemo, useRef, useCallback } from 'react';
 import { View, Text, Image, Pressable, StyleSheet } from 'react-native';
 import type { MediaItem } from '@services/storage/database';
 import { useDecryptedThumbnail } from '../hooks';
 import { useVaultStore } from '@store/vaultStore';
-import { useThemeColors, type ColorTokens, typography, spacing } from '@shared/theme';
+import { useThemeColors, type ColorTokens, typography, spacing, elevationLevels } from '@shared/theme';
+import { Icon, type IconName } from '@shared/components/Icon';
+
+/** Origin rect for hero transition — screen coordinates */
+export interface ThumbnailOriginRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
 
 interface MediaGridItemProps {
   item: MediaItem;
   size: number;
-  onPress: (item: MediaItem) => void;
+  onPress: (item: MediaItem, originRect?: ThumbnailOriginRect) => void;
   onLongPress: (item: MediaItem) => void;
 }
 
-/** Map media type to placeholder emoji */
-const TYPE_ICONS: Record<string, string> = {
-  photo: '\u{1F5BC}',   // 🖼
-  video: '\u{1F3AC}',   // 🎬
-  document: '\u{1F4C4}', // 📄
+/** Map media type to icon name */
+const TYPE_ICONS: Record<string, IconName> = {
+  photo: 'image',
+  video: 'film',
+  document: 'file-text',
 };
 
-/** Map MIME type prefix to document-specific emoji (DOC-001) */
-function getDocumentIcon(mimeType: string): string {
-  if (mimeType === 'application/pdf') return '\u{1F4D5}'; // 📕
+/** Map MIME type to document-specific icon (DOC-001) */
+function getDocumentIcon(mimeType: string): IconName {
+  if (mimeType === 'application/pdf') return 'file-text';
   if (mimeType.includes('spreadsheet') || mimeType.includes('excel') || mimeType === 'text/csv')
-    return '\u{1F4CA}'; // 📊
+    return 'file-spreadsheet';
   if (mimeType.includes('presentation') || mimeType.includes('powerpoint'))
-    return '\u{1F4CA}'; // 📊
-  if (mimeType === 'text/plain') return '\u{1F4DD}'; // 📝
-  if (mimeType === 'application/json') return '\u{1F4CB}'; // 📋
-  if (mimeType === 'application/zip') return '\u{1F4E6}'; // 📦
-  return '\u{1F4C4}'; // 📄
+    return 'file-spreadsheet';
+  if (mimeType === 'text/plain') return 'pencil';
+  if (mimeType === 'application/json') return 'file-json';
+  if (mimeType === 'application/zip') return 'archive';
+  return 'file-text';
 }
 
 /** Format milliseconds to MM:SS or H:MM:SS */
@@ -118,9 +127,22 @@ export const MediaGridItem = React.memo(function MediaGridItem({
   // for this same item (prevents brief black flash during cell recycle).
   const displaySource = imageSource ?? lastSource.current;
 
+  // Ref for measuring thumbnail position (hero transition)
+  const thumbRef = useRef<View>(null);
+
+  const handlePress = useCallback(() => {
+    if (thumbRef.current) {
+      thumbRef.current.measureInWindow((x, y, w, h) => {
+        onPress(item, { x, y, width: w, height: h });
+      });
+    } else {
+      onPress(item);
+    }
+  }, [item, onPress]);
+
   return (
     <Pressable
-      onPress={() => onPress(item)}
+      onPress={handlePress}
       onLongPress={() => onLongPress(item)}
       accessibilityRole="button"
       accessibilityLabel={item.originalName}
@@ -130,6 +152,7 @@ export const MediaGridItem = React.memo(function MediaGridItem({
           not selected) so toggling selection never changes the container
           layout, which would cause the Image to blank on Android. */}
       <View
+        ref={thumbRef}
         style={[
           styles.thumbnail,
           { width: size, height: size },
@@ -147,11 +170,13 @@ export const MediaGridItem = React.memo(function MediaGridItem({
             fadeDuration={0}
           />
         ) : (
-          <Text style={styles.typeIcon}>
-            {item.type === 'document'
+          <Icon
+            name={item.type === 'document'
               ? getDocumentIcon(item.mimeType)
-              : (TYPE_ICONS[item.type] ?? '\u{1F4C4}')}
-          </Text>
+              : (TYPE_ICONS[item.type] ?? 'file-text')}
+            size={32}
+            color={themeColors.textTertiary}
+          />
         )}
 
         {/* Duration badge for videos (VIDEO-003) */}
@@ -166,14 +191,14 @@ export const MediaGridItem = React.memo(function MediaGridItem({
         {/* Favorite star badge (ENH-002) */}
         {item.isFavorite && !isSelected && (
           <View style={styles.favBadge}>
-            <Text style={styles.favBadgeText}>{'\u2605'}</Text>
+            <Icon name="star" size={12} color="#FFD700" fill="#FFD700" />
           </View>
         )}
 
         {/* Selection overlay */}
         {isSelected && (
           <View style={styles.checkmark}>
-            <Text style={styles.checkmarkText}>{'\u2713'}</Text>
+            <Icon name="check" size={14} color={themeColors.textOnAccent} strokeWidth={3} />
           </View>
         )}
       </View>
@@ -189,10 +214,11 @@ export const MediaGridItem = React.memo(function MediaGridItem({
 const createStyles = (c: ColorTokens) => StyleSheet.create({
   thumbnail: {
     backgroundColor: c.surfaceContainerHigh,
-    borderRadius: 8,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
+    ...elevationLevels.level1.shadow,
     // Always have borderWidth so toggling selection never changes layout.
     // Color is set inline (transparent when not selected, accent when selected).
     borderWidth: 2,

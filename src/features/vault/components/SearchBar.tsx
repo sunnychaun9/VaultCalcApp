@@ -8,8 +8,9 @@
  */
 
 import React, { useRef, useCallback, useMemo } from 'react';
-import { View, TextInput, Pressable, Text, StyleSheet } from 'react-native';
+import { View, TextInput, StyleSheet } from 'react-native';
 import { useThemeColors, type ColorTokens, typography, spacing } from '@shared/theme';
+import { Icon, IconButton } from '@shared/components/Icon';
 
 interface SearchBarProps {
   value: string;
@@ -33,7 +34,7 @@ export function SearchBar({
 
   return (
     <View style={styles.container}>
-      <Text style={styles.searchIcon}>{'\u{1F50D}'}</Text>
+      <Icon name="search" size={16} color={themeColors.textTertiary} />
       <TextInput
         ref={inputRef}
         value={value}
@@ -46,9 +47,15 @@ export function SearchBar({
         returnKeyType="search"
       />
       {value.length > 0 && (
-        <Pressable onPress={handleClear} style={styles.clearButton}>
-          <Text style={styles.clearIcon}>{'\u2715'}</Text>
-        </Pressable>
+        <IconButton
+          name="x"
+          size={12}
+          onPress={handleClear}
+          color={themeColors.textSecondary}
+          accessibilityLabel="Clear search"
+          hitSize={24}
+          containerStyle={styles.clearButton}
+        />
       )}
     </View>
   );
@@ -66,7 +73,6 @@ const createStyles = (c: ColorTokens) => StyleSheet.create({
     height: 40,
   },
   searchIcon: {
-    fontSize: 14,
     marginRight: spacing.sm,
     opacity: 0.6,
   },
@@ -81,12 +87,6 @@ const createStyles = (c: ColorTokens) => StyleSheet.create({
     height: 24,
     borderRadius: 12,
     backgroundColor: c.surfaceContainerHigh,
-    justifyContent: 'center',
-    alignItems: 'center',
     marginLeft: spacing.xs,
-  },
-  clearIcon: {
-    fontSize: 12,
-    color: c.textSecondary,
   },
 });

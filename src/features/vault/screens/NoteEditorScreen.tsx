@@ -23,6 +23,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import type { VaultStackScreenProps } from '@typedefs/navigation';
 import { notes as notesDb } from '@services/storage/database';
 import { useThemeColors, type ColorTokens, typography, spacing } from '@shared/theme';
+import { Icon, IconButton } from '@shared/components/Icon';
 import { useActivityTracker } from '@features/auth';
 import { shareNoteAsText } from '@services/share';
 import { alert } from '@store/alertStore';
@@ -148,31 +149,24 @@ export function NoteEditorScreen({ navigation, route }: Props): React.JSX.Elemen
           accessibilityRole="button"
           accessibilityLabel="Go back"
         >
-          <Text style={styles.backText}>{'\u2190'} Back</Text>
+          <Icon name="arrow-left" size={20} color={themeColors.textPrimary} />
+          <Text style={styles.backText}> Back</Text>
         </Pressable>
         <View style={styles.headerSpacer} />
-        <Pressable
+        <IconButton
+          name="share"
+          size={20}
           onPress={handleShareNote}
-          style={({ pressed }) => [
-            styles.headerButton,
-            pressed && styles.headerButtonPressed,
-          ]}
-          accessibilityRole="button"
+          color={themeColors.accent}
           accessibilityLabel="Share note"
-        >
-          <Text style={styles.shareText}>{'\u2B06'}</Text>
-        </Pressable>
-        <Pressable
+        />
+        <IconButton
+          name="trash"
+          size={20}
           onPress={handleDelete}
-          style={({ pressed }) => [
-            styles.headerButton,
-            pressed && styles.headerButtonPressed,
-          ]}
-          accessibilityRole="button"
+          color={themeColors.error}
           accessibilityLabel="Delete note"
-        >
-          <Text style={styles.deleteText}>{'\u{1F5D1}'}</Text>
-        </Pressable>
+        />
       </View>
 
       {/* Editor */}

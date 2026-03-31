@@ -9,11 +9,15 @@
 
 import React, { useMemo } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
+import Animated from 'react-native-reanimated';
+import { useListItemAnimation, usePressAnimation } from '@shared/hooks/useAnimations';
 import type { Note } from '@services/storage/database';
 import { useThemeColors, type ColorTokens, typography, spacing, layout } from '@shared/theme';
+import { Icon } from '@shared/components/Icon';
 
 interface NoteListItemProps {
   note: Note;
+  index?: number;
   isSelected: boolean;
   onPress: (note: Note) => void;
   onLongPress: (note: Note) => void;
@@ -30,28 +34,31 @@ function formatDate(timestamp: number): string {
 
 export const NoteListItem = React.memo(function NoteListItem({
   note,
+  index = 0,
   isSelected,
   onPress,
   onLongPress,
 }: NoteListItemProps): React.JSX.Element {
   const themeColors = useThemeColors();
   const styles = useMemo(() => createStyles(themeColors), [themeColors]);
+  const entryStyle = useListItemAnimation({ index });
+  const { animatedStyle: pressStyle, onPressIn, onPressOut } = usePressAnimation({ scaleDown: 0.98, opacityDown: 0.9 });
 
   const preview = note.isEncrypted
-    ? '\u{1F512} Encrypted'
+    ? 'Encrypted'
     : note.content.length > 50
       ? note.content.slice(0, 50) + '...'
       : note.content;
 
   return (
+    <Animated.View style={entryStyle}>
+    <Animated.View style={pressStyle}>
     <Pressable
       onPress={() => onPress(note)}
       onLongPress={() => onLongPress(note)}
-      style={({ pressed }) => [
-        styles.container,
-        isSelected && styles.containerSelected,
-        pressed && styles.containerPressed,
-      ]}
+      onPressIn={onPressIn}
+      onPressOut={onPressOut}
+      style={[styles.container, isSelected && styles.containerSelected]}
       accessibilityRole="button"
       accessibilityLabel={note.title}
       accessibilityState={{ selected: isSelected }}
@@ -59,9 +66,9 @@ export const NoteListItem = React.memo(function NoteListItem({
       {/* Icon */}
       <View style={[styles.iconBox, isSelected && styles.iconBoxSelected]}>
         {isSelected ? (
-          <Text style={styles.checkmark}>{'\u2713'}</Text>
+          <Icon name="check" size={18} color={themeColors.textOnAccent} strokeWidth={3} />
         ) : (
-          <Text style={styles.icon}>{note.isEncrypted ? '\u{1F512}' : '\u{1F4DD}'}</Text>
+          <Icon name={note.isEncrypted ? 'lock' : 'pencil'} size={22} color={themeColors.textTertiary} />
         )}
       </View>
 
@@ -75,6 +82,8 @@ export const NoteListItem = React.memo(function NoteListItem({
         </Text>
       </View>
     </Pressable>
+    </Animated.View>
+    </Animated.View>
   );
 });
 
@@ -90,9 +99,6 @@ const createStyles = (c: ColorTokens) => StyleSheet.create({
   },
   containerSelected: {
     backgroundColor: c.surfaceContainerHigh,
-  },
-  containerPressed: {
-    opacity: 0.7,
   },
   iconBox: {
     width: 44,

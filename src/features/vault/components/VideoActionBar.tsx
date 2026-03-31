@@ -25,6 +25,7 @@ import { deleteMediaItems } from '@services/deletion';
 import { unhideMediaItems } from '@services/unhide';
 import { useAuthStore } from '@store/authStore';
 import { useThemeColors, type ColorTokens, typography, spacing } from '@shared/theme';
+import { Icon, type IconName } from '@shared/components/Icon';
 
 interface VideoActionBarProps {
   selectedItems: MediaItem[];
@@ -159,28 +160,28 @@ export function VideoActionBar({
         {/* Action buttons row */}
         <View style={styles.actionsRow}>
           <ActionButton
-            icon={'\u2B06'}
+            icon="share"
             label="Share"
             onPress={handleShare}
             disabled={isProcessing || selectedCount === 0}
             color={themeColors.accent}
           />
           <ActionButton
-            icon={'\uD83D\uDCC1'}
+            icon="folder"
             label="Move"
             onPress={handleMove}
             disabled={isProcessing || selectedCount === 0}
             color={themeColors.accent}
           />
           <ActionButton
-            icon={'\uD83D\uDC41'}
+            icon="scan"
             label="Unhide"
             onPress={handleUnhide}
             disabled={isProcessing || selectedCount === 0}
             color={themeColors.accent}
           />
           <ActionButton
-            icon={'\uD83D\uDDD1'}
+            icon="trash"
             label="Delete"
             onPress={handleDelete}
             disabled={isProcessing || selectedCount === 0}
@@ -205,7 +206,7 @@ export function VideoActionBar({
                     style={styles.albumPickerItem}
                     onPress={() => handleMoveToAlbum(album.id)}
                   >
-                    <Text style={styles.albumPickerItemIcon}>{'\uD83D\uDCC2'}</Text>
+                    <Icon name="folder-open" size={20} color={themeColors.vaultFolderIcon} />
                     <Text style={styles.albumPickerItemText}>{album.name}</Text>
                   </Pressable>
                 )}
@@ -231,7 +232,7 @@ function ActionButton({
   disabled,
   color,
 }: {
-  icon: string;
+  icon: IconName;
   label: string;
   onPress: () => void;
   disabled: boolean;
@@ -245,7 +246,7 @@ function ActionButton({
       accessibilityRole="button"
       accessibilityLabel={label}
     >
-      <Text style={[actionStyles.icon, { color: disabled ? '#555' : color }]}>{icon}</Text>
+      <Icon name={icon} size={20} color={disabled ? '#555' : color} />
       <Text style={[actionStyles.label, { color: disabled ? '#555' : '#FFFFFF' }]}>{label}</Text>
     </Pressable>
   );

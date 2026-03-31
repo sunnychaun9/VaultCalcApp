@@ -12,3 +12,6 @@ export { useThemeColors } from './useThemeColors';
 export { typography, fontFamily, getCalcDisplayStyle } from './typography';
 
 export { spacing, layout } from './spacing';
+
+export { elevationLevels, getSurfaceStyle } from './elevation';
+export type { ElevationLevel } from './elevation';

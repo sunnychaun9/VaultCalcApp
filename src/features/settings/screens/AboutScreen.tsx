@@ -8,11 +8,12 @@
  */
 
 import React, { useMemo, useCallback } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useActivityTracker } from '@features/auth';
 import { useThemeColors, type ColorTokens, typography, spacing, layout } from '@shared/theme';
+import { IconButton } from '@shared/components/Icon';
 
 /**
  * About Screen Component
@@ -37,14 +38,13 @@ export function AboutScreen(): React.JSX.Element {
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       {/* Header */}
       <View style={styles.header}>
-        <Pressable
+        <IconButton
+          name="arrow-left"
           onPress={handleBack}
-          style={styles.backButton}
-          accessibilityRole="button"
+          color={themeColors.textPrimary}
           accessibilityLabel="Go back"
-        >
-          <Text style={styles.backButtonText}>←</Text>
-        </Pressable>
+          containerStyle={styles.backButton}
+        />
         <Text style={styles.title}>About</Text>
         <View style={styles.placeholder} />
       </View>

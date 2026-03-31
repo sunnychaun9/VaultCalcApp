@@ -9,20 +9,24 @@
 
 import React, { useMemo, useRef } from 'react';
 import { View, Text, Image, Pressable, StyleSheet } from 'react-native';
+import Animated from 'react-native-reanimated';
+import { useListItemAnimation, usePressAnimation } from '@shared/hooks/useAnimations';
 import type { MediaItem } from '@services/storage/database';
 import { useDecryptedThumbnail } from '../hooks';
 import { useVaultStore } from '@store/vaultStore';
 import { useThemeColors, type ColorTokens, typography, spacing, layout } from '@shared/theme';
+import { Icon, type IconName } from '@shared/components/Icon';
 
 interface MediaListItemProps {
   item: MediaItem;
+  index?: number;
   onPress: (item: MediaItem) => void;
   onLongPress: (item: MediaItem) => void;
 }
 
-const TYPE_ICONS: Record<string, string> = {
-  photo: '\u{1F5BC}',
-  video: '\u{1F3AC}',
+const TYPE_ICONS: Record<string, IconName> = {
+  photo: 'image',
+  video: 'film',
 };
 
 function formatFileSize(bytes: number): string {
@@ -63,6 +67,7 @@ function arePropsEqual(prev: MediaListItemProps, next: MediaListItemProps): bool
     prev.item.originalName === next.item.originalName &&
     prev.item.sizeBytes === next.item.sizeBytes &&
     prev.item.durationMs === next.item.durationMs &&
+    prev.index === next.index &&
     prev.onPress === next.onPress &&
     prev.onLongPress === next.onLongPress
   );
@@ -70,12 +75,15 @@ function arePropsEqual(prev: MediaListItemProps, next: MediaListItemProps): bool
 
 export const MediaListItem = React.memo(function MediaListItem({
   item,
+  index = 0,
   onPress,
   onLongPress,
 }: MediaListItemProps): React.JSX.Element {
   const isSelected = useVaultStore(s => s.selectedIds.has(item.id));
   const themeColors = useThemeColors();
   const styles = useMemo(() => createStyles(themeColors), [themeColors]);
+  const entryStyle = useListItemAnimation({ index });
+  const { animatedStyle: pressStyle, onPressIn, onPressOut } = usePressAnimation({ scaleDown: 0.98, opacityDown: 0.9 });
 
   const { uri: thumbnailUri } = useDecryptedThumbnail(
     item.thumbnailPath,
@@ -95,14 +103,14 @@ export const MediaListItem = React.memo(function MediaListItem({
   const displaySource = imageSource ?? lastSource.current;
 
   return (
+    <Animated.View style={entryStyle}>
+    <Animated.View style={pressStyle}>
     <Pressable
       onPress={() => onPress(item)}
       onLongPress={() => onLongPress(item)}
-      style={({ pressed }) => [
-        styles.container,
-        isSelected && styles.containerSelected,
-        pressed && styles.containerPressed,
-      ]}
+      onPressIn={onPressIn}
+      onPressOut={onPressOut}
+      style={[styles.container, isSelected && styles.containerSelected]}
       accessibilityRole="button"
       accessibilityLabel={item.originalName}
       accessibilityState={{ selected: isSelected }}
@@ -110,7 +118,7 @@ export const MediaListItem = React.memo(function MediaListItem({
       {/* Thumbnail */}
       <View style={[styles.thumbBox, isSelected && styles.thumbBoxSelected]}>
         {isSelected ? (
-          <Text style={styles.checkmark}>{'\u2713'}</Text>
+          <Icon name="check" size={18} color={themeColors.textOnAccent} strokeWidth={3} />
         ) : displaySource !== null ? (
           <Image
             source={displaySource}
@@ -119,7 +127,7 @@ export const MediaListItem = React.memo(function MediaListItem({
             fadeDuration={0}
           />
         ) : (
-          <Text style={styles.thumbIcon}>{TYPE_ICONS[item.type] ?? '\u{1F4C4}'}</Text>
+          <Icon name={TYPE_ICONS[item.type] ?? 'file-text'} size={24} color={themeColors.textTertiary} />
         )}
         {/* Duration badge for videos */}
         {item.type === 'video' && item.durationMs !== null && !isSelected && (
@@ -134,7 +142,7 @@ export const MediaListItem = React.memo(function MediaListItem({
         <Text style={styles.name} numberOfLines={1}>
           {item.originalName}
           {item.isFavorite && !isSelected && (
-            <Text style={styles.favStar}>{' \u2605'}</Text>
+            <Text style={styles.favStar}>{' '}<Icon name="star" size={14} color="#FFD700" fill="#FFD700" /></Text>
           )}
         </Text>
         <Text style={styles.meta}>
@@ -142,6 +150,8 @@ export const MediaListItem = React.memo(function MediaListItem({
         </Text>
       </View>
     </Pressable>
+    </Animated.View>
+    </Animated.View>
   );
 }, arePropsEqual);
 
@@ -157,9 +167,6 @@ const createStyles = (c: ColorTokens) => StyleSheet.create({
   },
   containerSelected: {
     backgroundColor: c.surfaceContainerHigh,
-  },
-  containerPressed: {
-    opacity: 0.7,
   },
   thumbBox: {
     width: 52,

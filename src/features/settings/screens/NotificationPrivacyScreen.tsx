@@ -13,7 +13,6 @@ import {
   Text,
   Pressable,
   FlatList,
-  Switch,
   TextInput,
   Image,
   StyleSheet,
@@ -23,6 +22,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useActivityTracker } from '@features/auth';
 import { useThemeColors, type ColorTokens, typography, spacing } from '@shared/theme';
+import { PremiumSwitch } from '@shared/components/PremiumSwitch';
 import { alert } from '@store/alertStore';
 import {
   getInstalledApps,
@@ -199,10 +199,11 @@ export function NotificationPrivacyScreen(): React.JSX.Element {
         <Text style={styles.appName} numberOfLines={1}>
           {item.appName}
         </Text>
-        <Switch
+        <PremiumSwitch
           value={isProtected}
           onValueChange={(value) => handleToggleProtection(item.packageName, value)}
-          trackColor={{ false: themeColors.surfaceContainerHigh, true: themeColors.accent }}
+          trackColorOff={themeColors.surfaceContainerHigh}
+          trackColorOn={themeColors.accent}
           thumbColor={themeColors.surface}
           disabled={!featureEnabled}
         />
@@ -231,10 +232,11 @@ export function NotificationPrivacyScreen(): React.JSX.Element {
               : 'Notification listener not enabled.'}
           </Text>
         </View>
-        <Switch
+        <PremiumSwitch
           value={featureEnabled}
           onValueChange={handleToggleEnabled}
-          trackColor={{ false: themeColors.surfaceContainerHigh, true: themeColors.accent }}
+          trackColorOff={themeColors.surfaceContainerHigh}
+          trackColorOn={themeColors.accent}
           thumbColor={themeColors.surface}
         />
       </View>
@@ -257,10 +259,11 @@ export function NotificationPrivacyScreen(): React.JSX.Element {
 
           <View style={styles.optionRow}>
             <Text style={styles.optionLabel}>Hide message content</Text>
-            <Switch
+            <PremiumSwitch
               value={hideContentEnabled}
               onValueChange={handleToggleHideContent}
-              trackColor={{ false: themeColors.surfaceContainerHigh, true: themeColors.accent }}
+              trackColorOff={themeColors.surfaceContainerHigh}
+              trackColorOn={themeColors.accent}
               thumbColor={themeColors.surface}
               disabled={blockEntirelyEnabled}
             />
@@ -268,10 +271,11 @@ export function NotificationPrivacyScreen(): React.JSX.Element {
 
           <View style={styles.optionRow}>
             <Text style={styles.optionLabel}>Hide sender name</Text>
-            <Switch
+            <PremiumSwitch
               value={hideSenderEnabled}
               onValueChange={handleToggleHideSender}
-              trackColor={{ false: themeColors.surfaceContainerHigh, true: themeColors.accent }}
+              trackColorOff={themeColors.surfaceContainerHigh}
+              trackColorOn={themeColors.accent}
               thumbColor={themeColors.surface}
               disabled={blockEntirelyEnabled}
             />
@@ -279,10 +283,11 @@ export function NotificationPrivacyScreen(): React.JSX.Element {
 
           <View style={styles.optionRow}>
             <Text style={styles.optionLabel}>Block notifications completely</Text>
-            <Switch
+            <PremiumSwitch
               value={blockEntirelyEnabled}
               onValueChange={handleToggleBlockEntirely}
-              trackColor={{ false: themeColors.surfaceContainerHigh, true: themeColors.accent }}
+              trackColorOff={themeColors.surfaceContainerHigh}
+              trackColorOn={themeColors.accent}
               thumbColor={themeColors.surface}
             />
           </View>

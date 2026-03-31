@@ -9,28 +9,32 @@
 
 import React, { useMemo } from 'react';
 import { View, Text, Image, Pressable, StyleSheet } from 'react-native';
+import Animated from 'react-native-reanimated';
+import { useListItemAnimation, usePressAnimation } from '@shared/hooks/useAnimations';
 import type { MediaItem } from '@services/storage/database';
 import { useDecryptedThumbnail } from '../hooks';
 import { useThemeColors, type ColorTokens, typography, spacing, layout } from '@shared/theme';
+import { Icon, type IconName } from '@shared/components/Icon';
 
 interface DocumentListItemProps {
   item: MediaItem;
+  index?: number;
   isSelected: boolean;
   onPress: (item: MediaItem) => void;
   onLongPress: (item: MediaItem) => void;
 }
 
-/** Map MIME type to document-specific emoji */
-function getDocumentIcon(mimeType: string): string {
-  if (mimeType === 'application/pdf') return '\u{1F4D5}'; // 📕
+/** Map MIME type to document-specific icon */
+function getDocumentIcon(mimeType: string): IconName {
+  if (mimeType === 'application/pdf') return 'file-text';
   if (mimeType.includes('spreadsheet') || mimeType.includes('excel') || mimeType === 'text/csv')
-    return '\u{1F4CA}'; // 📊
+    return 'file-spreadsheet';
   if (mimeType.includes('presentation') || mimeType.includes('powerpoint'))
-    return '\u{1F4CA}'; // 📊
-  if (mimeType === 'text/plain') return '\u{1F4DD}'; // 📝
-  if (mimeType === 'application/json') return '\u{1F4CB}'; // 📋
-  if (mimeType === 'application/zip') return '\u{1F4E6}'; // 📦
-  return '\u{1F4C4}'; // 📄
+    return 'file-spreadsheet';
+  if (mimeType === 'text/plain') return 'pencil';
+  if (mimeType === 'application/json') return 'file-json';
+  if (mimeType === 'application/zip') return 'archive';
+  return 'file-text';
 }
 
 /** Format bytes to human-readable size */
@@ -52,12 +56,15 @@ function formatDate(timestamp: number): string {
 
 export const DocumentListItem = React.memo(function DocumentListItem({
   item,
+  index = 0,
   isSelected,
   onPress,
   onLongPress,
 }: DocumentListItemProps): React.JSX.Element {
   const themeColors = useThemeColors();
   const styles = useMemo(() => createStyles(themeColors), [themeColors]);
+  const entryStyle = useListItemAnimation({ index });
+  const { animatedStyle: pressStyle, onPressIn, onPressOut } = usePressAnimation({ scaleDown: 0.98, opacityDown: 0.9 });
   const { uri: thumbnailUri } = useDecryptedThumbnail(
     item.thumbnailPath,
     item.id,
@@ -65,14 +72,14 @@ export const DocumentListItem = React.memo(function DocumentListItem({
   );
 
   return (
+    <Animated.View style={entryStyle}>
+    <Animated.View style={pressStyle}>
     <Pressable
       onPress={() => onPress(item)}
       onLongPress={() => onLongPress(item)}
-      style={({ pressed }) => [
-        styles.container,
-        isSelected && styles.containerSelected,
-        pressed && styles.containerPressed,
-      ]}
+      onPressIn={onPressIn}
+      onPressOut={onPressOut}
+      style={[styles.container, isSelected && styles.containerSelected]}
       accessibilityRole="button"
       accessibilityLabel={item.originalName}
       accessibilityState={{ selected: isSelected }}
@@ -80,7 +87,7 @@ export const DocumentListItem = React.memo(function DocumentListItem({
       {/* Thumbnail or Icon (DOC-004) */}
       <View style={[styles.iconBox, isSelected && styles.iconBoxSelected]}>
         {isSelected ? (
-          <Text style={styles.checkmark}>{'\u2713'}</Text>
+          <Icon name="check" size={18} color={themeColors.textOnAccent} strokeWidth={3} />
         ) : thumbnailUri !== null ? (
           <Image
             source={{ uri: thumbnailUri }}
@@ -88,7 +95,7 @@ export const DocumentListItem = React.memo(function DocumentListItem({
             resizeMode="cover"
           />
         ) : (
-          <Text style={styles.icon}>{getDocumentIcon(item.mimeType)}</Text>
+          <Icon name={getDocumentIcon(item.mimeType)} size={24} color={themeColors.textTertiary} />
         )}
       </View>
 
@@ -97,7 +104,7 @@ export const DocumentListItem = React.memo(function DocumentListItem({
         <Text style={styles.name} numberOfLines={1}>
           {item.originalName}
           {item.isFavorite && !isSelected && (
-            <Text style={styles.favStar}>{' \u2605'}</Text>
+            <Text style={styles.favStar}>{' '}<Icon name="star" size={14} color={themeColors.accent} fill={themeColors.accent} /></Text>
           )}
         </Text>
         <Text style={styles.meta}>
@@ -105,6 +112,8 @@ export const DocumentListItem = React.memo(function DocumentListItem({
         </Text>
       </View>
     </Pressable>
+    </Animated.View>
+    </Animated.View>
   );
 });
 
@@ -120,9 +129,6 @@ const createStyles = (c: ColorTokens) => StyleSheet.create({
   },
   containerSelected: {
     backgroundColor: c.surfaceContainerHigh,
-  },
-  containerPressed: {
-    opacity: 0.7,
   },
   iconBox: {
     width: 44,
