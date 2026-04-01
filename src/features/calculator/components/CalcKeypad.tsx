@@ -16,6 +16,7 @@ import { spacing } from '@shared/theme';
 
 interface CalcKeypadProps {
   onButtonPress: (value: string) => void;
+  onEqualsLongPress?: () => void;
   memoryHasValue?: boolean;
   isLandscape?: boolean;
 }
@@ -109,6 +110,7 @@ const LANDSCAPE_ROWS: ButtonConfig[][] = [
 
 export function CalcKeypad({
   onButtonPress,
+  onEqualsLongPress,
   memoryHasValue: _memoryHasValue = false,
   isLandscape = false,
 }: CalcKeypadProps): React.JSX.Element {
@@ -222,7 +224,7 @@ export function CalcKeypad({
       <View style={[styles.row, { gap }]}>
         <CalcButton label="0" type="number" onPress={onButtonPress} />
         <CalcButton label="." type="number" onPress={onButtonPress} accessibilityLabel="Decimal point" />
-        <CalcButton label="=" type="equals" onPress={onButtonPress} accessibilityLabel="Equals" />
+        <CalcButton label="=" type="equals" onPress={onButtonPress} onLongPress={onEqualsLongPress} accessibilityLabel="Equals" />
         <CalcButton label="+" type="operator" onPress={onButtonPress} accessibilityLabel="Add" />
       </View>
     </View>

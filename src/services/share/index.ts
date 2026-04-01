@@ -6,5 +6,5 @@
  * @see FEATURE_INDEX.md ENH-001
  */
 
-export { shareMediaItems, shareNoteAsText } from './shareService';
+export { shareMediaItems, shareNoteAsText, shareApp } from './shareService';
 export type { ShareResult } from './shareService';

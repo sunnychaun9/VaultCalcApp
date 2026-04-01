@@ -8,8 +8,8 @@
  * @see 04-Technical-Architecture.md Section 4 and 7
  */
 
-import React, { useEffect, useState } from 'react';
-import { StatusBar, StyleSheet } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { AppState, StatusBar, StyleSheet, type AppStateStatus } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -68,12 +68,37 @@ function App(): React.JSX.Element {
     return unsub;
   }, []);
 
+  // App Open Ad: show once per session when app returns to foreground.
+  // Only fires when user is authenticated (vault unlocked) and not on first launch.
+  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      const wasBackground = appStateRef.current === 'background' || appStateRef.current === 'inactive';
+      appStateRef.current = nextState;
+
+      if (wasBackground && nextState === 'active') {
+        const { isAuthenticated } = useAuthStore.getState();
+        const { isFirstLaunch } = useSettingsStore.getState();
+        if (isAuthenticated && !isFirstLaunch) {
+          import('@services/ads').then(({ tryShowAppOpen }) => {
+            tryShowAppOpen().catch(() => {});
+          }).catch(() => {});
+        }
+      }
+    });
+
+    return () => subscription.remove();
+  }, []);
+
   useEffect(() => {
     initializeDatabase().then(() => {
       setDbReady(true);
       // Fire-and-forget startup tasks — run in background, don't block UI
       checkPremiumStatus();
       tryAutoBackup();
+      // Validate rewarded ad-free mode (drift detection, anti-tamper)
+      import('@services/ads').then(({ validateAdFreeMode }) => validateAdFreeMode()).catch(() => {});
       // Restore Google Drive session if previously connected (CLOUD-001)
       const gdEmail = useSettingsStore.getState().googleDriveEmail;
       if (gdEmail) {

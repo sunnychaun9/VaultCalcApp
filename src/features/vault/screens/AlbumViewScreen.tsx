@@ -91,10 +91,10 @@ export function AlbumViewScreen(): React.JSX.Element {
     if (ids.length === 0) return;
 
     alert(
-      'Remove from Album',
-      `Remove ${ids.length} item(s) from "${album?.name ?? 'this album'}"? Items will not be permanently deleted.`,
+      'Remove from album?',
+      `${ids.length === 1 ? 'This file' : `These ${ids.length} files`} will be removed from "${album?.name ?? 'this album'}" but will stay in your vault.`,
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: 'Keep here', style: 'cancel' },
         {
           text: 'Remove',
           style: 'destructive',
@@ -115,7 +115,7 @@ export function AlbumViewScreen(): React.JSX.Element {
               await queryClient.invalidateQueries({ queryKey: ['albumMediaCounts', isDecoyMode] });
               await queryClient.invalidateQueries({ queryKey: ['albumCoverMedia', isDecoyMode] });
               clearSelection();
-              alert('Removed', `${ids.length} item(s) removed from album.`);
+              alert('Removed from album', `${ids.length} ${ids.length === 1 ? 'file' : 'files'} removed. Still safe in your vault.`);
             } finally {
               setIsDeleting(false);
             }
@@ -132,10 +132,10 @@ export function AlbumViewScreen(): React.JSX.Element {
     if (selected.length === 0) return;
 
     alert(
-      'Permanently Delete',
-      `Delete ${selected.length} item(s) permanently? This cannot be undone.`,
+      'Delete forever?',
+      `${selected.length === 1 ? 'This file' : `These ${selected.length} files`} will be gone permanently.`,
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: 'Keep', style: 'cancel' },
         {
           text: 'Delete',
           style: 'destructive',
@@ -163,11 +163,11 @@ export function AlbumViewScreen(): React.JSX.Element {
 
               if (result.failed.length > 0) {
                 alert(
-                  'Partial Deletion',
-                  `${result.deleted} deleted, ${result.failed.length} failed.\n\nFailed: ${result.failed.map(f => f.name).join(', ')}`,
+                  'Almost done',
+                  `${result.deleted} deleted, but ${result.failed.length} couldn't be removed.\n\n${result.failed.map(f => f.name).join(', ')}`,
                 );
               } else {
-                alert('Deleted', `${result.deleted} item(s) permanently deleted.`);
+                alert('Gone for good', `${result.deleted} ${result.deleted === 1 ? 'file' : 'files'} permanently deleted.`);
               }
             } finally {
               setIsDeleting(false);
@@ -332,7 +332,7 @@ export function AlbumViewScreen(): React.JSX.Element {
           <AlbumsIllustration size={140} color={themeColors.textTertiary} accent={themeColors.accent} />
           <Text style={styles.emptyTitle}>{album?.name ?? 'Album'}</Text>
           <Text style={styles.emptyDescription}>
-            This album is empty. Add photos or videos from your vault.
+            This collection is waiting. Add photos or videos from your vault to fill it.
           </Text>
         </Animated.View>
       )}

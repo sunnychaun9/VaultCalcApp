@@ -36,6 +36,8 @@ let sdkInitialized = false;
 let sdkInitializing = false;
 let interstitialPreloading = false;
 let rewardedPreloading = false;
+let appOpenPreloading = false;
+let appOpenShownThisSession = false;
 
 // ---------------------------------------------------------------------------
 // Core: is the user ad-free?
@@ -205,6 +207,77 @@ export async function tryShowInterstitial(
 }
 
 // ---------------------------------------------------------------------------
+// App Open: preload + show
+// ---------------------------------------------------------------------------
+
+/**
+ * Preload an app open ad in the background.
+ * Fire-and-forget — never blocks the caller.
+ */
+export function preloadAppOpen(): void {
+  if (appOpenPreloading || !sdkInitialized) return;
+  if (!canServeAds()) return;
+
+  appOpenPreloading = true;
+  NativeAds.loadAppOpen(AD_UNIT_IDS.appOpen)
+    .catch(() => {
+      // Non-fatal — ad simply won't be available
+    })
+    .finally(() => {
+      appOpenPreloading = false;
+    });
+}
+
+/**
+ * Attempt to show an app open ad when the app comes to foreground.
+ *
+ * Guards:
+ * - Ad-free/premium/consent → skip
+ * - Already shown this session → skip (once per session)
+ * - First launch (onboarding) → skip
+ * - Ad not preloaded → skip
+ *
+ * @returns Whether an ad was actually shown
+ */
+export async function tryShowAppOpen(): Promise<AdResult<boolean>> {
+  if (!canServeAds()) {
+    return { success: true, data: false };
+  }
+
+  if (!sdkInitialized) {
+    return { success: true, data: false };
+  }
+
+  // Once per session
+  if (appOpenShownThisSession) {
+    return { success: true, data: false };
+  }
+
+  // Never on first launch
+  if (useSettingsStore.getState().isFirstLaunch) {
+    return { success: true, data: false };
+  }
+
+  try {
+    const ready = await NativeAds.isAppOpenReady();
+    if (!ready) {
+      return { success: true, data: false };
+    }
+
+    await NativeAds.showAppOpen();
+    appOpenShownThisSession = true;
+
+    // Preload next (for subsequent sessions if app stays alive)
+    preloadAppOpen();
+
+    return { success: true, data: true };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'Unknown error';
+    return { success: false, error: message };
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Rewarded: show
 // ---------------------------------------------------------------------------
 
@@ -258,6 +331,7 @@ export async function showRewardedAd(): Promise<AdResult<RewardedAdResult>> {
 export function resetAdSession(): void {
   resetFrequencySession();
   resetConsentSession();
+  appOpenShownThisSession = false;
 }
 
 /**
@@ -279,6 +353,7 @@ export async function initializeAdsLazily(currentScreen?: string): Promise<void>
 
   preloadInterstitial(currentScreen);
   preloadRewarded(currentScreen);
+  preloadAppOpen();
 }
 
 // ---------------------------------------------------------------------------

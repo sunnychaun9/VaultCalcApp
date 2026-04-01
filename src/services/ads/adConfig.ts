@@ -20,6 +20,9 @@ export const AD_UNIT_IDS = {
   rewarded: __DEV__
     ? 'ca-app-pub-3940256099942544/5224354917'  // Google test rewarded
     : 'ca-app-pub-XXXXXXXX/ZZZZZZZZZZ',        // TODO: production ID
+  appOpen: __DEV__
+    ? 'ca-app-pub-3940256099942544/9257395921'  // Google test app open
+    : 'ca-app-pub-XXXXXXXX/AAAAAAAAAA',        // TODO: production ID
 } as const;
 
 // ---------------------------------------------------------------------------

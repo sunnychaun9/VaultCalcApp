@@ -115,7 +115,7 @@ export function PinSetupScreen(): React.JSX.Element {
     if (isProcessing) return;
     const trimmed = securityAnswer.trim();
     if (trimmed.length < 1) {
-      setError('Please enter an answer');
+      setError('Type an answer you\'ll remember');
       triggerShake();
       return;
     }
@@ -125,11 +125,11 @@ export function PinSetupScreen(): React.JSX.Element {
       if (result.success) {
         finishSetup();
       } else {
-        setError(result.error ?? 'Failed to save recovery');
+        setError(result.error ?? 'Couldn\'t save recovery. Try again.');
         triggerShake();
       }
     } catch {
-      setError('An error occurred');
+      setError('Something went wrong. Please try again.');
       triggerShake();
     } finally {
       setIsProcessing(false);
@@ -145,7 +145,7 @@ export function PinSetupScreen(): React.JSX.Element {
     }
 
     if (currentPin.length < PIN_RULES.MIN_LENGTH) {
-      setError(`PIN must be at least ${PIN_RULES.MIN_LENGTH} digits`);
+      setError(`Enter at least ${PIN_RULES.MIN_LENGTH} digits`);
       triggerShake();
       return;
     }
@@ -156,7 +156,7 @@ export function PinSetupScreen(): React.JSX.Element {
       resetAll();
     } else {
       if (pin !== confirmPin) {
-        setError('PINs do not match');
+        setError('Those PINs didn\'t match. Try again.');
         setConfirmPin('');
         resetAll();
         triggerShake();
@@ -171,11 +171,11 @@ export function PinSetupScreen(): React.JSX.Element {
           setMode('recovery');
           setError(null);
         } else {
-          setError(result.error ?? 'Failed to save PIN');
+          setError(result.error ?? 'Couldn\'t save your PIN. Try again.');
           triggerShake();
         }
       } catch {
-        setError('An error occurred');
+        setError('Something went wrong. Please try again.');
         triggerShake();
       } finally {
         setIsProcessing(false);
@@ -206,7 +206,7 @@ export function PinSetupScreen(): React.JSX.Element {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={BG_TOP} />
+      <StatusBar barStyle="light-content" backgroundColor={BG_TOP} translucent={false} />
       <View style={styles.bgTop} />
       <View style={styles.bgBottom} />
 
@@ -372,8 +372,8 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1 },
   scrollContent: { flexGrow: 1 },
   header: { alignItems: 'center', paddingTop: 20 },
-  backButton: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center', alignSelf: 'flex-start', marginLeft: spacing.md },
-  backButtonText: { fontSize: 24, color: TEXT_PRIMARY },
+  backButton: { minWidth: 40, height: 40, justifyContent: 'center', alignItems: 'center', alignSelf: 'flex-start', marginLeft: spacing.md },
+  backButtonText: { fontSize: 16, color: TEXT_PRIMARY },
   lockIconWrapper: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(59, 130, 246, 0.15)', justifyContent: 'center', alignItems: 'center', marginBottom: spacing.sm },
   lockIcon: { fontSize: 20 },
   title: { ...typography.headlineMedium, color: TEXT_PRIMARY, fontWeight: '600', marginBottom: spacing.xxs },

@@ -78,8 +78,8 @@ export function SelectionOverflowMenu({
     return items;
   }, [onAddToAlbum, onMoveToAlbum, onPermanentDelete, onUnhide, onRename, onProperties]);
 
-  // Dynamic snap based on item count: each item ~52dp + handle + padding
-  const snapHeight = Math.min(menuItems.length * 52 + 40, 400);
+  // Dynamic snap based on item count: each item ~52dp + handle(20) + title(52) + bottom padding(24)
+  const snapHeight = Math.min(menuItems.length * 52 + 96, 500);
 
   return (
     <AppBottomSheet

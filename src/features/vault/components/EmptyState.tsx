@@ -50,43 +50,43 @@ interface EmptyConfig {
 
 const EMPTY_STATE_CONFIG: Record<string, EmptyConfig> = {
   images: {
-    title: 'No images yet',
-    description: 'Import photos from your gallery or share them from other apps to keep them safe.',
-    buttonText: 'Add Images',
+    title: 'Your memories belong here',
+    description: 'Import photos from your gallery to lock them away. Only you will ever see them.',
+    buttonText: 'Add Photos',
   },
   videos: {
-    title: 'No videos yet',
-    description: 'Import videos from your gallery or share them from other apps.',
+    title: 'Your private theater',
+    description: 'Import videos to encrypt and hide them. Watch anytime, share never.',
     buttonText: 'Add Videos',
   },
   documents: {
-    title: 'No documents yet',
-    description: 'Import PDFs, spreadsheets, and other files to encrypt them.',
+    title: 'Lock up what matters',
+    description: 'Import sensitive PDFs, files, and documents. Encrypted the moment they arrive.',
     buttonText: 'Add Documents',
   },
   audio: {
-    title: 'No audio files yet',
-    description: 'Import music or voice recordings to keep them private.',
+    title: 'Sound, sealed, delivered',
+    description: 'Import voice memos, recordings, or music that no one else should hear.',
     buttonText: 'Add Audio',
   },
   albums: {
-    title: 'No albums yet',
-    description: 'Create albums to organize your photos and videos into collections.',
+    title: 'Organize your secrets',
+    description: 'Create albums to sort your hidden photos and videos into private collections.',
     buttonText: 'Create Album',
   },
   notes: {
-    title: 'No notes yet',
-    description: 'Write encrypted notes that only you can read.',
-    buttonText: 'Create Note',
+    title: 'Thoughts worth protecting',
+    description: 'Write encrypted notes that exist only on your device. No cloud, no leaks.',
+    buttonText: 'Write a Note',
   },
   favorites: {
-    title: 'No favorites yet',
-    description: 'Tap the star on any item to mark it as a favorite for quick access.',
+    title: 'Nothing starred yet',
+    description: 'Tap the star on any item to pin it here for quick access.',
     buttonText: '',
   },
   search: {
-    title: 'No results found',
-    description: 'Try a different search term or check the spelling.',
+    title: 'Nothing matched',
+    description: 'Try a different keyword or check the spelling.',
     buttonText: '',
   },
 };

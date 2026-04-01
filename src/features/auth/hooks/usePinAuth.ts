@@ -97,6 +97,21 @@ export function usePinAuth() {
             ads.preloadInterstitial('Calculator');
           } catch { /* ads may not be available */ }
 
+          // Show paywall on 3rd vault unlock for free users
+          try {
+            const store = require('@store/settingsStore').useSettingsStore.getState();
+            if (store.premiumStatus === 'free' && !result.isDecoy && store.vaultUnlockCount === 3) {
+              store.setPaywallPending(true);
+            }
+          } catch { /* non-critical */ }
+
+          // Review prompt on 5th unlock (positive engagement moment)
+          if (!result.isDecoy) {
+            setTimeout(() => {
+              try { require('@services/review').triggerReviewPrompt(); } catch {}
+            }, 4000); // 4s delay — let vault UI load first
+          }
+
           // Navigate to vault
           // Using setTimeout to ensure state updates before navigation
           setTimeout(() => {

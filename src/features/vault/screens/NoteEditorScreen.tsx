@@ -93,10 +93,10 @@ export function NoteEditorScreen({ navigation, route }: Props): React.JSX.Elemen
   const handleDelete = useCallback(() => {
     onActivity();
     alert(
-      'Delete Note',
-      `Delete "${title.trim() || 'Untitled'}"? This cannot be undone.`,
+      'Delete this note?',
+      `"${title.trim() || 'Untitled'}" will be gone permanently.`,
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: 'Keep', style: 'cancel' },
         {
           text: 'Delete',
           style: 'destructive',

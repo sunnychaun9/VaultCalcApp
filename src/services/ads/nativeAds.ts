@@ -33,6 +33,15 @@ interface AdMobModuleInterface {
   /** Check if a rewarded ad is preloaded and ready */
   isRewardedReady(): Promise<boolean>;
 
+  /** Preload an app open ad */
+  loadAppOpen(adUnitId: string): Promise<boolean>;
+
+  /** Show a preloaded app open ad. Resolves when dismissed. */
+  showAppOpen(): Promise<boolean>;
+
+  /** Check if an app open ad is preloaded and ready */
+  isAppOpenReady(): Promise<boolean>;
+
   /** Get monotonic elapsed time since boot (ms). Clock-manipulation resistant. */
   getElapsedRealtime(): Promise<number>;
 

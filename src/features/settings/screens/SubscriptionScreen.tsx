@@ -1,21 +1,46 @@
 /**
  * VaultCalc - Subscription Screen (PREMIUM-001, PREMIUM-002)
  *
- * Subscription screen showing plan tiers, pricing, and feature lists.
- * Wired to Google Play Billing for real purchases.
+ * High-conversion premium paywall with:
+ * - Gradient hero with shield icon
+ * - Animated feature list with staggered entrance
+ * - Monthly/Yearly plan cards with "Most Popular" badge
+ * - Urgency banner ("Limited time offer")
+ * - Trust signals and social proof
+ * - Large "Start Free Trial" CTA with glow
+ *
+ * Psychology: urgency (limited offer) + trust (secure & private) +
+ * anchoring (yearly savings shown) + social proof (badge)
  *
  * @see 07-Monetization-Model.md Section 6
  * @see FEATURE_INDEX.md PREMIUM-001, PREMIUM-002
  */
 
 import React, { useMemo, useCallback, useState, useEffect } from 'react';
-import { View, Text, Pressable, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
+import {
+  View,
+  Text,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  ActivityIndicator,
+  StatusBar,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { VaultStackParamList } from '@typedefs/navigation';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withDelay,
+  withSpring,
+  withTiming,
+  interpolate,
+  Extrapolation,
+} from 'react-native-reanimated';
 import { useActivityTracker } from '@features/auth';
-import { useThemeColors, colors, type ColorTokens, typography, spacing, layout, getSurfaceStyle } from '@shared/theme';
+import { useThemeColors, colors, type ColorTokens, spacing } from '@shared/theme';
 import { Icon, IconButton } from '@shared/components/Icon';
 import { useSettingsStore } from '@store/settingsStore';
 import {
@@ -24,16 +49,20 @@ import {
   type BillingProductInfo,
 } from '@services/billing';
 import { alert } from '@store/alertStore';
+import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
+
+// ── Types & Constants ─────────────────────────────────────────
 
 type PlanType = 'yearly' | 'monthly' | 'lifetime' | 'remove_ads';
 
 const PREMIUM_FEATURES = [
-  'Remove All Ads',
-  'Ad-Free Experience Forever',
-  'Support Development',
+  { icon: 'eye-off' as const, label: 'No ads, ever', desc: 'Zero interruptions' },
+  { icon: 'scan' as const, label: 'Intruder alerts', desc: 'Photo evidence on break-in' },
+  { icon: 'shield' as const, label: 'Cloud backup', desc: 'Encrypted offsite backup' },
+  { icon: 'lock' as const, label: 'Unlimited storage', desc: 'No file count limits' },
+  { icon: 'eye-off' as const, label: 'Fake crash & decoy', desc: 'Advanced stealth modes' },
 ] as const;
 
-/** Map plan type to product ID */
 const PLAN_PRODUCT_MAP: Record<PlanType, string> = {
   monthly: 'vaultcalc_premium_monthly',
   yearly: 'vaultcalc_premium_yearly',
@@ -41,13 +70,14 @@ const PLAN_PRODUCT_MAP: Record<PlanType, string> = {
   remove_ads: 'vaultcalc_remove_ads',
 };
 
-/** Fallback prices when Play Store query fails */
 const FALLBACK_PRICES: Record<string, string> = {
-  vaultcalc_premium_monthly: '$4.99',
-  vaultcalc_premium_yearly: '$29.99',
-  vaultcalc_premium_lifetime: '$79.99',
-  vaultcalc_remove_ads: '$2.99',
+  vaultcalc_premium_monthly: '$2.99',
+  vaultcalc_premium_yearly: '$9.99',
+  vaultcalc_premium_lifetime: '$19.99',
+  vaultcalc_remove_ads: '$1.99',
 };
+
+// ── Helpers ───────────────────────────────────────────────────
 
 function getProductPrice(products: BillingProductInfo[], productId: string): string {
   const product = products.find((p) => p.productId === productId);
@@ -58,6 +88,96 @@ function getOfferToken(products: BillingProductInfo[], productId: string): strin
   const product = products.find((p) => p.productId === productId);
   return product?.offerToken ?? null;
 }
+
+// ── Gradient Background ───────────────────────────────────────
+
+function HeroGradient(): React.JSX.Element {
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      <Svg width="100%" height="100%">
+        <Defs>
+          <LinearGradient id="heroGrad" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor="#1E3A5F" stopOpacity="1" />
+            <Stop offset="0.5" stopColor="#0F172A" stopOpacity="1" />
+            <Stop offset="1" stopColor="#0A0F1A" stopOpacity="1" />
+          </LinearGradient>
+        </Defs>
+        <Rect x="0" y="0" width="100%" height="100%" fill="url(#heroGrad)" />
+      </Svg>
+    </View>
+  );
+}
+
+// ── Animated Feature Row ──────────────────────────────────────
+
+function FeatureRow({ icon, label, desc, index }: {
+  icon: typeof PREMIUM_FEATURES[number]['icon'];
+  label: string;
+  desc: string;
+  index: number;
+}): React.JSX.Element {
+  const translateX = useSharedValue(30);
+  const opacity = useSharedValue(0);
+
+  useEffect(() => {
+    const delay = 400 + index * 120;
+    translateX.value = withDelay(delay, withSpring(0, { damping: 18, stiffness: 200 }));
+    opacity.value = withDelay(delay, withTiming(1, { duration: 350 }));
+  }, [index, translateX, opacity]);
+
+  const animStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value }],
+    opacity: opacity.value,
+  }));
+
+  return (
+    <Animated.View style={[featureStyles.row, animStyle]}>
+      <View style={featureStyles.iconCircle}>
+        <Icon name={icon} size={18} color="#60A5FA" />
+      </View>
+      <View style={featureStyles.textCol}>
+        <Text style={featureStyles.label}>{label}</Text>
+        <Text style={featureStyles.desc}>{desc}</Text>
+      </View>
+      <Icon name="check" size={16} color="#22C55E" strokeWidth={3} />
+    </Animated.View>
+  );
+}
+
+const featureStyles = StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    gap: 14,
+  },
+  iconCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(59, 130, 246, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  textCol: {
+    flex: 1,
+  },
+  label: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#F1F5F9',
+    letterSpacing: 0.1,
+  },
+  desc: {
+    fontSize: 12,
+    color: '#94A3B8',
+    marginTop: 2,
+    letterSpacing: 0.2,
+  },
+});
+
+// ── Main Component ────────────────────────────────────────────
 
 export function SubscriptionScreen(): React.JSX.Element {
   const themeColors = useThemeColors();
@@ -72,10 +192,36 @@ export function SubscriptionScreen(): React.JSX.Element {
 
   const setPremiumStatus = useSettingsStore((s) => s.setPremiumStatus);
   const setPremiumPurchase = useSettingsStore((s) => s.setPremiumPurchase);
-
   const { isPremium } = useFeatureGate('removeAds');
 
-  // Initialize billing and load products on mount
+  // ── Entrance animations ──
+  const heroScale = useSharedValue(0.9);
+  const heroOpacity = useSharedValue(0);
+  const contentOpacity = useSharedValue(0);
+  const ctaTranslateY = useSharedValue(30);
+
+  useEffect(() => {
+    heroScale.value = withSpring(1, { damping: 16, stiffness: 120 });
+    heroOpacity.value = withTiming(1, { duration: 500 });
+    contentOpacity.value = withDelay(200, withTiming(1, { duration: 400 }));
+    ctaTranslateY.value = withDelay(800, withSpring(0, { damping: 16, stiffness: 180 }));
+  }, [heroScale, heroOpacity, contentOpacity, ctaTranslateY]);
+
+  const heroAnimStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: heroScale.value }],
+    opacity: heroOpacity.value,
+  }));
+
+  const contentAnimStyle = useAnimatedStyle(() => ({
+    opacity: contentOpacity.value,
+  }));
+
+  const ctaAnimStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: ctaTranslateY.value }],
+    opacity: interpolate(ctaTranslateY.value, [30, 0], [0, 1], Extrapolation.CLAMP),
+  }));
+
+  // ── Billing ──
   useEffect(() => {
     let cancelled = false;
     const billing = getBillingService();
@@ -83,7 +229,6 @@ export function SubscriptionScreen(): React.JSX.Element {
     async function init() {
       const initResult = await billing.initialize();
       if (cancelled) return;
-
       if (initResult.success) {
         const productsResult = await billing.loadProducts();
         if (!cancelled && productsResult.success && productsResult.data) {
@@ -96,18 +241,17 @@ export function SubscriptionScreen(): React.JSX.Element {
     return () => { cancelled = true; };
   }, []);
 
-  // Resolved prices (Play Store or fallback)
   const yearlyPrice = getProductPrice(products, PLAN_PRODUCT_MAP.yearly);
   const monthlyPrice = getProductPrice(products, PLAN_PRODUCT_MAP.monthly);
   const lifetimePrice = getProductPrice(products, PLAN_PRODUCT_MAP.lifetime);
   const removeAdsPrice = getProductPrice(products, PLAN_PRODUCT_MAP.remove_ads);
 
-  // Calculate monthly equivalent for yearly plan
   const yearlyProduct = products.find((p) => p.productId === PLAN_PRODUCT_MAP.yearly);
   const yearlyMonthly = yearlyProduct
-    ? `${yearlyProduct.currencyCode === 'USD' ? '$' : ''}${(yearlyProduct.priceMicros / 12 / 1_000_000).toFixed(2)}/month`
-    : '$2.50/month';
+    ? `${yearlyProduct.currencyCode === 'USD' ? '$' : ''}${(yearlyProduct.priceMicros / 12 / 1_000_000).toFixed(2)}/mo`
+    : '$0.83/mo';
 
+  // ── Handlers ──
   const handleBack = useCallback(() => {
     onActivity();
     navigation.goBack();
@@ -166,165 +310,212 @@ export function SubscriptionScreen(): React.JSX.Element {
     }
   }, [onActivity, isRestoring, setPremiumStatus, setPremiumPurchase]);
 
+  const ctaLabel = selectedPlan === 'remove_ads'
+    ? `Remove Ads — ${removeAdsPrice}`
+    : selectedPlan === 'lifetime'
+      ? `Get Lifetime — ${lifetimePrice}`
+      : 'Start 3-Day Free Trial';
+
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <IconButton
-          name="arrow-left"
-          onPress={handleBack}
-          color={themeColors.textPrimary}
-          accessibilityLabel="Go back"
-          containerStyle={styles.backButton}
-        />
-        <Text style={styles.title}>Premium</Text>
-        <View style={styles.placeholder} />
-      </View>
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#1E3A5F" translucent={false} />
+      <HeroGradient />
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Hero section */}
-        <View style={styles.heroSection}>
-          <Text style={styles.heroTitle}>
-            {isPremium ? "You're Premium!" : 'VaultCalc Premium'}
-          </Text>
-          <Text style={styles.heroSubtitle}>
-            {isPremium
-              ? 'You have access to all premium features'
-              : 'Unlock the full power of your private vault'}
-          </Text>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+        {/* Close button */}
+        <View style={styles.headerRow}>
+          <IconButton
+            name="x"
+            onPress={handleBack}
+            color="rgba(255,255,255,0.7)"
+            accessibilityLabel="Close"
+          />
         </View>
 
-        {/* Feature list card */}
-        <View style={styles.sectionCard}>
-          {PREMIUM_FEATURES.map((feature, index) => (
-            <React.Fragment key={feature}>
-              {index > 0 && <View style={styles.rowDivider} />}
-              <View style={styles.featureRow}>
-                <Icon name="check" size={20} color={themeColors.accent} />
-                <Text style={styles.featureLabel}>{feature}</Text>
-              </View>
-            </React.Fragment>
-          ))}
-        </View>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+        >
+          {/* Hero */}
+          <Animated.View style={[styles.hero, heroAnimStyle]}>
+            <View style={styles.shieldGlow}>
+              <Icon name="shield-check" size={52} color="#60A5FA" />
+            </View>
+            <Text style={styles.heroTitle}>
+              {isPremium ? "You're Premium!" : 'Protect what matters most'}
+            </Text>
+            <Text style={styles.heroSubtitle}>
+              {isPremium
+                ? 'You have access to all premium features'
+                : 'Your photos, files, and secrets deserve real protection.'}
+            </Text>
+          </Animated.View>
 
-        {!isPremium && (
-          <>
-            {/* Plan cards row */}
-            <View style={styles.planCardsRow}>
-              {/* Yearly plan */}
-              <Pressable
-                onPress={() => handleSelectPlan('yearly')}
-                style={[
-                  styles.planCard,
-                  selectedPlan === 'yearly' && styles.planCardSelected,
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel={`Select yearly plan, ${yearlyPrice} per year`}
-              >
-                <View style={styles.badgeRow}>
-                  <View style={styles.badge}>
-                    <Text style={styles.badgeText}>BEST VALUE</Text>
+          {/* Urgency banner */}
+          {!isPremium && (
+            <Animated.View style={[styles.urgencyBanner, contentAnimStyle]}>
+              <Icon name="clock" size={14} color="#F59E0B" />
+              <Text style={styles.urgencyText}>Limited time offer — Save 72% on yearly</Text>
+            </Animated.View>
+          )}
+
+          {/* Feature list */}
+          <View style={styles.featureCard}>
+            {PREMIUM_FEATURES.map((feature, index) => (
+              <FeatureRow
+                key={feature.label}
+                icon={feature.icon}
+                label={feature.label}
+                desc={feature.desc}
+                index={index}
+              />
+            ))}
+          </View>
+
+          {!isPremium && (
+            <Animated.View style={contentAnimStyle}>
+              {/* Plan cards */}
+              <View style={styles.planRow}>
+                {/* Yearly — "Most Popular" */}
+                <Pressable
+                  onPress={() => handleSelectPlan('yearly')}
+                  style={[
+                    styles.planCard,
+                    selectedPlan === 'yearly' && styles.planCardSelected,
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Select yearly plan, ${yearlyPrice} per year`}
+                >
+                  {/* Most Popular badge */}
+                  <View style={styles.popularBadge}>
+                    <Text style={styles.popularBadgeText}>MOST POPULAR</Text>
                   </View>
-                </View>
-                <Text style={styles.planTitle}>Yearly</Text>
-                <Text style={styles.planPrice}>{yearlyPrice}/year</Text>
-                <Text style={styles.planSubPrice}>{yearlyMonthly}</Text>
-                <View style={styles.saveBadge}>
-                  <Text style={styles.saveBadgeText}>Save 50%</Text>
-                </View>
-              </Pressable>
+                  <Text style={styles.planTitle}>Yearly</Text>
+                  <Text style={styles.planPrice}>{yearlyPrice}</Text>
+                  <Text style={styles.planPer}>/year</Text>
+                  <View style={styles.savePill}>
+                    <Text style={styles.savePillText}>Save 72%</Text>
+                  </View>
+                  <Text style={styles.planEquiv}>{yearlyMonthly}</Text>
+                  {selectedPlan === 'yearly' && (
+                    <View style={styles.checkBadge}>
+                      <Icon name="check" size={12} color="#FFFFFF" strokeWidth={3} />
+                    </View>
+                  )}
+                </Pressable>
 
-              {/* Monthly plan */}
+                {/* Monthly */}
+                <Pressable
+                  onPress={() => handleSelectPlan('monthly')}
+                  style={[
+                    styles.planCard,
+                    selectedPlan === 'monthly' && styles.planCardSelected,
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Select monthly plan, ${monthlyPrice} per month`}
+                >
+                  <View style={styles.popularBadgeSpacer} />
+                  <Text style={styles.planTitle}>Monthly</Text>
+                  <Text style={styles.planPrice}>{monthlyPrice}</Text>
+                  <Text style={styles.planPer}>/month</Text>
+                  {selectedPlan === 'monthly' && (
+                    <View style={styles.checkBadge}>
+                      <Icon name="check" size={12} color="#FFFFFF" strokeWidth={3} />
+                    </View>
+                  )}
+                </Pressable>
+              </View>
+
+              {/* Lifetime */}
               <Pressable
-                onPress={() => handleSelectPlan('monthly')}
+                onPress={() => handleSelectPlan('lifetime')}
                 style={[
-                  styles.planCard,
-                  selectedPlan === 'monthly' && styles.planCardSelected,
+                  styles.lifetimeCard,
+                  selectedPlan === 'lifetime' && styles.planCardSelected,
                 ]}
                 accessibilityRole="button"
-                accessibilityLabel={`Select monthly plan, ${monthlyPrice} per month`}
+                accessibilityLabel={`Select lifetime plan, ${lifetimePrice} one-time`}
               >
-                <View style={styles.badgeRow}>
-                  <View style={styles.badgeSpacer} />
+                <View style={styles.lifetimeRow}>
+                  <View>
+                    <Text style={styles.planTitle}>Lifetime</Text>
+                    <Text style={styles.lifetimeSub}>One-time purchase — pay once, own forever</Text>
+                  </View>
+                  <Text style={styles.lifetimePrice}>{lifetimePrice}</Text>
                 </View>
-                <Text style={styles.planTitle}>Monthly</Text>
-                <Text style={styles.planPrice}>{monthlyPrice}/month</Text>
+                {selectedPlan === 'lifetime' && (
+                  <View style={[styles.checkBadge, { top: 14, right: 14 }]}>
+                    <Icon name="check" size={12} color="#FFFFFF" strokeWidth={3} />
+                  </View>
+                )}
               </Pressable>
-            </View>
 
-            {/* Lifetime card */}
-            <Pressable
-              onPress={() => handleSelectPlan('lifetime')}
-              style={[
-                styles.lifetimeCard,
-                selectedPlan === 'lifetime' && styles.planCardSelected,
-              ]}
-              accessibilityRole="button"
-              accessibilityLabel={`Select lifetime plan, ${lifetimePrice} one-time`}
-            >
-              <View style={styles.lifetimeContent}>
-                <View>
-                  <Text style={styles.planTitle}>Lifetime</Text>
-                  <Text style={styles.lifetimeSubtitle}>One-time purchase</Text>
-                </View>
-                <Text style={styles.lifetimePrice}>{lifetimePrice}</Text>
+              {/* "or just remove ads" divider */}
+              <View style={styles.orDivider}>
+                <View style={styles.orLine} />
+                <Text style={styles.orText}>or just remove ads</Text>
+                <View style={styles.orLine} />
               </View>
-            </Pressable>
 
-            {/* Remove Ads — just want ad-free? One-time purchase */}
-            <View style={styles.removeAdsDivider}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>or just remove ads</Text>
-              <View style={styles.dividerLine} />
-            </View>
-
-            <Pressable
-              onPress={() => handleSelectPlan('remove_ads')}
-              style={[
-                styles.lifetimeCard,
-                selectedPlan === 'remove_ads' && styles.planCardSelected,
-              ]}
-              accessibilityRole="button"
-              accessibilityLabel={`Remove ads for ${removeAdsPrice}`}
-            >
-              <View style={styles.lifetimeContent}>
-                <View>
-                  <Text style={styles.planTitle}>Remove Ads</Text>
-                  <Text style={styles.lifetimeSubtitle}>One-time purchase</Text>
+              {/* Remove Ads */}
+              <Pressable
+                onPress={() => handleSelectPlan('remove_ads')}
+                style={[
+                  styles.lifetimeCard,
+                  selectedPlan === 'remove_ads' && styles.planCardSelected,
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel={`Remove ads for ${removeAdsPrice}`}
+              >
+                <View style={styles.lifetimeRow}>
+                  <View>
+                    <Text style={styles.planTitle}>Remove Ads</Text>
+                    <Text style={styles.lifetimeSub}>One-time purchase</Text>
+                  </View>
+                  <Text style={styles.lifetimePrice}>{removeAdsPrice}</Text>
                 </View>
-                <Text style={styles.lifetimePrice}>{removeAdsPrice}</Text>
-              </View>
-            </Pressable>
+                {selectedPlan === 'remove_ads' && (
+                  <View style={[styles.checkBadge, { top: 14, right: 14 }]}>
+                    <Icon name="check" size={12} color="#FFFFFF" strokeWidth={3} />
+                  </View>
+                )}
+              </Pressable>
+            </Animated.View>
+          )}
+        </ScrollView>
 
-            {/* CTA button */}
+        {/* Sticky CTA footer */}
+        {!isPremium && (
+          <Animated.View style={[styles.ctaFooter, ctaAnimStyle]}>
             <Pressable
               onPress={handleStartTrial}
               disabled={isPurchasing}
               style={({ pressed }) => [
                 styles.ctaButton,
-                pressed && !isPurchasing && styles.ctaButtonPressed,
-                isPurchasing && styles.ctaButtonDisabled,
+                pressed && !isPurchasing && styles.ctaPressed,
+                isPurchasing && styles.ctaDisabled,
               ]}
               accessibilityRole="button"
-              accessibilityLabel={selectedPlan === 'remove_ads' ? 'Remove Ads' : 'Start 7-day free trial'}
+              accessibilityLabel={ctaLabel}
             >
               {isPurchasing ? (
-                <ActivityIndicator color={themeColors.textOnAccent} />
+                <ActivityIndicator color="#FFFFFF" />
               ) : (
-                <Text style={styles.ctaButtonText}>
-                  {selectedPlan === 'remove_ads' ? `Remove Ads — ${removeAdsPrice}` : 'Start 7-Day Free Trial'}
-                </Text>
+                <Text style={styles.ctaText}>{ctaLabel}</Text>
               )}
             </Pressable>
 
-            {/* Footer links */}
-            <Text style={styles.footerText}>
-              Cancel anytime in Google Play settings
-            </Text>
+            {/* Trust signals */}
+            <View style={styles.trustRow}>
+              <Icon name="lock" size={12} color="#64748B" />
+              <Text style={styles.trustText}>Secure & private</Text>
+              <Text style={styles.trustDot}>{'\u00B7'}</Text>
+              <Text style={styles.trustText}>Cancel anytime</Text>
+            </View>
+            <Text style={styles.socialProof}>Trusted by thousands to protect their private files</Text>
+
             <Pressable
               onPress={handleRestore}
               disabled={isRestoring}
@@ -335,232 +526,287 @@ export function SubscriptionScreen(): React.JSX.Element {
                 {isRestoring ? 'Restoring...' : 'Restore purchases'}
               </Text>
             </Pressable>
-          </>
+          </Animated.View>
         )}
-      </ScrollView>
-    </SafeAreaView>
+      </SafeAreaView>
+    </View>
   );
 }
 
-const createStyles = (c: ColorTokens, isDark: boolean) => StyleSheet.create({
+// ── Styles ────────────────────────────────────────────────────
+
+const ACCENT = '#3B82F6';
+const ACCENT_LIGHT = '#60A5FA';
+
+const createStyles = (_c: ColorTokens, _isDark: boolean) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: c.surface,
+    backgroundColor: '#0A0F1A',
   },
-  header: {
+  safeArea: {
+    flex: 1,
+  },
+  headerRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    height: layout.topBarHeight,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  backButtonText: {
-    fontSize: 24,
-    color: c.textPrimary,
-  },
-  title: {
-    ...typography.titleLarge,
-    color: c.textPrimary,
-  },
-  placeholder: {
-    width: 40,
+    justifyContent: 'flex-end',
+    paddingHorizontal: spacing.sm,
+    paddingTop: spacing.xs,
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: spacing.base,
-    paddingBottom: spacing['3xl'],
+    paddingHorizontal: 20,
+    paddingBottom: 16,
   },
 
   // Hero
-  heroSection: {
+  hero: {
     alignItems: 'center',
-    paddingTop: spacing['2xl'],
-    paddingBottom: spacing.xl,
+    paddingTop: 8,
+    paddingBottom: 20,
+  },
+  shieldGlow: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(59, 130, 246, 0.15)',
   },
   heroTitle: {
-    ...typography.headlineMedium,
-    color: c.textPrimary,
-    marginBottom: spacing.sm,
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#F1F5F9',
+    letterSpacing: -0.3,
+    marginBottom: 8,
   },
   heroSubtitle: {
-    ...typography.bodyLarge,
-    color: c.textSecondary,
+    fontSize: 15,
+    color: '#94A3B8',
     textAlign: 'center',
+    letterSpacing: 0.2,
   },
 
-  // Feature list
-  sectionCard: {
-    ...getSurfaceStyle('level1', c, isDark),
-    borderRadius: layout.cardBorderRadius,
-    overflow: 'hidden',
-    marginBottom: spacing.xl,
-  },
-  rowDivider: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: c.border,
-    marginLeft: layout.cardPadding,
-  },
-  featureRow: {
+  // Urgency banner
+  urgencyBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: layout.cardPadding,
-    minHeight: layout.minTouchTarget,
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.2)',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    marginBottom: 20,
   },
-  checkmark: {
-    ...typography.bodyLarge,
-    color: c.success,
-    marginRight: spacing.md,
-  },
-  featureLabel: {
-    ...typography.bodyLarge,
-    color: c.textPrimary,
+  urgencyText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#F59E0B',
+    letterSpacing: 0.1,
   },
 
-  // Plan cards row
-  planCardsRow: {
+  // Feature card
+  featureCard: {
+    backgroundColor: 'rgba(30, 41, 59, 0.5)',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(148, 163, 184, 0.08)',
+    marginBottom: 24,
+    overflow: 'hidden',
+  },
+
+  // Plan cards
+  planRow: {
     flexDirection: 'row',
-    gap: spacing.md,
-    marginBottom: spacing.md,
+    gap: 12,
+    marginBottom: 12,
   },
   planCard: {
     flex: 1,
-    backgroundColor: c.surfaceContainer,
-    borderRadius: layout.cardBorderRadius,
-    padding: layout.cardPadding,
+    backgroundColor: 'rgba(30, 41, 59, 0.5)',
+    borderRadius: 16,
+    padding: 16,
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: 'transparent',
+    borderColor: 'rgba(148, 163, 184, 0.08)',
   },
   planCardSelected: {
-    borderColor: c.accent,
-    backgroundColor: c.surfaceContainerLow,
+    borderColor: ACCENT,
+    backgroundColor: 'rgba(59, 130, 246, 0.08)',
   },
-  badgeRow: {
-    height: 20,
-    marginBottom: spacing.sm,
+  popularBadge: {
+    backgroundColor: ACCENT,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    marginBottom: 12,
   },
-  badge: {
-    backgroundColor: c.accent,
-    borderRadius: 10,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xxs,
+  popularBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.8,
   },
-  badgeText: {
-    ...typography.labelSmall,
-    color: c.textOnAccent,
-  },
-  badgeSpacer: {
-    height: 20,
+  popularBadgeSpacer: {
+    height: 22,
+    marginBottom: 12,
   },
   planTitle: {
-    ...typography.titleMedium,
-    color: c.textPrimary,
-    marginBottom: spacing.xs,
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#F1F5F9',
+    marginBottom: 4,
   },
   planPrice: {
-    ...typography.bodyMedium,
-    color: c.textPrimary,
-    fontWeight: '600',
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#F1F5F9',
+    letterSpacing: -0.5,
   },
-  planSubPrice: {
-    ...typography.bodySmall,
-    color: c.textSecondary,
-    marginTop: spacing.xxs,
+  planPer: {
+    fontSize: 13,
+    color: '#94A3B8',
+    marginBottom: 8,
   },
-  saveBadge: {
-    marginTop: spacing.sm,
-    backgroundColor: c.success,
-    borderRadius: 10,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xxs,
+  planEquiv: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
   },
-  saveBadgeText: {
-    ...typography.labelSmall,
-    color: c.textOnAccent,
+  savePill: {
+    backgroundColor: 'rgba(34, 197, 94, 0.15)',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  savePillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#22C55E',
+    letterSpacing: 0.3,
+  },
+  checkBadge: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: ACCENT,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   // Lifetime card
   lifetimeCard: {
-    backgroundColor: c.surfaceContainer,
-    borderRadius: layout.cardBorderRadius,
-    padding: layout.cardPadding,
-    marginBottom: spacing.xl,
+    backgroundColor: 'rgba(30, 41, 59, 0.5)',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
     borderWidth: 2,
-    borderColor: 'transparent',
+    borderColor: 'rgba(148, 163, 184, 0.08)',
   },
-  lifetimeContent: {
+  lifetimeRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  lifetimeSubtitle: {
-    ...typography.bodySmall,
-    color: c.textSecondary,
-    marginTop: spacing.xxs,
+  lifetimeSub: {
+    fontSize: 12,
+    color: '#94A3B8',
+    marginTop: 2,
   },
   lifetimePrice: {
-    ...typography.titleMedium,
-    color: c.textPrimary,
-    fontWeight: '600',
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#F1F5F9',
   },
 
-  // Remove Ads divider
-  removeAdsDivider: {
+  // "or" divider
+  orDivider: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: spacing.md,
-    gap: spacing.sm,
+    marginVertical: 8,
+    gap: 10,
   },
-  dividerLine: {
+  orLine: {
     flex: 1,
     height: StyleSheet.hairlineWidth,
-    backgroundColor: c.border,
+    backgroundColor: 'rgba(148, 163, 184, 0.15)',
   },
-  dividerText: {
-    ...typography.bodySmall,
-    color: c.textTertiary,
+  orText: {
+    fontSize: 12,
+    color: '#64748B',
   },
 
-  // CTA
+  // CTA footer
+  ctaFooter: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(148, 163, 184, 0.08)',
+    backgroundColor: 'rgba(10, 15, 26, 0.95)',
+  },
   ctaButton: {
-    backgroundColor: c.accent,
-    height: layout.buttonHeight,
-    borderRadius: layout.buttonBorderRadius,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: ACCENT,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: spacing.lg,
+    shadowColor: ACCENT_LIGHT,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    elevation: 10,
   },
-  ctaButtonPressed: {
-    opacity: 0.85,
+  ctaPressed: {
+    backgroundColor: '#2563EB',
+    transform: [{ scale: 0.97 }],
   },
-  ctaButtonDisabled: {
+  ctaDisabled: {
     opacity: 0.7,
   },
-  ctaButtonText: {
-    ...typography.labelLarge,
-    color: c.textOnAccent,
+  ctaText: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.3,
   },
-
-  // Footer
-  footerText: {
-    ...typography.bodySmall,
-    color: c.textTertiary,
+  trustRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  trustText: {
+    fontSize: 11,
+    color: '#64748B',
+  },
+  trustDot: {
+    fontSize: 11,
+    color: '#475569',
+  },
+  socialProof: {
+    fontSize: 11,
+    color: '#475569',
     textAlign: 'center',
-    marginBottom: spacing.sm,
+    marginTop: 4,
+    fontStyle: 'italic',
   },
   restoreLink: {
-    ...typography.bodySmall,
-    color: c.accent,
+    fontSize: 12,
+    color: ACCENT_LIGHT,
     textAlign: 'center',
-    paddingVertical: spacing.sm,
+    paddingVertical: 8,
   },
 });

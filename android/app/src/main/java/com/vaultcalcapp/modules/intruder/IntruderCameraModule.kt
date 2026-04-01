@@ -1,8 +1,14 @@
 /**
  * VaultCalc - Intruder Camera Native Module
  *
- * Silently captures a photo from the front camera using CameraX.
- * Used for intruder detection on failed PIN attempts.
+ * Captures a photo from the front camera using CameraX for intruder
+ * detection on failed PIN attempts.
+ *
+ * PLAY STORE COMPLIANCE:
+ * - The user must explicitly enable "Intruder Selfie Detection" in Settings
+ * - An explanation dialog is shown before CAMERA permission is requested
+ * - Camera is ONLY used after the user grants permission
+ * - Photos are encrypted at rest and only visible in Intruder Logs
  *
  * @see FEATURE_INDEX.md SEC-001
  */
@@ -25,13 +31,14 @@ import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * React Native module for silent front camera capture.
+ * React Native module for user-consented front camera capture.
  *
  * Features:
- * - Silent capture (no preview, no shutter sound control)
+ * - Quick capture (no preview surface, minimal latency)
  * - Front camera only (for intruder face capture)
  * - JPEG output to specified path
- * - Permission check before capture
+ * - Permission check before every capture attempt
+ * - Immediate camera release after capture
  */
 class IntruderCameraModule(reactContext: ReactApplicationContext) :
     ReactContextBaseJavaModule(reactContext) {
@@ -64,10 +71,14 @@ class IntruderCameraModule(reactContext: ReactApplicationContext) :
     }
 
     /**
-     * Silently capture a photo from the front camera.
+     * Capture a photo from the front camera.
      *
-     * Binds CameraX with only an ImageCapture use case (no preview),
-     * takes a single photo, saves to destPath, then unbinds immediately.
+     * Binds CameraX with only an ImageCapture use case (no preview surface),
+     * takes a single photo, saves to destPath, then unbinds immediately to
+     * release camera resources.
+     *
+     * Called only when the user has explicitly enabled intruder detection
+     * and granted CAMERA permission via the Settings explanation dialog.
      *
      * @param destPath Absolute path where the JPEG should be written
      * @param promise Resolves with { success: true, path } or { success: false, error }
@@ -123,7 +134,7 @@ class IntruderCameraModule(reactContext: ReactApplicationContext) :
 
                 val cameraProvider = cameraProviderFuture.get()
 
-                // Build ImageCapture use case (no preview needed for silent capture)
+                // Build ImageCapture use case (no preview surface needed)
                 val imageCapture = ImageCapture.Builder()
                     .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
                     .build()

@@ -118,7 +118,7 @@ export function DecoyPinSetupScreen(): React.JSX.Element {
 
     // Validate PIN length
     if (currentInput.length < PIN_RULES.MIN_LENGTH) {
-      setError(`PIN must be at least ${PIN_RULES.MIN_LENGTH} digits`);
+      setError(`Enter at least ${PIN_RULES.MIN_LENGTH} digits`);
       Vibration.vibrate(50);
       return;
     }
@@ -134,12 +134,12 @@ export function DecoyPinSetupScreen(): React.JSX.Element {
           setPhase('create');
         } else {
           handleFailedAttempt();
-          setError('Incorrect PIN');
+          setError('That\'s not the right PIN');
           setCurrentInput('');
           Vibration.vibrate(50);
         }
       } catch {
-        setError('Verification failed');
+        setError('Something went wrong. Try again.');
         setCurrentInput('');
         Vibration.vibrate(50);
       } finally {
@@ -148,7 +148,7 @@ export function DecoyPinSetupScreen(): React.JSX.Element {
     } else if (phase === 'create') {
       // Check that decoy PIN differs from primary
       if (currentInput === verifiedPrimaryPin) {
-        setError('Decoy PIN must differ from primary PIN');
+        setError('Use a different PIN than your main one');
         setCurrentInput('');
         Vibration.vibrate(50);
         return;
@@ -159,7 +159,7 @@ export function DecoyPinSetupScreen(): React.JSX.Element {
     } else {
       // Confirm phase — check match and save
       if (currentInput !== decoyPin) {
-        setError('PINs do not match');
+        setError('Those PINs didn\'t match. Try again.');
         setCurrentInput('');
         Vibration.vibrate(50);
         return;
@@ -172,11 +172,11 @@ export function DecoyPinSetupScreen(): React.JSX.Element {
           setDecoyVaultConfigured(true);
           navigation.goBack();
         } else {
-          setError(result.error ?? 'Failed to set decoy PIN');
+          setError(result.error ?? 'Couldn\'t save. Please try again.');
           Vibration.vibrate(50);
         }
       } catch {
-        setError('An error occurred');
+        setError('Something went wrong. Please try again.');
         Vibration.vibrate(50);
       } finally {
         setIsProcessing(false);
@@ -190,10 +190,10 @@ export function DecoyPinSetupScreen(): React.JSX.Element {
   const handleRemoveDecoy = useCallback(() => {
     onActivity();
     alert(
-      'Remove Decoy Vault',
-      'This will remove the decoy PIN. Any files in the decoy vault will remain but won\'t be accessible until a new decoy PIN is set.',
+      'Remove decoy vault?',
+      'The decoy PIN will be deleted. Files inside it will stay but won\'t be accessible until you set up a new decoy.',
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: 'Keep it', style: 'cancel' },
         {
           text: 'Remove',
           style: 'destructive',

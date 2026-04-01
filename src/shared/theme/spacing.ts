@@ -35,7 +35,7 @@ export const layout = {
 
   // Vault grid
   vaultGridColumns: 3,
-  vaultGridGap: spacing.sm + 2, // 10dp — breathable grid
+  vaultGridGap: 6, // 6dp — tight gallery grid, premium feel
   vaultThumbnailAspectRatio: 1,
   vaultListItemHeight: 72,
 

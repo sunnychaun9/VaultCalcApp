@@ -25,6 +25,7 @@ interface CalcButtonProps {
   label: string;
   type?: ButtonType;
   onPress: (label: string) => void;
+  onLongPress?: () => void;
   span?: number;
   disabled?: boolean;
   accessibilityLabel?: string;
@@ -39,6 +40,7 @@ export function CalcButton({
   label,
   type = 'number',
   onPress,
+  onLongPress,
   span = 1,
   disabled = false,
   accessibilityLabel,
@@ -62,6 +64,7 @@ export function CalcButton({
   return (
     <Pressable
       onPress={handlePress}
+      onLongPress={onLongPress}
       disabled={disabled}
       style={({ pressed }) => [
         styles.button,

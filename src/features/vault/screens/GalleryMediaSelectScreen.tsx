@@ -150,27 +150,27 @@ export function GalleryMediaSelectScreen(): React.JSX.Element {
 
       // Show result
       if (result.failed.length === 0) {
-        let msg = `${result.imported} file(s) imported successfully.`;
+        let msg = `${result.imported} ${result.imported === 1 ? 'file' : 'files'} encrypted and hidden.`;
         if (deletedOriginals) {
-          msg += `\n${result.imported} original(s) removed from device.`;
+          msg += `\nOriginals removed from your gallery.`;
         }
-        alert('Import Complete', msg);
+        alert('Safe and sound', msg);
       } else if (result.imported > 0) {
         alert(
-          'Partial Import',
-          `${result.imported} imported, ${result.failed.length} failed.\n\nFailed: ${result.failed.map(f => f.name).join(', ')}`,
+          'Almost there',
+          `${result.imported} imported, but ${result.failed.length} couldn't be added.\n\n${result.failed.map(f => f.name).join(', ')}`,
         );
       } else {
         alert(
-          'Import Failed',
-          `All ${result.total} file(s) failed to import.\n\n${result.failed[0]?.error ?? 'Unknown error'}`,
+          'Couldn\'t import',
+          `Something went wrong. Please try again.\n\n${result.failed[0]?.error ?? ''}`,
         );
       }
 
       // Navigate back to vault
       navigation.popTo('VaultHome');
     } catch (e) {
-      alert('Import Error', e instanceof Error ? e.message : String(e));
+      alert('Something went wrong', e instanceof Error ? e.message : 'Import failed. Please try again.');
     } finally {
       setIsImporting(false);
       setImportProgress(null);

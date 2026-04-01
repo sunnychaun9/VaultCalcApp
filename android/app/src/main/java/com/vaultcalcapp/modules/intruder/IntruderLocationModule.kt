@@ -4,6 +4,13 @@
  * Captures device location using FusedLocationProviderClient
  * and reverse-geocodes to city name using Android Geocoder.
  *
+ * PLAY STORE COMPLIANCE:
+ * - Location logging is a SEPARATE opt-in toggle ("Record Intruder Location")
+ * - Only ACCESS_COARSE_LOCATION is requested (approximate, not precise)
+ * - Uses last known location or a single one-shot fix — no continuous tracking
+ * - No background location access (ACCESS_BACKGROUND_LOCATION is NOT declared)
+ * - Feature is OFF by default; user sees explanation dialog before permission prompt
+ *
  * @see Intruder Intelligence feature (SEC-005)
  */
 
@@ -37,25 +44,23 @@ class IntruderLocationModule(reactContext: ReactApplicationContext) :
     override fun getName(): String = NAME
 
     /**
-     * Check if location permission is granted.
+     * Check if location permission is granted (COARSE is sufficient).
      */
     @ReactMethod
     fun hasPermission(promise: Promise) {
-        val hasFine = ContextCompat.checkSelfPermission(
-            reactApplicationContext,
-            Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-
         val hasCoarse = ContextCompat.checkSelfPermission(
             reactApplicationContext,
             Manifest.permission.ACCESS_COARSE_LOCATION
         ) == PackageManager.PERMISSION_GRANTED
 
-        promise.resolve(hasFine || hasCoarse)
+        promise.resolve(hasCoarse)
     }
 
     /**
-     * Get current device location with city name.
+     * Get approximate device location with city name (one-shot, not continuous).
+     *
+     * Only called when the user has explicitly enabled "Record Intruder Location"
+     * in Settings and granted ACCESS_COARSE_LOCATION permission.
      *
      * Returns: { latitude: double, longitude: double, cityName: string }
      * Falls back to { latitude: 0, longitude: 0, cityName: "Unknown" } on failure.
@@ -86,21 +91,17 @@ class IntruderLocationModule(reactContext: ReactApplicationContext) :
     private suspend fun fetchLocation(): WritableMap {
         val context = reactApplicationContext
 
-        val hasFine = ContextCompat.checkSelfPermission(
-            context, Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-
         val hasCoarse = ContextCompat.checkSelfPermission(
             context, Manifest.permission.ACCESS_COARSE_LOCATION
         ) == PackageManager.PERMISSION_GRANTED
 
-        if (!hasFine && !hasCoarse) {
+        if (!hasCoarse) {
             return unknownLocation()
         }
 
         val client = LocationServices.getFusedLocationProviderClient(context)
 
-        // Try last known location first (instant, no GPS fix needed)
+        // Prefer last known location (instant, no GPS fix needed, no continuous tracking)
         val lastLocation: Location? = try {
             client.lastLocation.await()
         } catch (_: Exception) {
@@ -110,11 +111,11 @@ class IntruderLocationModule(reactContext: ReactApplicationContext) :
         val location: Location? = if (lastLocation != null) {
             lastLocation
         } else {
-            // Fall back to a fresh location request
+            // Fall back to a single one-shot location fix (not continuous tracking)
             try {
                 val cts = CancellationTokenSource()
-                val priority = if (hasFine) Priority.PRIORITY_HIGH_ACCURACY
-                    else Priority.PRIORITY_BALANCED_POWER_ACCURACY
+                // Use BALANCED_POWER_ACCURACY (COARSE-level) — we only need approximate location
+                val priority = Priority.PRIORITY_BALANCED_POWER_ACCURACY
                 withTimeout(LOCATION_TIMEOUT_MS) {
                     client.getCurrentLocation(priority, cts.token).await()
                 }

@@ -47,25 +47,25 @@ export function FirstImportScreen(): React.JSX.Element {
 
       if (result.failed.length === 0) {
         alert(
-          'Import Complete',
-          `${result.imported} photo(s) imported successfully.`,
+          'Safe and sound',
+          `${result.imported} ${result.imported === 1 ? 'photo' : 'photos'} encrypted and hidden.`,
           [{ text: 'OK', onPress: goToCalculator }],
         );
       } else if (result.imported > 0) {
         alert(
-          'Partial Import',
-          `${result.imported} imported, ${result.failed.length} failed.`,
+          'Almost there',
+          `${result.imported} imported, but ${result.failed.length} couldn't be added.`,
           [{ text: 'OK', onPress: goToCalculator }],
         );
       } else {
         alert(
-          'Import Failed',
-          `All ${result.total} file(s) failed to import.\n\n${result.failed[0]?.error ?? 'Unknown error'}`,
+          'Couldn\'t import',
+          `Something went wrong. Please try again.\n\n${result.failed[0]?.error ?? ''}`,
         );
         setIsImporting(false);
       }
     } catch {
-      alert('Error', 'Something went wrong during import. Please try again.');
+      alert('Something went wrong', 'Import didn\'t work this time. Please try again.');
       setIsImporting(false);
     }
   }, [goToCalculator, deleteOriginals]);

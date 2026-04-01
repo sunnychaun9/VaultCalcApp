@@ -20,10 +20,12 @@ import { useCalculator, type PinCheckCallback } from '../hooks';
 import { usePinAuth, useBiometricAuth, useFailedAttempts, isPatternConfigured, isPinConfigured } from '@features/auth';
 import { isRecoveryConfigured } from '@features/auth/services/recoveryService';
 import { useSettingsStore } from '@store/settingsStore';
-import { recordIntruderAttempt } from '@services/intruderCamera';
+import { useAuthStore } from '@store/authStore';
+import { recordIntruderAttempt, hasCameraPermission } from '@services/intruderCamera';
 import { colors, useThemeColors, type ColorTokens, elevationLevels } from '@shared/theme';
 import { useOrientation } from '@shared/hooks';
 import { Icon, IconButton } from '@shared/components/Icon';
+import { DecoyExitScreen } from '@features/auth/components';
 
 function formatHistoryTime(timestamp: number): string {
   if (!timestamp) return '';
@@ -60,6 +62,7 @@ export function CalculatorScreen(): React.JSX.Element {
   const { triggerBiometric, showBiometricButton } = useBiometricAuth();
   const unlockMethod = useSettingsStore(s => s.unlockMethod);
   const intruderDetectionEnabled = useSettingsStore(s => s.intruderDetectionEnabled);
+  const intruderLocationEnabled = useSettingsStore(s => s.intruderLocationEnabled);
   const {
     warningMessage,
     warningLevel,
@@ -82,9 +85,13 @@ export function CalculatorScreen(): React.JSX.Element {
       // Handle failed attempt
       if (result.wasAuthAttempt && !result.authenticated) {
         onFailedAttempt();
-        // Silently capture intruder photo if enabled (SEC-001)
+        // Capture intruder photo if user has enabled the feature and granted permission (SEC-001)
         if (intruderDetectionEnabled) {
-          recordIntruderAttempt(failedAttempts + 1).catch(() => {});
+          hasCameraPermission().then(granted => {
+            if (granted) {
+              recordIntruderAttempt(failedAttempts + 1, intruderLocationEnabled).catch(() => {});
+            }
+          });
         }
       }
 
@@ -93,7 +100,7 @@ export function CalculatorScreen(): React.JSX.Element {
         authenticated: result.authenticated,
       };
     },
-    [checkAndAuthenticate, isLockedOut, onFailedAttempt, intruderDetectionEnabled, failedAttempts]
+    [checkAndAuthenticate, isLockedOut, onFailedAttempt, intruderDetectionEnabled, intruderLocationEnabled, failedAttempts]
   );
 
   // Auto-navigate to pattern unlock when pattern is the active method
@@ -110,7 +117,21 @@ export function CalculatorScreen(): React.JSX.Element {
   const [showHistory, setShowHistory] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
 
+  // Decoy exit overlay (panic mode with decoy exit action)
+  const showDecoyExit = useAuthStore(s => s.showDecoyExit);
+  const dismissDecoyExit = useAuthStore(s => s.dismissDecoyExit);
+
+  // Secret quick unlock: long-press = when display is "0"
+  const quickUnlockEnabled = useSettingsStore(s => s.quickUnlockEnabled);
+  const handleEqualsLongPress = useCallback(() => {
+    if (!quickUnlockEnabled || display !== '0') return;
+    // Directly authenticate and open vault — bypasses PIN
+    useAuthStore.getState().authenticate(false);
+    rootNav.navigate('Vault' as never);
+  }, [quickUnlockEnabled, display, rootNav]);
+
   return (
+    <>
     <SafeAreaView style={styles.container} edges={isLandscape ? ['left', 'right'] : ['top']}>
       <StatusBar
         barStyle={isDark ? 'light-content' : 'dark-content'}
@@ -206,6 +227,7 @@ export function CalculatorScreen(): React.JSX.Element {
         <View style={isLandscape ? styles.keypadWrapper : undefined}>
           <CalcKeypad
             onButtonPress={handleButtonPress}
+            onEqualsLongPress={quickUnlockEnabled ? handleEqualsLongPress : undefined}
             memoryHasValue={memoryHasValue}
             isLandscape={isLandscape}
           />
@@ -254,6 +276,10 @@ export function CalculatorScreen(): React.JSX.Element {
         </View>
       </Modal>
     </SafeAreaView>
+
+    {/* Decoy exit overlay — panic mode with decoy exit action */}
+    <DecoyExitScreen visible={showDecoyExit} onDismiss={dismissDecoyExit} />
+    </>
   );
 }
 

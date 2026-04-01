@@ -19,6 +19,7 @@ package com.vaultcalcapp.modules.admob
 import android.os.SystemClock
 import android.provider.Settings
 import com.google.android.gms.ads.*
+import com.google.android.gms.ads.appopen.AppOpenAd
 import com.google.android.gms.ads.interstitial.InterstitialAd
 import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback
 import com.google.android.gms.ads.rewarded.RewardedAd
@@ -43,6 +44,7 @@ class AdMobModule(reactContext: ReactApplicationContext) :
     @Volatile private var initialized = false
     @Volatile private var interstitialAd: InterstitialAd? = null
     @Volatile private var rewardedAd: RewardedAd? = null
+    @Volatile private var appOpenAd: AppOpenAd? = null
     private var consentInformation: ConsentInformation? = null
 
     /**
@@ -229,6 +231,81 @@ class AdMobModule(reactContext: ReactApplicationContext) :
         }
     }
 
+    /**
+     * Preload an app open ad for the given ad unit ID.
+     */
+    @ReactMethod
+    fun loadAppOpen(adUnitId: String, promise: Promise) {
+        if (!initialized) {
+            promise.reject("AD_NOT_INITIALIZED", "AdMob SDK not initialized")
+            return
+        }
+
+        val request = AdRequest.Builder().build()
+        scope.launch {
+            withContext(Dispatchers.Main) {
+                AppOpenAd.load(
+                    reactApplicationContext,
+                    adUnitId,
+                    request,
+                    object : AppOpenAd.AppOpenAdLoadCallback() {
+                        override fun onAdLoaded(ad: AppOpenAd) {
+                            appOpenAd = ad
+                            promise.resolve(true)
+                        }
+
+                        override fun onAdFailedToLoad(error: LoadAdError) {
+                            appOpenAd = null
+                            promise.reject("AD_LOAD_ERROR", error.message)
+                        }
+                    }
+                )
+            }
+        }
+    }
+
+    /**
+     * Show a preloaded app open ad.
+     * Resolves true when dismissed by the user.
+     */
+    @ReactMethod
+    fun showAppOpen(promise: Promise) {
+        val ad = appOpenAd
+        val activity = reactApplicationContext.currentActivity
+
+        if (ad == null) {
+            promise.reject("AD_NOT_LOADED", "No app open ad loaded")
+            return
+        }
+        if (activity == null) {
+            promise.reject("AD_NO_ACTIVITY", "No activity available")
+            return
+        }
+
+        scope.launch {
+            withContext(Dispatchers.Main) {
+                ad.fullScreenContentCallback = object : FullScreenContentCallback() {
+                    override fun onAdDismissedFullScreenContent() {
+                        appOpenAd = null
+                        promise.resolve(true)
+                    }
+
+                    override fun onAdFailedToShowFullScreenContent(error: AdError) {
+                        appOpenAd = null
+                        promise.reject("AD_SHOW_ERROR", error.message)
+                    }
+                }
+                ad.show(activity)
+            }
+        }
+    }
+
+    /** Check if an app open ad is preloaded and ready to show */
+    @ReactMethod
+    fun isAppOpenReady(promise: Promise) {
+        promise.resolve(appOpenAd != null)
+    }
+
     /** Check if an interstitial ad is preloaded and ready to show */
     @ReactMethod
     fun isInterstitialReady(promise: Promise) {
@@ -386,5 +463,6 @@ class AdMobModule(reactContext: ReactApplicationContext) :
         scope.cancel()
         interstitialAd = null
         rewardedAd = null
+        appOpenAd = null
     }
 }

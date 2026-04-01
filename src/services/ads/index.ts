@@ -9,12 +9,14 @@ export {
   isAdFree,
   ensureAdSdkReady,
   tryShowInterstitial,
+  tryShowAppOpen,
   showRewardedAd,
   resetAdSession,
   initializeAdsLazily,
   isAdSdkInitialized,
   preloadInterstitial,
   preloadRewarded,
+  preloadAppOpen,
 } from './adService';
 
 // Frequency manager

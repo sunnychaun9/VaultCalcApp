@@ -110,8 +110,14 @@ export function SettingsScreen(): React.JSX.Element {
     setPanicTriggerVolume,
     panicTriggerPower,
     setPanicTriggerPower,
+    panicAction,
+    setPanicAction,
+    quickUnlockEnabled,
+    setQuickUnlockEnabled,
     intruderDetectionEnabled,
     setIntruderDetectionEnabled,
+    intruderLocationEnabled,
+    setIntruderLocationEnabled,
     stealthModeEnabled,
     setStealthModeEnabled,
     appIcon,
@@ -266,6 +272,62 @@ export function SettingsScreen(): React.JSX.Element {
     navigation.navigate('About');
   }, [onActivity, navigation]);
 
+  const handleShareApp = useCallback(async () => {
+    onActivity();
+    try {
+      const { shareApp: doShare } = await import('@services/share');
+      await doShare();
+      useSettingsStore.getState().incrementAppShareCount();
+    } catch {
+      // Share cancelled or failed — silent
+    }
+  }, [onActivity]);
+
+  // Rewarded ad: watch video for 24hr ad-free
+  const adFreeUntil = useSettingsStore(s => s.adFreeUntil);
+  const premiumStatus = useSettingsStore(s => s.premiumStatus);
+  const [isWatchingAd, setIsWatchingAd] = useState(false);
+
+  const isCurrentlyAdFree = premiumStatus === 'premium' || premiumStatus === 'trial' ||
+    (adFreeUntil !== null && Date.now() < adFreeUntil);
+
+  const adFreeRemainingHours = adFreeUntil !== null && Date.now() < adFreeUntil
+    ? Math.ceil((adFreeUntil - Date.now()) / (60 * 60 * 1000))
+    : 0;
+
+  const handleWatchAd = useCallback(async () => {
+    onActivity();
+    if (isWatchingAd) return;
+
+    alert(
+      'Go ad-free for 24 hours?',
+      'Watch a short video and all ads disappear for a full day.',
+      [
+        { text: 'Not now', style: 'cancel' },
+        {
+          text: 'Watch video',
+          onPress: async () => {
+            setIsWatchingAd(true);
+            try {
+              const { showRewardedAd, grantAdFreeMode } = await import('@services/ads');
+              const result = await showRewardedAd();
+              if (result.success && result.data?.rewarded) {
+                await grantAdFreeMode();
+                alert('You\'re ad-free!', 'No ads for the next 24 hours. Enjoy the quiet.');
+              } else if (!result.success) {
+                alert('No video available', 'We couldn\'t load a video right now. Try again later.');
+              }
+            } catch {
+              alert('Something went wrong', 'Please try again later.');
+            } finally {
+              setIsWatchingAd(false);
+            }
+          },
+        },
+      ],
+    );
+  }, [onActivity, isWatchingAd]);
+
   const handleTogglePanicButton = useCallback((value: boolean) => {
     onActivity();
     setPanicButtonEnabled(value);
@@ -283,55 +345,112 @@ export function SettingsScreen(): React.JSX.Element {
 
   const handleToggleIntruderDetection = useCallback(async (value: boolean) => {
     onActivity();
-    if (value) {
-      // Request camera + location permissions for intruder intelligence
-      try {
-        const results = await PermissionsAndroid.requestMultiple([
-          PermissionsAndroid.PERMISSIONS.CAMERA,
-          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-        ]);
-        const camGranted = results[PermissionsAndroid.PERMISSIONS.CAMERA] === 'granted';
-        const locGranted = results[PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION] === 'granted';
-        if (!camGranted) {
-          alert(
-            'Camera Permission Needed',
-            'Camera access is required to capture intruder photos. Please grant camera permission in app settings.',
-          );
-        }
-        if (!locGranted) {
-          alert(
-            'Location Permission (Optional)',
-            'Location access allows intruder reports to include the location. You can enable it later in app settings.',
-          );
-        }
-      } catch {
-        // Permission request failed — still enable the feature
-      }
+    if (!value) {
+      // Turning off — no confirmation needed
+      setIntruderDetectionEnabled(false);
+      return;
     }
-    setIntruderDetectionEnabled(value);
+
+    // Step 1: Show explanation dialog BEFORE requesting any permissions
+    alert(
+      'Intruder Selfie Detection',
+      'This feature uses your front camera to capture a photo when someone enters the wrong PIN.\n\nPhotos are encrypted and stored only on your device. You can review them in Intruder Logs.\n\nCamera permission is required to enable this feature.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Continue',
+          onPress: async () => {
+            // Step 2: Request ONLY camera permission (location is a separate toggle)
+            try {
+              const granted = await PermissionsAndroid.request(
+                PermissionsAndroid.PERMISSIONS.CAMERA,
+              );
+              const camGranted = granted === PermissionsAndroid.RESULTS.GRANTED;
+
+              // Step 3: Only enable if camera permission is granted
+              if (!camGranted) {
+                alert(
+                  'Camera Permission Required',
+                  'Intruder detection needs camera access to photograph unauthorized attempts. Please allow camera access in your device settings to use this feature.',
+                );
+                return;
+              }
+
+              // Camera granted — enable the feature
+              setIntruderDetectionEnabled(true);
+            } catch {
+              alert(
+                'Permission Error',
+                'Could not request camera permission. Please try again.',
+              );
+            }
+          },
+        },
+      ],
+    );
   }, [onActivity, setIntruderDetectionEnabled]);
+
+  const handleToggleIntruderLocation = useCallback(async (value: boolean) => {
+    onActivity();
+    if (!value) {
+      setIntruderLocationEnabled(false);
+      return;
+    }
+
+    // Show explanation dialog before requesting location permission
+    alert(
+      'Record Intruder Location',
+      'VaultCalc can store the approximate location of unauthorized access attempts.\n\nThis uses your last known location only — no continuous tracking or background access.\n\nLocation permission is required to enable this.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Continue',
+          onPress: async () => {
+            try {
+              const granted = await PermissionsAndroid.request(
+                PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
+              );
+              if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+                setIntruderLocationEnabled(true);
+              } else {
+                alert(
+                  'Location Permission Required',
+                  'To record intruder location, allow location access in your device settings.',
+                );
+              }
+            } catch {
+              alert(
+                'Permission Error',
+                'Could not request location permission. Please try again.',
+              );
+            }
+          },
+        },
+      ],
+    );
+  }, [onActivity, setIntruderLocationEnabled]);
 
   const handleToggleStealth = useCallback(async (value: boolean) => {
     onActivity();
     if (value) {
       // Enabling stealth — show confirmation dialog first
       alert(
-        'Enable Stealth Mode?',
-        'The VaultCalc icon will be hidden from your launcher.\n\nTo reopen the app, tap the "Calculator" notification in your notification shade.',
+        'Go invisible?',
+        'The app icon will vanish from your home screen.\n\nTo reopen, tap the "Calculator" notification in your notification shade.',
         [
-          { text: 'Cancel', style: 'cancel' },
+          { text: 'Not now', style: 'cancel' },
           {
-            text: 'Enable',
+            text: 'Hide it',
             onPress: async () => {
               const result = await enableStealth();
               if (result.success) {
                 setStealthModeEnabled(true);
                 alert(
-                  'Stealth Mode Enabled',
-                  'VaultCalc icon is now hidden.\n\nTo reopen the app:\nTap the "Calculator" notification in your notification shade.',
+                  'You\'re invisible',
+                  'The app icon is hidden.\n\nTo reopen:\nTap the "Calculator" notification in your notification shade.',
                 );
               } else {
-                alert('Error', result.error ?? 'Failed to enable stealth mode.');
+                alert('Couldn\'t hide', result.error ?? 'Something went wrong. Please try again.');
               }
             },
           },
@@ -342,7 +461,7 @@ export function SettingsScreen(): React.JSX.Element {
       if (result.success) {
         setStealthModeEnabled(false);
       } else {
-        alert('Error', result.error ?? 'Failed to disable stealth mode.');
+        alert('Couldn\'t restore', result.error ?? 'Something went wrong. Please try again.');
       }
     }
   }, [onActivity, setStealthModeEnabled]);
@@ -354,11 +473,11 @@ export function SettingsScreen(): React.JSX.Element {
     if (result.success) {
       setAppIcon(alias);
       alert(
-        'App icon changed',
-        'You may need to return to the home screen to see the change.',
+        'New look applied',
+        'Head to your home screen to see the change.',
       );
     } else {
-      alert('Error', result.error ?? 'Failed to change app icon.');
+      alert('Couldn\'t change icon', result.error ?? 'Something went wrong. Please try again.');
     }
   }, [onActivity, appIcon, setAppIcon]);
 
@@ -407,9 +526,9 @@ export function SettingsScreen(): React.JSX.Element {
       const result = await signInToGoogle();
       if (result.success && result.account) {
         setGoogleDriveConnection(result.account.email, result.account.displayName);
-        alert('Connected', `Signed in as ${result.account.email}`);
+        alert('You\'re connected', `Signed in as ${result.account.email}`);
       } else if (result.errorCode !== 'SIGN_IN_CANCELLED') {
-        alert('Sign-In Failed', result.error ?? 'An unknown error occurred.');
+        alert('Couldn\'t connect', result.error ?? 'Something went wrong. Please try again.');
       }
     } finally {
       setIsConnecting(false);
@@ -419,17 +538,17 @@ export function SettingsScreen(): React.JSX.Element {
   const handleGoogleDriveDisconnect = useCallback(() => {
     onActivity();
     alert(
-      'Disconnect Google Drive',
-      'This will remove your Google Drive connection. You can reconnect later.',
+      'Disconnect Google Drive?',
+      'Your backup connection will be removed. You can always reconnect later.',
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: 'Keep connected', style: 'cancel' },
         {
           text: 'Disconnect',
           style: 'destructive',
           onPress: async () => {
             await signOutFromGoogle();
             setGoogleDriveConnection(null, null);
-            alert('Disconnected', 'Google Drive has been disconnected.');
+            alert('Disconnected', 'Google Drive is no longer linked.');
           },
         },
       ],
@@ -439,6 +558,20 @@ export function SettingsScreen(): React.JSX.Element {
   const handleBackupNow = useCallback(async () => {
     if (isBackingUp) return;
     onActivity();
+
+    // Gate cloud backup behind premium for free users
+    if (premiumStatus === 'free') {
+      alert(
+        'Cloud backup is a Premium feature',
+        'Keep your encrypted files safe with automatic Google Drive backup. Upgrade to unlock.',
+        [
+          { text: 'Not now', style: 'cancel', onPress: () => useSettingsStore.getState().incrementPaywallDismissCount() },
+          { text: 'Upgrade', onPress: () => navigation.navigate('Subscription') },
+        ],
+      );
+      return;
+    }
+
     setIsBackingUp(true);
     setBackupProgress(null);
 
@@ -452,16 +585,16 @@ export function SettingsScreen(): React.JSX.Element {
     if (result.success) {
       setLastBackupAt(Date.now());
       setLastBackupItemCount(currentItemCount);
-      alert('Backup Complete', `Uploaded ${result.uploadedCount} of ${result.totalCount} files.`);
+      alert('Backed up', `${result.uploadedCount} ${result.uploadedCount === 1 ? 'file' : 'files'} safely uploaded to Google Drive.`);
     } else if (result.failures && result.failures.length > 0) {
       setLastBackupAt(Date.now());
       setLastBackupItemCount(currentItemCount);
       alert(
-        'Backup Partially Complete',
-        `Uploaded ${result.uploadedCount} of ${result.totalCount} files. ${result.failures.length} failed.`,
+        'Almost done',
+        `${result.uploadedCount} of ${result.totalCount} files uploaded. ${result.failures.length} couldn't be backed up.`,
       );
     } else {
-      alert('Backup Failed', result.error ?? 'An unknown error occurred.');
+      alert('Backup didn\'t work', result.error ?? 'Something went wrong. Please try again.');
     }
   }, [isBackingUp, onActivity, setLastBackupAt, setLastBackupItemCount, currentItemCount]);
 
@@ -469,10 +602,10 @@ export function SettingsScreen(): React.JSX.Element {
     if (isRestoring) return;
     onActivity();
     alert(
-      'Restore from Backup',
-      'This will download and restore files from your Google Drive backup. Existing items will be skipped.',
+      'Restore your files?',
+      'Your encrypted backup will be downloaded from Google Drive. Files you already have will be skipped.',
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: 'Not now', style: 'cancel' },
         {
           text: 'Restore',
           onPress: async () => {
@@ -488,16 +621,16 @@ export function SettingsScreen(): React.JSX.Element {
 
             if (result.success) {
               alert(
-                'Restore Complete',
-                `Restored ${result.restoredCount} items.${result.skippedCount ? ` ${result.skippedCount} already existed.` : ''}`,
+                'Welcome back',
+                `${result.restoredCount} ${result.restoredCount === 1 ? 'file' : 'files'} restored.${result.skippedCount ? ` ${result.skippedCount} already in your vault.` : ''}`,
               );
             } else if (result.failures && result.failures.length > 0) {
               alert(
-                'Restore Partially Complete',
-                `Restored ${result.restoredCount} of ${result.totalCount} items. ${result.failures.length} failed.${result.skippedCount ? ` ${result.skippedCount} skipped.` : ''}`,
+                'Almost done',
+                `${result.restoredCount} of ${result.totalCount} files restored. ${result.failures.length} couldn't be downloaded.${result.skippedCount ? ` ${result.skippedCount} skipped.` : ''}`,
               );
             } else {
-              alert('Restore Failed', result.error ?? 'An unknown error occurred.');
+              alert('Couldn\'t restore', result.error ?? 'Something went wrong. Please try again.');
             }
           },
         },
@@ -507,8 +640,19 @@ export function SettingsScreen(): React.JSX.Element {
 
   const handleToggleAutoBackup = useCallback((value: boolean) => {
     onActivity();
+    if (value && premiumStatus === 'free') {
+      alert(
+        'Auto-backup is a Premium feature',
+        'Never worry about losing files again. Upgrade to enable automatic cloud backup.',
+        [
+          { text: 'Not now', style: 'cancel' },
+          { text: 'Upgrade', onPress: () => navigation.navigate('Subscription') },
+        ],
+      );
+      return;
+    }
     setAutoBackupEnabled(value);
-  }, [onActivity, setAutoBackupEnabled]);
+  }, [onActivity, premiumStatus, navigation, setAutoBackupEnabled]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
@@ -551,31 +695,38 @@ export function SettingsScreen(): React.JSX.Element {
             <SettingsRow type="navigation" icon="grid" title="Set up pattern lock" onPress={handlePatternSetup} />
           )}
           <SettingsRow type="value" icon="clock" title="Auto-lock after" value={TIMEOUT_LABELS[lockTimeout]} onPress={handleCycleTimeout} />
-          <SettingsRow type="toggle" icon="lock" title="Lock on background" subtitle="Lock vault when app goes to background" value={lockOnBackground} onValueChange={handleToggleLockOnBackground} />
+          <SettingsRow type="toggle" icon="lock" title="Lock on background" subtitle="Automatically lock when you leave the app" value={lockOnBackground} onValueChange={handleToggleLockOnBackground} />
           {!isDecoyMode && (
             <SettingsRow type="toggle" icon="fingerprint" title="Biometric unlock" subtitle={biometricStatus !== 'available' && biometricStatus !== 'unknown' ? getBiometricStatusMessage(biometricStatus) : 'Use fingerprint or face to unlock'} value={biometricEnabled} onValueChange={handleToggleBiometric} highlighted />
+          )}
+          {!isDecoyMode && (
+            <SettingsRow type="toggle" icon="key" title="Quick unlock" subtitle="Long-press = on calculator to open vault instantly" value={quickUnlockEnabled} onValueChange={setQuickUnlockEnabled} showDivider={false} />
           )}
         </SettingsSection>
 
         {/* ── PRIVACY ── */}
         {!isDecoyMode && (
           <SettingsSection title="Privacy" description="Advanced protection features">
-            <SettingsRow type="toggle" icon="shield" title="Panic mode" subtitle="Instantly hides vault when someone sees your phone" value={panicButtonEnabled} onValueChange={handleTogglePanicButton} highlighted />
+            <SettingsRow type="toggle" icon="shield" title="Panic mode" subtitle="Shake or press buttons to instantly hide everything" value={panicButtonEnabled} onValueChange={handleTogglePanicButton} highlighted />
             {panicButtonEnabled && (
               <>
                 <SettingsRow type="toggle" icon="shield" title="Shake device" value={true} onValueChange={() => {}} disabled subtitle="Always enabled" />
                 <SettingsRow type="toggle" icon="shield" title="Triple press volume" value={panicTriggerVolume} onValueChange={handleTogglePanicVolume} />
                 <SettingsRow type="toggle" icon="shield" title="Triple press power" value={panicTriggerPower} onValueChange={handleTogglePanicPower} />
+                <SettingsRow type="toggle" icon="alert-triangle" title="Decoy exit screen" subtitle="Show an error screen instead of locking" value={panicAction === 'fakeCrash'} onValueChange={(v) => setPanicAction(v ? 'fakeCrash' : 'lock')} />
               </>
             )}
-            <SettingsRow type="toggle" icon="scan" title="Intruder detection" subtitle="Capture photo on failed unlock" value={intruderDetectionEnabled} onValueChange={handleToggleIntruderDetection} highlighted />
+            <SettingsRow type="toggle" icon="scan" title="Intruder selfie detection" subtitle="Capture a photo when someone enters the wrong PIN" value={intruderDetectionEnabled} onValueChange={handleToggleIntruderDetection} highlighted />
             {intruderDetectionEnabled && (
-              <SettingsRow type="navigation" icon="scan" title="Intruder log" subtitle="View captured reports" onPress={handleIntruderLogs} />
+              <>
+                <SettingsRow type="toggle" icon="map-pin" title="Record intruder location" subtitle="Store approximate location of unauthorized attempts (optional)" value={intruderLocationEnabled} onValueChange={handleToggleIntruderLocation} />
+                <SettingsRow type="navigation" icon="scan" title="Intruder log" subtitle="See who tried to break in" onPress={handleIntruderLogs} />
+              </>
             )}
-            <SettingsRow type="navigation" icon="lock" title="App Lock" subtitle="Lock other apps with PIN or pattern" onPress={() => navigation.navigate('AppLock')} />
-            <SettingsRow type="navigation" icon="lock" title="Notification Privacy" subtitle="Mask notification content" onPress={() => navigation.navigate('NotificationPrivacy')} />
-            <SettingsRow type="navigation" icon="shield" title="Uninstall Protection" subtitle="Prevent app removal" onPress={() => navigation.navigate('UninstallProtection')} />
-            <SettingsRow type="navigation" icon="key" title="Decoy vault" subtitle="Secondary vault with separate PIN" onPress={handleDecoySetup} value={decoyVaultConfigured ? 'Configured' : 'Not set'} />
+            <SettingsRow type="navigation" icon="lock" title="App Lock" subtitle="Protect other apps behind your PIN" onPress={() => navigation.navigate('AppLock')} />
+            <SettingsRow type="navigation" icon="lock" title="Notification Privacy" subtitle="Hide sensitive notification previews" onPress={() => navigation.navigate('NotificationPrivacy')} />
+            <SettingsRow type="navigation" icon="shield" title="Uninstall Protection" subtitle="Stop anyone from deleting this app" onPress={() => navigation.navigate('UninstallProtection')} />
+            <SettingsRow type="navigation" icon="key" title="Decoy vault" subtitle="A fake vault to show if someone forces you to unlock" onPress={handleDecoySetup} value={decoyVaultConfigured ? 'Configured' : 'Not set'} />
             <SettingsRow type="toggle" icon="scan" title="Hide app icon" subtitle={stealthModeEnabled ? 'App is hidden. Tap notification to open.' : 'Hide from launcher. Open via notification.'} value={stealthModeEnabled} onValueChange={handleToggleStealth} showDivider={false} />
           </SettingsSection>
         )}
@@ -632,21 +783,28 @@ export function SettingsScreen(): React.JSX.Element {
 
         {/* ── STORAGE ── */}
         <SettingsSection title="Storage" description="Manage vault files and space">
-          <SettingsRow type="toggle" icon="trash" title="Delete originals after import" subtitle="Removes source files from gallery" value={deleteOriginalsAfterImport} onValueChange={handleToggleDeleteOriginals} />
+          <SettingsRow type="toggle" icon="trash" title="Delete originals after import" subtitle="Automatically remove source files so no trace is left" value={deleteOriginalsAfterImport} onValueChange={handleToggleDeleteOriginals} />
           <SettingsRow type="value" icon="folder" title="Vault size" value={storageStats !== null ? formatBytes(storageStats.totalSize) : '...'} subtitle={storageStats !== null ? `${storageStats.photoCount} photos, ${storageStats.videoCount} videos, ${storageStats.docCount} docs` : undefined} showDivider={false} />
         </SettingsSection>
 
         {/* ── APPEARANCE ── */}
         <SettingsSection title="Appearance">
           <SettingsRow type="value" icon="settings" title="Theme" value={THEME_LABELS[themeMode]} onPress={handleCycleTheme} />
-          <SettingsRow type="toggle" icon="settings" title="Haptic feedback" subtitle="Vibrate on button presses" value={hapticEnabled} onValueChange={handleToggleHaptic} showDivider={false} />
+          <SettingsRow type="toggle" icon="settings" title="Haptic feedback" subtitle="Feel a gentle tap when you press buttons" value={hapticEnabled} onValueChange={handleToggleHaptic} showDivider={false} />
         </SettingsSection>
 
         {/* ── ABOUT ── */}
         <SettingsSection title="About">
           {!isDecoyMode && (
-            <SettingsRow type="navigation" icon="star" title="VaultCalc Premium" subtitle="Unlock all features" onPress={handleSubscription} highlighted />
+            <SettingsRow type="navigation" icon="star" title="VaultCalc Premium" subtitle="Remove ads and unlock everything" onPress={handleSubscription} highlighted />
           )}
+          {!isDecoyMode && premiumStatus === 'free' && !isCurrentlyAdFree && (
+            <SettingsRow type="navigation" icon="play" title="Remove ads for 24 hours" subtitle="Watch a short video" onPress={handleWatchAd} />
+          )}
+          {!isDecoyMode && adFreeRemainingHours > 0 && premiumStatus === 'free' && (
+            <SettingsRow type="value" icon="play" title="Ad-free mode" value={`${adFreeRemainingHours}h left`} onPress={() => {}} />
+          )}
+          <SettingsRow type="navigation" icon="share" title="Tell a friend" subtitle="Help others discover private file protection" onPress={handleShareApp} />
           <SettingsRow type="navigation" icon="settings" title="About VaultCalc" onPress={handleAbout} showDivider={false} />
         </SettingsSection>
       </ScrollView>

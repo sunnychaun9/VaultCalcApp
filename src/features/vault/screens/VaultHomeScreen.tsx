@@ -26,7 +26,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { VaultStackParamList } from '@typedefs/navigation';
-import { VaultHeader, EmptyState, FloatingAddButton, MediaGrid, MediaList, DocumentList, AudioList, SelectionBar, ImportProgressOverlay, AlbumList, AddToAlbumModal, NoteList, SelectionOverflowMenu, RenameModal, PropertiesModal, SearchBar } from '../components';
+import { VaultHeader, EmptyState, FloatingAddButton, MediaGrid, MediaList, DocumentList, AudioList, SelectionBar, ImportProgressOverlay, AlbumList, AddToAlbumModal, NoteList, SelectionOverflowMenu, RenameModal, PropertiesModal, SearchBar, SoftPremiumCard } from '../components';
 import { useMediaQuery, useAlbumsQuery, useNotesQuery, type TabType } from '../hooks';
 import { useActivityTracker } from '@features/auth';
 import { useVaultStore } from '@store/vaultStore';
@@ -101,6 +101,93 @@ export function VaultHomeScreen(): React.JSX.Element {
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
 
+  // Soft premium card — shown once per session after 3+ interstitials
+  const [showPremiumCard, setShowPremiumCard] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      try {
+        const { shouldShowSoftPremiumCard, isAdFree: checkAdFree } = require('@services/ads');
+        const decoy = useAuthStore.getState().isDecoyMode;
+        if (!checkAdFree() && !decoy && shouldShowSoftPremiumCard()) {
+          setShowPremiumCard(true);
+        }
+      } catch {
+        // Ad service may not be ready — skip
+      }
+    }, 30_000); // 30-second delay after entering vault
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Auto-show paywall when flagged (after onboarding or 3rd unlock)
+  const paywallPending = useSettingsStore(s => s.paywallPending);
+  const premiumStatus = useSettingsStore(s => s.premiumStatus);
+  useEffect(() => {
+    if (!paywallPending || premiumStatus !== 'free') return;
+    useSettingsStore.getState().setPaywallPending(false);
+    const timer = setTimeout(() => navigation.navigate('Subscription'), 300);
+    return () => clearTimeout(timer);
+  }, [paywallPending, premiumStatus, navigation]);
+
+  // Smart trigger: intruder detected → premium nudge (one-time per session)
+  const intruderNudgeShown = useRef(false);
+  useEffect(() => {
+    if (premiumStatus !== 'free' || intruderNudgeShown.current) return;
+    const timer = setTimeout(async () => {
+      try {
+        const { intruderLogs: logsDb } = require('@services/storage/database');
+        const count = await logsDb.getCount();
+        if (count > 0 && !intruderNudgeShown.current) {
+          intruderNudgeShown.current = true;
+          alert(
+            'Someone tried to break in',
+            `${count} intrusion ${count === 1 ? 'attempt' : 'attempts'} detected. Upgrade to Premium for advanced alerts with location tracking and detailed reports.`,
+            [
+              { text: 'Not now', style: 'cancel' },
+              { text: 'See details', onPress: () => navigation.navigate('Subscription') },
+            ],
+          );
+        }
+      } catch { /* non-critical */ }
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [premiumStatus, navigation]);
+
+  // Smart trigger: 3-day active user → engagement offer
+  const engagementNudgeShown = useRef(false);
+  useEffect(() => {
+    if (premiumStatus !== 'free' || engagementNudgeShown.current) return;
+    const { firstLaunchTimestamp, paywallDismissCount } = useSettingsStore.getState();
+    if (!firstLaunchTimestamp) return;
+
+    const daysSinceInstall = (Date.now() - firstLaunchTimestamp) / (24 * 60 * 60 * 1000);
+    if (daysSinceInstall < 3) return;
+
+    const timer = setTimeout(() => {
+      if (engagementNudgeShown.current) return;
+      engagementNudgeShown.current = true;
+
+      // Dynamic offer: first-time → discount angle, returning → urgency angle
+      const isReturning = paywallDismissCount >= 2;
+      const title = isReturning
+        ? 'Last chance for this offer'
+        : 'You\'ve been protecting files for 3 days';
+      const message = isReturning
+        ? 'Upgrade now before the price goes up. Go ad-free and unlock all features.'
+        : 'You\'re clearly serious about privacy. Unlock Premium and get the full experience.';
+
+      alert(title, message, [
+        {
+          text: 'Maybe later',
+          style: 'cancel',
+          onPress: () => useSettingsStore.getState().incrementPaywallDismissCount(),
+        },
+        { text: 'See plans', onPress: () => navigation.navigate('Subscription') },
+      ]);
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [premiumStatus, navigation]);
+
   // Track user activity to prevent auto-lock (AUTH-008)
   const { onActivity } = useActivityTracker();
 
@@ -165,24 +252,22 @@ export function VaultHomeScreen(): React.JSX.Element {
     enabled: albumsData.length > 0,
   });
 
-  // Auto-focus album name input when modal opens
+  // Expand sheet after conditional mount
   useEffect(() => {
     if (showCreateAlbum) {
-      setTimeout(() => albumNameInputRef.current?.focus(), 100);
+      setTimeout(() => createAlbumSheetRef.current?.expand(), 50);
     }
   }, [showCreateAlbum]);
 
-  // Auto-focus rename input when modal opens (ALBUM-005)
   useEffect(() => {
     if (showRenameAlbum) {
-      setTimeout(() => renameInputRef.current?.focus(), 100);
+      setTimeout(() => renameAlbumSheetRef.current?.expand(), 50);
     }
   }, [showRenameAlbum]);
 
-  // Auto-focus note name input when modal opens (NOTES-001)
   useEffect(() => {
     if (showCreateNote) {
-      setTimeout(() => noteNameInputRef.current?.focus(), 100);
+      setTimeout(() => createNoteSheetRef.current?.expand(), 50);
     }
   }, [showCreateNote]);
 
@@ -208,7 +293,6 @@ export function VaultHomeScreen(): React.JSX.Element {
   const handleCreateAlbum = useCallback(() => {
     onActivity();
     setShowCreateAlbum(true);
-    createAlbumSheetRef.current?.expand();
   }, [onActivity]);
 
   /**
@@ -232,7 +316,7 @@ export function VaultHomeScreen(): React.JSX.Element {
       clearSelection();
       setShowCreateAlbum(false);
       setNewAlbumName('');
-      alert('Added to Album', `Created "${newAlbum.name}" and added ${added} item(s).`);
+      alert('Album created', `"${newAlbum.name}" is ready with ${added} ${added === 1 ? 'item' : 'items'} inside.`);
     } else {
       setShowCreateAlbum(false);
       setNewAlbumName('');
@@ -259,7 +343,6 @@ export function VaultHomeScreen(): React.JSX.Element {
           setRenameAlbumTarget(album);
           setRenameAlbumName(album.name);
           setShowRenameAlbum(true);
-          renameAlbumSheetRef.current?.expand();
         },
       },
       {
@@ -267,19 +350,19 @@ export function VaultHomeScreen(): React.JSX.Element {
         style: 'destructive',
         onPress: () => {
           alert(
-            'Delete Album',
-            `Delete "${album.name}"? Media items will not be deleted.`,
+            'Remove this album?',
+            `"${album.name}" will be removed, but your files stay safe in the vault.`,
             [
-              { text: 'Cancel', style: 'cancel' },
+              { text: 'Keep it', style: 'cancel' },
               {
-                text: 'Delete',
+                text: 'Remove',
                 style: 'destructive',
                 onPress: async () => {
                   await albumsDb.deleteById(album.id);
                   await queryClient.invalidateQueries({ queryKey: ['albums'] });
                   await queryClient.invalidateQueries({ queryKey: ['albumMediaCounts', isDecoyMode] });
                   await queryClient.invalidateQueries({ queryKey: ['albumCoverMedia', isDecoyMode] });
-                  alert('Deleted', `"${album.name}" has been deleted.`);
+                  alert('Album removed', `"${album.name}" is gone. Your files are still safe.`);
                 },
               },
             ],
@@ -310,7 +393,6 @@ export function VaultHomeScreen(): React.JSX.Element {
   const handleCreateNote = useCallback(() => {
     onActivity();
     setShowCreateNote(true);
-    createNoteSheetRef.current?.expand();
   }, [onActivity]);
 
   /**
@@ -387,15 +469,15 @@ export function VaultHomeScreen(): React.JSX.Element {
       const result = await shareMediaItems(selectedItems);
       if (result.failed.length > 0 && result.shared > 0) {
         alert(
-          'Partial Share',
-          `${result.shared} shared, ${result.failed.length} failed.\n\nFailed: ${result.failed.map(f => f.name).join(', ')}`,
+          'Almost there',
+          `${result.shared} shared successfully, but ${result.failed.length} couldn't be shared.\n\n${result.failed.map(f => f.name).join(', ')}`,
         );
       } else if (result.failed.length > 0) {
-        alert('Share Failed', `Could not share: ${result.failed[0]?.error ?? 'Unknown error'}`);
+        alert('Couldn\'t share', `Something went wrong: ${result.failed[0]?.error ?? 'Please try again.'}`);
       }
       clearSelection();
     } catch (e) {
-      alert('Share Error', e instanceof Error ? e.message : String(e));
+      alert('Something went wrong', e instanceof Error ? e.message : 'Sharing failed. Please try again.');
     } finally {
       setIsSharing(false);
     }
@@ -456,7 +538,7 @@ export function VaultHomeScreen(): React.JSX.Element {
       await queryClient.invalidateQueries({ queryKey: ['albumMediaCounts', isDecoyMode] });
       setShowAddToAlbum(false);
       clearSelection();
-      alert('Added to Album', `${added} item(s) added to "${album.name}".`);
+      alert('Moved to album', `${added} ${added === 1 ? 'file' : 'files'} added to "${album.name}".`);
     } finally {
       setIsAddingToAlbum(false);
     }
@@ -469,7 +551,6 @@ export function VaultHomeScreen(): React.JSX.Element {
     pendingAddMediaIdsRef.current = Array.from(selectedIds);
     setShowAddToAlbum(false);
     setShowCreateAlbum(true);
-    createAlbumSheetRef.current?.expand();
   }, [selectedIds]);
 
   /**
@@ -489,28 +570,28 @@ export function VaultHomeScreen(): React.JSX.Element {
     if (selected.length === 0) return;
 
     alert(
-      'Export to Gallery',
-      `Save ${selected.length} item(s) to your device gallery?`,
+      'Unhide and save?',
+      `This will save ${selected.length} ${selected.length === 1 ? 'file' : 'files'} back to your gallery where anyone can see ${selected.length === 1 ? 'it' : 'them'}.`,
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: 'Keep hidden', style: 'cancel' },
         {
-          text: 'Export',
+          text: 'Save to gallery',
           onPress: async () => {
             setSuppressAutoLock(true);
             try {
               const result = await unhideMediaItems(selected);
               if (result.failed.length > 0 && result.saved > 0) {
                 alert(
-                  'Partial Export',
-                  `${result.saved} exported, ${result.failed.length} failed.\n\nFailed: ${result.failed.map(f => f.name).join(', ')}`,
+                  'Almost done',
+                  `${result.saved} saved to gallery, but ${result.failed.length} couldn't be exported.\n\n${result.failed.map(f => f.name).join(', ')}`,
                 );
               } else if (result.failed.length > 0) {
-                alert('Export Failed', `Could not export: ${result.failed[0]?.error ?? 'Unknown error'}`);
+                alert('Couldn\'t export', `Something went wrong: ${result.failed[0]?.error ?? 'Please try again.'}`);
               } else {
-                alert('Exported', `${result.saved} item(s) saved to gallery.`);
+                alert('Saved to gallery', `${result.saved} ${result.saved === 1 ? 'file is' : 'files are'} now visible in your gallery.`);
               }
             } catch (e) {
-              alert('Export Error', e instanceof Error ? e.message : String(e));
+              alert('Something went wrong', e instanceof Error ? e.message : 'Export failed. Please try again.');
             } finally {
               setSuppressAutoLock(false);
             }
@@ -634,30 +715,47 @@ export function VaultHomeScreen(): React.JSX.Element {
           const { tryShowInterstitial } = require('@services/ads');
           tryShowInterstitial('VaultHome', 'post_import').catch(() => {});
         } catch { /* ad service may not be ready */ }
+
+        // Track imports for paywall trigger (show after 3+ total files imported)
+        const settings = useSettingsStore.getState();
+        settings.incrementImportCount(result.imported);
+        if (settings.premiumStatus === 'free' && settings.totalImportCount >= 3) {
+          // Delay paywall so the success alert shows first
+          setTimeout(() => {
+            if (useSettingsStore.getState().premiumStatus === 'free') {
+              navigation.navigate('Subscription');
+            }
+          }, 2000);
+        }
       }
 
       if (result.failed.length === 0) {
         let originalsMsg = '';
         if (result.originalsDeleted > 0) {
-          originalsMsg += `\n${result.originalsDeleted} original(s) removed from device.`;
+          originalsMsg += `\n${result.originalsDeleted} ${result.originalsDeleted === 1 ? 'original' : 'originals'} removed from your gallery.`;
         }
         if (result.originalsDeleteFailed > 0) {
-          originalsMsg += `\n${result.originalsDeleteFailed} original(s) could not be removed. You may need to delete them manually.`;
+          originalsMsg += `\nSome originals couldn't be removed automatically. You may need to delete them manually.`;
         }
-        alert('Import Complete', `${result.imported} file(s) imported successfully.${originalsMsg}`);
+        alert('Safe and sound', `${result.imported} ${result.imported === 1 ? 'file' : 'files'} encrypted and hidden.${originalsMsg}`);
+
+        // Positive moment — ask for review after a short delay
+        setTimeout(() => {
+          try { require('@services/review').triggerReviewPrompt(); } catch {}
+        }, 3000);
       } else if (result.imported > 0) {
         alert(
-          'Partial Import',
-          `${result.imported} imported, ${result.failed.length} failed.\n\nFailed: ${result.failed.map(f => f.name).join(', ')}`,
+          'Almost there',
+          `${result.imported} imported successfully, but ${result.failed.length} couldn't be added.\n\n${result.failed.map(f => f.name).join(', ')}`,
         );
       } else {
         alert(
-          'Import Failed',
-          `All ${result.total} file(s) failed to import.\n\n${result.failed[0]?.error ?? 'Unknown error'}`,
+          'Couldn\'t import',
+          `None of the ${result.total} ${result.total === 1 ? 'file' : 'files'} could be imported.\n\n${result.failed[0]?.error ?? 'Please try again.'}`,
         );
       }
     } catch (e) {
-      alert('Import Error', e instanceof Error ? e.message : String(e));
+      alert('Something went wrong', e instanceof Error ? e.message : 'Import failed. Please try again.');
     } finally {
       setSuppressAutoLock(false);
       onActivity(); // Reset timeout so session doesn't expire right after import
@@ -740,10 +838,10 @@ export function VaultHomeScreen(): React.JSX.Element {
       if (selectedNoteIds.length === 0) return;
 
       alert(
-        'Delete Notes',
-        `Delete ${selectedNoteIds.length} note(s)? This cannot be undone.`,
+        'Delete forever?',
+        `${selectedNoteIds.length === 1 ? 'This note' : `These ${selectedNoteIds.length} notes`} will be permanently deleted.`,
         [
-          { text: 'Cancel', style: 'cancel' },
+          { text: 'Keep', style: 'cancel' },
           {
             text: 'Delete',
             style: 'destructive',
@@ -753,7 +851,7 @@ export function VaultHomeScreen(): React.JSX.Element {
                 await notesDb.deleteByIds(selectedNoteIds);
                 await queryClient.invalidateQueries({ queryKey: ['notes'] });
                 clearSelection();
-                alert('Deleted', `${selectedNoteIds.length} note(s) deleted.`);
+                alert('Gone for good', `${selectedNoteIds.length} ${selectedNoteIds.length === 1 ? 'note' : 'notes'} permanently deleted.`);
               } finally {
                 setIsDeleting(false);
               }
@@ -768,10 +866,10 @@ export function VaultHomeScreen(): React.JSX.Element {
     if (selectedItems.length === 0) return;
 
     alert(
-      'Delete Items',
-      `Delete ${selectedItems.length} item(s)? This cannot be undone.`,
+      'Delete forever?',
+      `${selectedItems.length === 1 ? 'This file' : `These ${selectedItems.length} files`} will be gone permanently.`,
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: 'Keep', style: 'cancel' },
         {
           text: 'Delete',
           style: 'destructive',
@@ -787,11 +885,11 @@ export function VaultHomeScreen(): React.JSX.Element {
 
               if (result.failed.length > 0) {
                 alert(
-                  'Partial Deletion',
-                  `${result.deleted} deleted, ${result.failed.length} failed.\n\nFailed: ${result.failed.map(f => f.name).join(', ')}`,
+                  'Almost done',
+                  `${result.deleted} deleted, but ${result.failed.length} couldn't be removed.\n\n${result.failed.map(f => f.name).join(', ')}`,
                 );
               } else {
-                alert('Deleted', `${result.deleted} item(s) deleted.`);
+                alert('Gone for good', `${result.deleted} ${result.deleted === 1 ? 'file' : 'files'} permanently deleted.`);
               }
             } finally {
               setIsDeleting(false);
@@ -949,6 +1047,21 @@ export function VaultHomeScreen(): React.JSX.Element {
           <Text style={styles.sectionTitle}>{sectionTitle}</Text>
           <Text style={styles.sectionCount}>{itemCount}</Text>
         </View>
+      )}
+
+      {/* Soft premium card — shown once per session after ad fatigue */}
+      {showPremiumCard && (
+        <SoftPremiumCard
+          onDismiss={() => {
+            try { require('@services/ads').markSoftPremiumCardShown(); } catch {}
+            setShowPremiumCard(false);
+          }}
+          onUpgrade={() => {
+            try { require('@services/ads').markSoftPremiumCardShown(); } catch {}
+            setShowPremiumCard(false);
+            navigation.navigate('Subscription');
+          }}
+        />
       )}
 
       {/* Content Area — native swipeable pager between tabs */}
@@ -1121,44 +1234,47 @@ export function VaultHomeScreen(): React.JSX.Element {
       )}
 
       {/* Create Album Sheet (ALBUM-001) */}
-      <AppBottomSheet
-        ref={createAlbumSheetRef}
-        snapPoints={[240]}
-        title="New Album"
-        onDismiss={() => {
-          pendingAddMediaIdsRef.current = null;
-          setShowCreateAlbum(false);
-          setNewAlbumName('');
-        }}
-      >
-        <View style={styles.sheetContent}>
-          <BottomSheetTextInput
-            style={styles.sheetInput}
-            placeholder="Album name"
-            placeholderTextColor={themeColors.textSecondary}
-            value={newAlbumName}
-            onChangeText={setNewAlbumName}
-            onSubmitEditing={handleConfirmCreateAlbum}
-            returnKeyType="done"
-            maxLength={100}
-            autoFocus
-          />
-          <View style={styles.sheetButtons}>
-            <Pressable
-              style={styles.sheetButton}
-              onPress={() => createAlbumSheetRef.current?.close()}
-            >
-              <Text style={styles.sheetButtonText}>Cancel</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.sheetButton, styles.sheetButtonPrimary]}
-              onPress={handleConfirmCreateAlbum}
-            >
-              <Text style={styles.sheetButtonPrimaryText}>Create</Text>
-            </Pressable>
+      {showCreateAlbum && (
+        <AppBottomSheet
+          ref={createAlbumSheetRef}
+          snapPoints={[240]}
+          title="New Album"
+          onDismiss={() => {
+            pendingAddMediaIdsRef.current = null;
+            setShowCreateAlbum(false);
+            setNewAlbumName('');
+          }}
+        >
+          <View style={styles.sheetContent}>
+            <BottomSheetTextInput
+              ref={albumNameInputRef}
+              style={styles.sheetInput}
+              placeholder="Album name"
+              placeholderTextColor={themeColors.textSecondary}
+              value={newAlbumName}
+              onChangeText={setNewAlbumName}
+              onSubmitEditing={handleConfirmCreateAlbum}
+              returnKeyType="done"
+              maxLength={100}
+              autoFocus
+            />
+            <View style={styles.sheetButtons}>
+              <Pressable
+                style={styles.sheetButton}
+                onPress={() => createAlbumSheetRef.current?.close()}
+              >
+                <Text style={styles.sheetButtonText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.sheetButton, styles.sheetButtonPrimary]}
+                onPress={handleConfirmCreateAlbum}
+              >
+                <Text style={styles.sheetButtonPrimaryText}>Create</Text>
+              </Pressable>
+            </View>
           </View>
-        </View>
-      </AppBottomSheet>
+        </AppBottomSheet>
+      )}
 
       {/* Add to Album Modal (ALBUM-003) */}
       <AddToAlbumModal
@@ -1171,44 +1287,47 @@ export function VaultHomeScreen(): React.JSX.Element {
       />
 
       {/* Rename Album Sheet (ALBUM-005) */}
-      <AppBottomSheet
-        ref={renameAlbumSheetRef}
-        snapPoints={[240]}
-        title="Rename Album"
-        onDismiss={() => {
-          setShowRenameAlbum(false);
-          setRenameAlbumTarget(null);
-          setRenameAlbumName('');
-        }}
-      >
-        <View style={styles.sheetContent}>
-          <BottomSheetTextInput
-            style={styles.sheetInput}
-            placeholder="Album name"
-            placeholderTextColor={themeColors.textSecondary}
-            value={renameAlbumName}
-            onChangeText={setRenameAlbumName}
-            onSubmitEditing={handleConfirmRenameAlbum}
-            returnKeyType="done"
-            maxLength={100}
-            autoFocus
-          />
-          <View style={styles.sheetButtons}>
-            <Pressable
-              style={styles.sheetButton}
-              onPress={() => renameAlbumSheetRef.current?.close()}
-            >
-              <Text style={styles.sheetButtonText}>Cancel</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.sheetButton, styles.sheetButtonPrimary]}
-              onPress={handleConfirmRenameAlbum}
-            >
-              <Text style={styles.sheetButtonPrimaryText}>Rename</Text>
-            </Pressable>
+      {showRenameAlbum && (
+        <AppBottomSheet
+          ref={renameAlbumSheetRef}
+          snapPoints={[240]}
+          title="Rename Album"
+          onDismiss={() => {
+            setShowRenameAlbum(false);
+            setRenameAlbumTarget(null);
+            setRenameAlbumName('');
+          }}
+        >
+          <View style={styles.sheetContent}>
+            <BottomSheetTextInput
+              ref={renameInputRef}
+              style={styles.sheetInput}
+              placeholder="Album name"
+              placeholderTextColor={themeColors.textSecondary}
+              value={renameAlbumName}
+              onChangeText={setRenameAlbumName}
+              onSubmitEditing={handleConfirmRenameAlbum}
+              returnKeyType="done"
+              maxLength={100}
+              autoFocus
+            />
+            <View style={styles.sheetButtons}>
+              <Pressable
+                style={styles.sheetButton}
+                onPress={() => renameAlbumSheetRef.current?.close()}
+              >
+                <Text style={styles.sheetButtonText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.sheetButton, styles.sheetButtonPrimary]}
+                onPress={handleConfirmRenameAlbum}
+              >
+                <Text style={styles.sheetButtonPrimaryText}>Rename</Text>
+              </Pressable>
+            </View>
           </View>
-        </View>
-      </AppBottomSheet>
+        </AppBottomSheet>
+      )}
 
       {/* Sort Options Sheet (ENH-003) */}
       <AppBottomSheet
@@ -1255,43 +1374,46 @@ export function VaultHomeScreen(): React.JSX.Element {
       </AppBottomSheet>
 
       {/* Create Note Sheet (NOTES-001) */}
-      <AppBottomSheet
-        ref={createNoteSheetRef}
-        snapPoints={[240]}
-        title="New Note"
-        onDismiss={() => {
-          setShowCreateNote(false);
-          setNewNoteTitle('');
-        }}
-      >
-        <View style={styles.sheetContent}>
-          <BottomSheetTextInput
-            style={styles.sheetInput}
-            placeholder="Note title"
-            placeholderTextColor={themeColors.textSecondary}
-            value={newNoteTitle}
-            onChangeText={setNewNoteTitle}
-            onSubmitEditing={handleConfirmCreateNote}
-            returnKeyType="done"
-            maxLength={100}
-            autoFocus
-          />
-          <View style={styles.sheetButtons}>
-            <Pressable
-              style={styles.sheetButton}
-              onPress={() => createNoteSheetRef.current?.close()}
-            >
-              <Text style={styles.sheetButtonText}>Cancel</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.sheetButton, styles.sheetButtonPrimary]}
-              onPress={handleConfirmCreateNote}
-            >
-              <Text style={styles.sheetButtonPrimaryText}>Create</Text>
-            </Pressable>
+      {showCreateNote && (
+        <AppBottomSheet
+          ref={createNoteSheetRef}
+          snapPoints={[240]}
+          title="New Note"
+          onDismiss={() => {
+            setShowCreateNote(false);
+            setNewNoteTitle('');
+          }}
+        >
+          <View style={styles.sheetContent}>
+            <BottomSheetTextInput
+              ref={noteNameInputRef}
+              style={styles.sheetInput}
+              placeholder="Note title"
+              placeholderTextColor={themeColors.textSecondary}
+              value={newNoteTitle}
+              onChangeText={setNewNoteTitle}
+              onSubmitEditing={handleConfirmCreateNote}
+              returnKeyType="done"
+              maxLength={100}
+              autoFocus
+            />
+            <View style={styles.sheetButtons}>
+              <Pressable
+                style={styles.sheetButton}
+                onPress={() => createNoteSheetRef.current?.close()}
+              >
+                <Text style={styles.sheetButtonText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.sheetButton, styles.sheetButtonPrimary]}
+                onPress={handleConfirmCreateNote}
+              >
+                <Text style={styles.sheetButtonPrimaryText}>Create</Text>
+              </Pressable>
+            </View>
           </View>
-        </View>
-      </AppBottomSheet>
+        </AppBottomSheet>
+      )}
 
       {/* Selection Overflow Menu */}
       <SelectionOverflowMenu

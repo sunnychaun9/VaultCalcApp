@@ -3,6 +3,7 @@
  *
  * FlashList-based grid for displaying vault media items.
  * Dynamically calculates cell size from container width.
+ * Tight 6dp gaps for a premium gallery aesthetic.
  *
  * @see FEATURE_INDEX.md VAULT-003
  */
@@ -43,6 +44,7 @@ export function MediaGrid({
 
   const itemSize = useMemo(() => {
     if (containerWidth === 0) return 0;
+    // Edge padding (GAP on each side) + inter-column gaps
     return (containerWidth - GAP * 2 - (numColumns - 1) * GAP) / numColumns;
   }, [containerWidth, numColumns]);
 
@@ -66,9 +68,9 @@ export function MediaGrid({
   // Provide overrideItemLayout to give FlashList deterministic item sizes,
   // reducing unnecessary cell recycling when data updates (e.g. favorite toggle).
   const overrideItemLayout = useCallback(
-    (layout: { span?: number; size?: number }, _item: MediaItem) => {
+    (l: { span?: number; size?: number }, _item: MediaItem) => {
       if (itemSize > 0) {
-        layout.size = itemSize + GAP; // item height + separator
+        l.size = itemSize + GAP; // item height + separator
       }
     },
     [itemSize],

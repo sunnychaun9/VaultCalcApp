@@ -27,6 +27,7 @@ import com.vaultcalcapp.modules.orientation.OrientationPackage
 import com.vaultcalcapp.modules.uninstallprotect.UninstallProtectPackage
 import com.vaultcalcapp.modules.zoomimage.ZoomableImagePackage
 import com.vaultcalcapp.modules.fakecrash.FakeCrashPackage
+import com.vaultcalcapp.modules.review.InAppReviewPackage
 import expo.modules.ApplicationLifecycleDispatcher
 
 class MainApplication : Application(), ReactApplication {
@@ -58,6 +59,7 @@ class MainApplication : Application(), ReactApplication {
           add(UninstallProtectPackage())
           add(ZoomableImagePackage())
           add(FakeCrashPackage())
+          add(InAppReviewPackage())
         },
     )
   }

@@ -2,13 +2,19 @@
  * VaultCalc - Selection Bar
  *
  * Bottom action bar shown when items are selected in the vault grid.
- * Displays selection count with delete and cancel actions.
+ * Slides up with spring animation on entry.
+ * Displays selection count with action icons.
  *
  * @see FEATURE_INDEX.md FILE-006
  */
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+} from 'react-native-reanimated';
 import { useThemeColors, type ColorTokens, typography, spacing, layout } from '@shared/theme';
 import { IconButton } from '@shared/components/Icon';
 
@@ -25,6 +31,9 @@ interface SelectionBarProps {
   isSharing?: boolean;
 }
 
+const SPRING_CONFIG = { damping: 16, stiffness: 280, mass: 0.7 };
+const BAR_HEIGHT = layout.bottomBarHeight + 4; // Slightly taller for premium feel
+
 export function SelectionBar({
   selectedCount,
   onDelete,
@@ -38,21 +47,55 @@ export function SelectionBar({
   const themeColors = useThemeColors();
   const styles = useMemo(() => createStyles(themeColors), [themeColors]);
 
+  // Slide-up entrance animation
+  const translateY = useSharedValue(BAR_HEIGHT);
+
+  useEffect(() => {
+    translateY.value = withSpring(0, SPRING_CONFIG);
+  }, [translateY]);
+
+  const slideStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
+  }));
+
+  // Count bounce on change
+  const countScale = useSharedValue(1);
+  useEffect(() => {
+    countScale.value = withSpring(1.1, { damping: 10, stiffness: 400 });
+    const timer = setTimeout(() => {
+      countScale.value = withSpring(1, { damping: 14, stiffness: 200 });
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [selectedCount, countScale]);
+
+  const countAnimStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: countScale.value }],
+  }));
+
+  const busy = isDeleting || isSharing;
+
   return (
-    <View style={styles.container}>
+    <Animated.View style={[styles.container, slideStyle]}>
       <Pressable
         onPress={onClearSelection}
         style={styles.cancelButton}
-        disabled={isDeleting || isSharing}
+        disabled={busy}
         accessibilityRole="button"
         accessibilityLabel="Clear selection"
       >
-        <Text style={[styles.cancelText, (isDeleting || isSharing) && styles.disabledText]}>Cancel</Text>
+        <Text style={[styles.cancelText, busy && styles.disabledText]}>Cancel</Text>
       </Pressable>
 
-      <Text style={styles.countText}>
-        {isSharing ? 'Sharing...' : isDeleting ? 'Deleting...' : `${selectedCount} selected`}
-      </Text>
+      <Animated.View style={countAnimStyle}>
+        <Text style={styles.countText}>
+          {isSharing ? 'Sharing...' : isDeleting ? 'Deleting...' : (
+            <>
+              <Text style={styles.countNumber}>{selectedCount}</Text>
+              {' selected'}
+            </>
+          )}
+        </Text>
+      </Animated.View>
 
       <View style={styles.actions}>
         {onFavorite != null && (
@@ -60,7 +103,7 @@ export function SelectionBar({
             name="star"
             size={20}
             onPress={onFavorite}
-            disabled={isDeleting || isSharing}
+            disabled={busy}
             color={themeColors.accent}
             accessibilityLabel={`Favorite ${selectedCount} selected items`}
           />
@@ -70,7 +113,7 @@ export function SelectionBar({
             name="share"
             size={20}
             onPress={onShare}
-            disabled={isDeleting || isSharing}
+            disabled={busy}
             color={themeColors.accent}
             accessibilityLabel={`Share ${selectedCount} selected items`}
           />
@@ -80,7 +123,7 @@ export function SelectionBar({
             name="more-vertical"
             size={20}
             onPress={onMore}
-            disabled={isDeleting || isSharing}
+            disabled={busy}
             color={themeColors.accent}
             accessibilityLabel="More actions"
           />
@@ -89,12 +132,12 @@ export function SelectionBar({
           name="trash"
           size={20}
           onPress={onDelete}
-          disabled={isDeleting || isSharing}
+          disabled={busy}
           color={themeColors.error}
           accessibilityLabel={`Delete ${selectedCount} selected items`}
         />
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -103,11 +146,16 @@ const createStyles = (c: ColorTokens) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    height: layout.bottomBarHeight,
+    height: BAR_HEIGHT,
     paddingHorizontal: spacing.base,
-    backgroundColor: c.surface,
-    borderTopWidth: 1,
+    backgroundColor: c.surfaceContainer,
+    borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: c.border,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
   },
   cancelButton: {
     minHeight: layout.minTouchTarget,
@@ -122,31 +170,14 @@ const createStyles = (c: ColorTokens) => StyleSheet.create({
     ...typography.labelLarge,
     color: c.textPrimary,
   },
+  countNumber: {
+    fontWeight: '700',
+    color: c.accent,
+    fontSize: 16,
+  },
   actions: {
     flexDirection: 'row',
     gap: spacing.md,
-  },
-  actionButton: {
-    minHeight: layout.minTouchTarget,
-    justifyContent: 'center',
-    paddingHorizontal: spacing.sm,
-  },
-  favText: {
-    ...typography.labelLarge,
-    color: c.accent,
-  },
-  shareText: {
-    ...typography.labelLarge,
-    color: c.accent,
-  },
-  moreText: {
-    fontSize: 22,
-    fontWeight: '700' as const,
-    color: c.accent,
-  },
-  deleteText: {
-    ...typography.labelLarge,
-    color: c.error,
   },
   disabledText: {
     color: c.textTertiary,

@@ -5,3 +5,4 @@
  */
 
 export { AuthGuard } from './AuthGuard';
+export { DecoyExitScreen } from './DecoyExitScreen';

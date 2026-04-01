@@ -283,9 +283,9 @@ export function IntruderLogsScreen(): React.JSX.Element {
   const renderEmpty = useCallback(() => (
     <Animated.View entering={FadeInUp.springify().damping(18).stiffness(160)} style={styles.emptyContainer}>
       <ShieldIllustration size={140} color={themeColors.textTertiary} accent={themeColors.accent} />
-      <Text style={styles.emptyTitle}>All Clear</Text>
+      <Text style={styles.emptyTitle}>No intruders detected</Text>
       <Text style={styles.emptyText}>
-        No failed unlock attempts detected. When someone enters a wrong PIN, a detailed report with photo evidence will appear here.
+        Your vault is secure. If someone enters the wrong PIN, their photo and attempt details will appear here automatically.
       </Text>
     </Animated.View>
   ), [styles, themeColors]);

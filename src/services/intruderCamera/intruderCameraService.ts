@@ -2,7 +2,10 @@
  * VaultCalc - Intruder Camera Service
  *
  * High-level service for capturing intruder photos on failed PIN attempts.
- * Handles permission checks, file path management, and error handling.
+ * The user must explicitly enable this feature in Settings, which shows
+ * an explanation dialog and requests CAMERA permission before activation.
+ * Camera is ONLY used when both the feature toggle is ON and permission
+ * has been granted by the user.
  *
  * @see FEATURE_INDEX.md SEC-001
  */
@@ -15,7 +18,7 @@ import { getVaultDirectory } from '@services/crypto';
 const INTRUDER_SUBDIR = 'intruder';
 
 /**
- * Request camera permission from the user.
+ * Request camera permission from the user with a clear rationale.
  * Returns true if already granted or newly granted.
  */
 export async function requestCameraPermission(): Promise<boolean> {
@@ -26,7 +29,8 @@ export async function requestCameraPermission(): Promise<boolean> {
       PermissionsAndroid.PERMISSIONS.CAMERA,
       {
         title: 'Camera Permission',
-        message: 'VaultCalc needs camera access for security features.',
+        message:
+          'VaultCalc uses the front camera to photograph unauthorized access attempts when someone enters the wrong PIN.',
         buttonPositive: 'Allow',
         buttonNegative: 'Deny',
       },
@@ -49,20 +53,23 @@ export async function hasCameraPermission(): Promise<boolean> {
 }
 
 /**
- * Capture an intruder photo silently using the front camera.
+ * Capture an intruder photo using the front camera.
+ *
+ * Prerequisites (enforced by the caller and Settings toggle flow):
+ * - User has explicitly enabled "Intruder Selfie Detection" in Settings
+ * - CAMERA permission was granted after the user saw an explanation dialog
  *
  * The photo is saved as a raw JPEG in the vault's intruder subdirectory.
  * Encryption and DB logging are handled separately by SEC-002.
  *
  * This function never throws — it returns a result object indicating
- * success or failure. Failed captures are silently ignored to avoid
- * disrupting the normal calculator UX.
+ * success or failure. Failed captures do not disrupt the calculator UX.
  *
  * @returns Capture result with the file path on success
  */
 export async function captureIntruderPhoto(): Promise<CaptureResult> {
   try {
-    // Check permission (don't prompt — that would reveal the feature)
+    // Verify permission is still granted (user may have revoked in system settings)
     const hasPermission = await NativeIntruderCamera.hasPermission();
     if (!hasPermission) {
       return { success: false, error: 'Camera permission not granted' };

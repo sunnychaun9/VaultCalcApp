@@ -5,6 +5,9 @@
  * When enabled and authenticated, shaking the phone instantly locks the vault
  * and returns to the calculator screen.
  *
+ * Respects panicAction setting: 'lock' returns to calculator,
+ * 'fakeCrash' shows the fake crash dialog overlay.
+ *
  * @see FEATURE_INDEX.md ENH-005
  */
 
@@ -21,6 +24,7 @@ const { ShakeDetectorModule } = NativeModules;
  */
 export function useShakeLock(): void {
   const panicButtonEnabled = useSettingsStore((s) => s.panicButtonEnabled);
+  const panicAction = useSettingsStore((s) => s.panicAction);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
   useEffect(() => {
@@ -29,12 +33,17 @@ export function useShakeLock(): void {
     ShakeDetectorModule.startListening();
 
     const subscription = DeviceEventEmitter.addListener('onShakeDetected', () => {
-      useAuthStore.getState().logout();
+      const auth = useAuthStore.getState();
+      auth.logout();
+
+      if (panicAction === 'fakeCrash') {
+        auth.triggerDecoyExit();
+      }
     });
 
     return () => {
       ShakeDetectorModule.stopListening();
       subscription.remove();
     };
-  }, [panicButtonEnabled, isAuthenticated]);
+  }, [panicButtonEnabled, panicAction, isAuthenticated]);
 }

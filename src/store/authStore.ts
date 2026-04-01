@@ -45,6 +45,9 @@ interface AuthState {
 
   /** When true, auto-lock (background + timeout) is suppressed (e.g. during import) */
   suppressAutoLock: boolean;
+
+  /** Whether the decoy exit overlay is showing (panic mode with decoy exit action) */
+  showDecoyExit: boolean;
 }
 
 /**
@@ -75,6 +78,12 @@ interface AuthActions {
   /** Set the auto-lock suppression flag */
   setSuppressAutoLock: (suppress: boolean) => void;
 
+  /** Show decoy exit overlay (called by panic mode) */
+  triggerDecoyExit: () => void;
+
+  /** Dismiss decoy exit overlay */
+  dismissDecoyExit: () => void;
+
   /** Reset entire auth state */
   reset: () => void;
 }
@@ -92,6 +101,7 @@ const initialState: AuthState = {
   lastActivity: null,
   sessionStartTime: null,
   suppressAutoLock: false,
+  showDecoyExit: false,
 };
 
 /**
@@ -168,6 +178,14 @@ export const useAuthStore = create<AuthState & AuthActions>()(
 
     setSuppressAutoLock: (suppress: boolean) => {
       set({ suppressAutoLock: suppress });
+    },
+
+    triggerDecoyExit: () => {
+      set({ showDecoyExit: true });
+    },
+
+    dismissDecoyExit: () => {
+      set({ showDecoyExit: false });
     },
 
     reset: () => {

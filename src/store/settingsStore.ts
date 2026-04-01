@@ -28,6 +28,11 @@ type ThemeMode = 'light' | 'dark' | 'system';
 export type UnlockMethod = 'pin' | 'pattern';
 
 /**
+ * What happens when panic mode triggers
+ */
+export type PanicAction = 'lock' | 'fakeCrash';
+
+/**
  * Lock timeout options (in milliseconds)
  */
 type LockTimeout = 30000 | 60000 | 120000 | 300000; // 30s, 1m, 2m, 5m
@@ -53,6 +58,9 @@ interface SettingsState {
 
   /** Whether intruder detection is enabled */
   intruderDetectionEnabled: boolean;
+
+  /** Whether intruder location logging is enabled (optional, OFF by default) */
+  intruderLocationEnabled: boolean;
 
   /** Whether decoy vault is configured */
   decoyVaultConfigured: boolean;
@@ -93,6 +101,9 @@ interface SettingsState {
   /** Panic trigger: triple power button press */
   panicTriggerPower: boolean;
 
+  /** What happens on panic trigger: lock (default) or show fake crash */
+  panicAction: PanicAction;
+
   /** Premium subscription status (PREMIUM-002) */
   premiumStatus: 'free' | 'trial' | 'premium';
 
@@ -114,8 +125,32 @@ interface SettingsState {
   /** UMP consent status cached for synchronous access (ADS-002) */
   consentStatus: 'REQUIRED' | 'NOT_REQUIRED' | 'OBTAINED' | 'UNKNOWN';
 
+  /** Secret quick unlock: long-press = on calculator when display is "0" */
+  quickUnlockEnabled: boolean;
+
   /** Current unlock method: PIN or pattern (AUTH-009) */
   unlockMethod: UnlockMethod;
+
+  /** Whether a paywall should be shown on next vault open */
+  paywallPending: boolean;
+
+  /** Cumulative count of successful file imports (triggers paywall at 3) */
+  totalImportCount: number;
+
+  /** Timestamp of first app launch (epoch ms, for 3-day engagement trigger) */
+  firstLaunchTimestamp: number | null;
+
+  /** How many times the user has dismissed a paywall (for dynamic offers) */
+  paywallDismissCount: number;
+
+  /** Timestamp of last review prompt shown (epoch ms) */
+  lastReviewPromptAt: number | null;
+
+  /** How many times the review prompt has been shown */
+  reviewPromptCount: number;
+
+  /** How many times the user has shared the app (for referral reward) */
+  appShareCount: number;
 
   /** Whether to show pattern path while drawing (AUTH-009) */
   showPatternPath: boolean;
@@ -142,6 +177,9 @@ interface SettingsActions {
 
   /** Toggle intruder detection */
   setIntruderDetectionEnabled: (enabled: boolean) => void;
+
+  /** Toggle intruder location logging */
+  setIntruderLocationEnabled: (enabled: boolean) => void;
 
   /** Set decoy vault configured status */
   setDecoyVaultConfigured: (configured: boolean) => void;
@@ -179,6 +217,9 @@ interface SettingsActions {
   /** Toggle panic trigger: power button */
   setPanicTriggerPower: (enabled: boolean) => void;
 
+  /** Set panic action behavior */
+  setPanicAction: (action: PanicAction) => void;
+
   /** Set premium subscription status (PREMIUM-002) */
   setPremiumStatus: (status: 'free' | 'trial' | 'premium') => void;
 
@@ -196,6 +237,27 @@ interface SettingsActions {
 
   /** Set cached UMP consent status (ADS-002) */
   setConsentStatus: (status: 'REQUIRED' | 'NOT_REQUIRED' | 'OBTAINED' | 'UNKNOWN') => void;
+
+  /** Set paywall pending flag */
+  setPaywallPending: (pending: boolean) => void;
+
+  /** Increment total import count */
+  incrementImportCount: (count: number) => void;
+
+  /** Record first launch timestamp (only sets once) */
+  recordFirstLaunchTimestamp: () => void;
+
+  /** Increment paywall dismiss count (for dynamic offers) */
+  incrementPaywallDismissCount: () => void;
+
+  /** Record that a review prompt was shown */
+  recordReviewPrompt: () => void;
+
+  /** Increment app share count */
+  incrementAppShareCount: () => void;
+
+  /** Toggle secret quick unlock gesture */
+  setQuickUnlockEnabled: (enabled: boolean) => void;
 
   /** Set unlock method: PIN or pattern (AUTH-009) */
   setUnlockMethod: (method: UnlockMethod) => void;
@@ -217,6 +279,7 @@ const defaultSettings: SettingsState = {
   biometricEnabled: false,
   lockOnBackground: true,
   intruderDetectionEnabled: false,
+  intruderLocationEnabled: false,
   decoyVaultConfigured: false,
   hapticEnabled: true,
   deleteOriginalsAfterImport: false,
@@ -225,6 +288,7 @@ const defaultSettings: SettingsState = {
   panicButtonEnabled: false,
   panicTriggerVolume: true,
   panicTriggerPower: false,
+  panicAction: 'lock' as PanicAction,
   googleDriveEmail: null,
   googleDriveDisplayName: null,
   lastBackupAt: null,
@@ -237,6 +301,14 @@ const defaultSettings: SettingsState = {
   totalInterstitialsShown: 0,
   vaultUnlockCount: 0,
   consentStatus: 'UNKNOWN' as const,
+  paywallPending: false,
+  totalImportCount: 0,
+  firstLaunchTimestamp: null,
+  paywallDismissCount: 0,
+  lastReviewPromptAt: null,
+  reviewPromptCount: 0,
+  appShareCount: 0,
+  quickUnlockEnabled: false,
   unlockMethod: 'pin' as UnlockMethod,
   showPatternPath: true,
 };
@@ -277,6 +349,14 @@ export const useSettingsStore = create<SettingsState & SettingsActions>()(
 
       setIntruderDetectionEnabled: (enabled) => {
         set({ intruderDetectionEnabled: enabled });
+        // Auto-disable location logging when intruder detection is turned off
+        if (!enabled) {
+          set({ intruderLocationEnabled: false });
+        }
+      },
+
+      setIntruderLocationEnabled: (enabled) => {
+        set({ intruderLocationEnabled: enabled });
       },
 
       setDecoyVaultConfigured: (configured) => {
@@ -309,6 +389,9 @@ export const useSettingsStore = create<SettingsState & SettingsActions>()(
 
       setPanicTriggerPower: (enabled) => {
         set({ panicTriggerPower: enabled });
+      },
+      setPanicAction: (action) => {
+        set({ panicAction: action });
       },
 
       setGoogleDriveConnection: (email, displayName) => {
@@ -356,6 +439,32 @@ export const useSettingsStore = create<SettingsState & SettingsActions>()(
         set({ consentStatus: status });
       },
 
+      setPaywallPending: (pending) => {
+        set({ paywallPending: pending });
+      },
+      incrementImportCount: (count) => {
+        set((state) => ({ totalImportCount: state.totalImportCount + count }));
+      },
+      recordFirstLaunchTimestamp: () => {
+        set((state) => ({
+          firstLaunchTimestamp: state.firstLaunchTimestamp ?? Date.now(),
+        }));
+      },
+      incrementPaywallDismissCount: () => {
+        set((state) => ({ paywallDismissCount: state.paywallDismissCount + 1 }));
+      },
+      recordReviewPrompt: () => {
+        set((state) => ({
+          lastReviewPromptAt: Date.now(),
+          reviewPromptCount: state.reviewPromptCount + 1,
+        }));
+      },
+      incrementAppShareCount: () => {
+        set((state) => ({ appShareCount: state.appShareCount + 1 }));
+      },
+      setQuickUnlockEnabled: (enabled) => {
+        set({ quickUnlockEnabled: enabled });
+      },
       setUnlockMethod: (method) => {
         set({ unlockMethod: method });
         // Sync to native AppLockModule so LockScreenActivity knows which UI to show
@@ -384,6 +493,7 @@ export const useSettingsStore = create<SettingsState & SettingsActions>()(
         biometricEnabled: state.biometricEnabled,
         lockOnBackground: state.lockOnBackground,
         intruderDetectionEnabled: state.intruderDetectionEnabled,
+        intruderLocationEnabled: state.intruderLocationEnabled,
         decoyVaultConfigured: state.decoyVaultConfigured,
         hapticEnabled: state.hapticEnabled,
         deleteOriginalsAfterImport: state.deleteOriginalsAfterImport,
@@ -392,6 +502,7 @@ export const useSettingsStore = create<SettingsState & SettingsActions>()(
         panicButtonEnabled: state.panicButtonEnabled,
         panicTriggerVolume: state.panicTriggerVolume,
         panicTriggerPower: state.panicTriggerPower,
+        panicAction: state.panicAction,
         googleDriveEmail: state.googleDriveEmail,
         googleDriveDisplayName: state.googleDriveDisplayName,
         lastBackupAt: state.lastBackupAt,
@@ -403,7 +514,14 @@ export const useSettingsStore = create<SettingsState & SettingsActions>()(
         adFreeUntil: state.adFreeUntil,
         totalInterstitialsShown: state.totalInterstitialsShown,
         vaultUnlockCount: state.vaultUnlockCount,
+        totalImportCount: state.totalImportCount,
+        firstLaunchTimestamp: state.firstLaunchTimestamp,
+        paywallDismissCount: state.paywallDismissCount,
+        lastReviewPromptAt: state.lastReviewPromptAt,
+        reviewPromptCount: state.reviewPromptCount,
+        appShareCount: state.appShareCount,
         consentStatus: state.consentStatus,
+        quickUnlockEnabled: state.quickUnlockEnabled,
         unlockMethod: state.unlockMethod,
         showPatternPath: state.showPatternPath,
       }),

@@ -19,10 +19,14 @@ import { usePressAnimation } from '@shared/hooks/useAnimations';
 import {
   ArrowLeft,
   ArrowUpDown,
+  AlertTriangle,
+  Camera,
   Check,
   ChevronRight,
   Clock,
   EllipsisVertical,
+  Eye,
+  EyeOff,
   FileText,
   FileSpreadsheet,
   FileJson,
@@ -42,6 +46,8 @@ import {
   Settings,
   Share2,
   Shield,
+  ShieldCheck,
+  Smartphone,
   Star,
   Trash2,
   Volume2,
@@ -56,6 +62,7 @@ import {
   RotateCw,
   Shuffle,
   ListMusic,
+  MapPin,
   Scan,
 } from 'lucide-react-native';
 import type { LucideProps } from 'lucide-react-native';
@@ -94,8 +101,17 @@ const ICON_MAP = {
   'lock': Lock,
   'key': Key,
   'shield': Shield,
+  'shield-check': ShieldCheck,
   'fingerprint': Fingerprint,
   'scan': Scan,
+  'alert-triangle': AlertTriangle,
+  'camera': Camera,
+  'eye': Eye,
+  'eye-off': EyeOff,
+  'smartphone': Smartphone,
+
+  // Location
+  'map-pin': MapPin,
 
   // State
   'star': Star,

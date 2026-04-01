@@ -135,3 +135,12 @@ export async function shareNoteAsText(title: string, content: string): Promise<v
   const text = title ? `${title}\n\n${content}` : content;
   await NativeShare.shareText(text, title || 'Share note');
 }
+
+/**
+ * Share the app via the native share sheet.
+ * Uses a compelling message with the Play Store link.
+ */
+export async function shareApp(): Promise<void> {
+  const message = 'I hide my private files inside a calculator app. Nobody knows it\'s a vault. Try it:\nhttps://play.google.com/store/apps/details?id=com.vaultcalcapp';
+  await NativeShare.shareText(message, 'Check out VaultCalc');
+}

@@ -2,7 +2,7 @@
  * VaultCalc - Native Intruder Camera Module Interface
  *
  * TypeScript interface for the native IntruderCameraModule.
- * Provides type-safe access to silent front camera capture.
+ * Provides type-safe access to user-consented front camera capture.
  *
  * @see FEATURE_INDEX.md SEC-001
  */
@@ -28,7 +28,7 @@ interface IntruderCameraModuleInterface {
   hasPermission(): Promise<boolean>;
 
   /**
-   * Silently capture a photo from the front camera.
+   * Capture a photo from the front camera.
    * @param destPath Absolute path where the JPEG should be written
    */
   capturePhoto(destPath: string): Promise<CaptureResult>;

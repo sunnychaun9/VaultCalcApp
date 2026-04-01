@@ -3,7 +3,10 @@
  *
  * Orchestrates intruder photo capture, location capture, encryption,
  * risk scoring, notification, and database logging.
- * Called on failed PIN attempts when intruder detection is enabled.
+ *
+ * Called on failed PIN attempts ONLY when:
+ * 1. The user has explicitly enabled "Intruder Selfie Detection" in Settings
+ * 2. CAMERA permission has been granted after the user saw an explanation dialog
  *
  * Always logs the attempt even if photo/location capture fails.
  * Never throws — returns a result object.
@@ -59,7 +62,7 @@ function computeRiskLevel(attempts: number): RiskLevel {
 }
 
 /**
- * Fetch device location silently. Never throws.
+ * Fetch device location if permission was granted. Never throws.
  */
 async function fetchLocation(): Promise<{
   latitude: number | null;
@@ -104,9 +107,10 @@ async function showNotification(riskLevel: RiskLevel, attempts: number): Promise
  * Record an intruder attempt: capture photo + location, encrypt, score risk, and log to DB.
  *
  * @param failedAttempts - Current number of consecutive failed PIN attempts
+ * @param locationEnabled - Whether the user has enabled optional location logging in Settings
  *
- * 1. Captures a photo via the front camera (may fail silently)
- * 2. Fetches device location (may fail silently)
+ * 1. Captures a photo via the front camera (if user enabled + permission granted)
+ * 2. Fetches device location (only if user enabled location logging + permission granted)
  * 3. Generates a unique ID for the log entry
  * 4. If photo was captured, encrypts it and removes the raw JPEG
  * 5. Computes risk level from attempt count
@@ -117,12 +121,13 @@ async function showNotification(riskLevel: RiskLevel, attempts: number): Promise
  */
 export async function recordIntruderAttempt(
   failedAttempts: number = 1,
+  locationEnabled: boolean = false,
 ): Promise<IntruderLogResult> {
   try {
-    // 1. Capture photo and location in parallel (both may fail — that's OK)
+    // 1. Capture photo and (optionally) location in parallel
     const [captureResult, location] = await Promise.all([
       captureIntruderPhoto(),
-      fetchLocation(),
+      locationEnabled ? fetchLocation() : Promise.resolve({ latitude: null, longitude: null, cityName: null }),
     ]);
 
     // 2. Generate unique 16-byte hex ID
