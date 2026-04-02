@@ -12,6 +12,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { View, Text, Pressable, ScrollView, Modal, StyleSheet, StatusBar } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '@typedefs/navigation';
@@ -137,6 +138,19 @@ export function CalculatorScreen(): React.JSX.Element {
         barStyle={isDark ? 'light-content' : 'dark-content'}
         backgroundColor={themeColors.calcBackground}
       />
+
+      {/* Subtle gradient background */}
+      <View style={StyleSheet.absoluteFill} pointerEvents="none">
+        <Svg width="100%" height="100%">
+          <Defs>
+            <LinearGradient id="calcBg" x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0" stopColor={themeColors.calcBackground} stopOpacity="1" />
+              <Stop offset="1" stopColor={themeColors.calcBackgroundGradientEnd} stopOpacity="1" />
+            </LinearGradient>
+          </Defs>
+          <Rect x="0" y="0" width="100%" height="100%" fill="url(#calcBg)" />
+        </Svg>
+      </View>
 
       <View style={styles.body}>
         {/* Top bar with history + menu icons */}

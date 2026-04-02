@@ -94,7 +94,7 @@ export function VaultHomeScreen(): React.JSX.Element {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
-  // Sort sheet state removed — managed by sheet ref
+  const [showSortSheet, setShowSortSheet] = useState(false);
   const [showOverflowMenu, setShowOverflowMenu] = useState(false);
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [showPropertiesModal, setShowPropertiesModal] = useState(false);
@@ -270,6 +270,12 @@ export function VaultHomeScreen(): React.JSX.Element {
       setTimeout(() => createNoteSheetRef.current?.expand(), 50);
     }
   }, [showCreateNote]);
+
+  useEffect(() => {
+    if (showSortSheet) {
+      setTimeout(() => sortSheetRef.current?.expand(), 50);
+    }
+  }, [showSortSheet]);
 
   /**
    * Handle settings button press
@@ -1013,7 +1019,7 @@ export function VaultHomeScreen(): React.JSX.Element {
               </Pressable>
             )}
             <Pressable
-              onPress={() => sortSheetRef.current?.expand()}
+              onPress={() => setShowSortSheet(true)}
               style={styles.tabTrailingBtn}
               accessibilityRole="button"
               accessibilityLabel="Sort options"
@@ -1075,7 +1081,7 @@ export function VaultHomeScreen(): React.JSX.Element {
         {/* Images page */}
         <View key="images" style={styles.page}>
           {activeTab === 'images' && (
-            filteredItems.length > 0 ? (
+            filteredItems.length > 0 || isLoading ? (
               viewMode === 'list' ? (
                 <MediaList
                   items={filteredItems}
@@ -1105,7 +1111,7 @@ export function VaultHomeScreen(): React.JSX.Element {
         {/* Videos page */}
         <View key="videos" style={styles.page}>
           {activeTab === 'videos' && (
-            filteredItems.length > 0 ? (
+            filteredItems.length > 0 || isLoading ? (
               viewMode === 'list' ? (
                 <MediaList
                   items={filteredItems}
@@ -1135,7 +1141,7 @@ export function VaultHomeScreen(): React.JSX.Element {
         {/* Audio page */}
         <View key="audio" style={styles.page}>
           {activeTab === 'audio' && (
-            filteredItems.length > 0 ? (
+            filteredItems.length > 0 || isLoading ? (
               <AudioList
                 items={filteredItems}
                 isLoading={isLoading}
@@ -1155,7 +1161,7 @@ export function VaultHomeScreen(): React.JSX.Element {
         {/* Documents page */}
         <View key="documents" style={styles.page}>
           {activeTab === 'documents' && (
-            filteredItems.length > 0 ? (
+            filteredItems.length > 0 || isLoading ? (
               <DocumentList
                 items={filteredItems}
                 isLoading={isLoading}
@@ -1175,7 +1181,7 @@ export function VaultHomeScreen(): React.JSX.Element {
         {/* Albums page */}
         <View key="albums" style={styles.page}>
           {activeTab === 'albums' && (
-            albumsData.length > 0 ? (
+            albumsData.length > 0 || albumsLoading ? (
               <AlbumList
                 albums={albumsData}
                 isLoading={albumsLoading}
@@ -1193,7 +1199,7 @@ export function VaultHomeScreen(): React.JSX.Element {
         {/* Notes page */}
         <View key="notes" style={styles.page}>
           {activeTab === 'notes' && (
-            notesData.length > 0 ? (
+            notesData.length > 0 || notesLoading ? (
               <NoteList
                 notes={notesData}
                 isLoading={notesLoading}
@@ -1330,11 +1336,12 @@ export function VaultHomeScreen(): React.JSX.Element {
       )}
 
       {/* Sort Options Sheet (ENH-003) */}
+      {showSortSheet && (
       <AppBottomSheet
         ref={sortSheetRef}
         snapPoints={[300]}
         title="Sort By"
-        onDismiss={() => {}}
+        onDismiss={() => setShowSortSheet(false)}
       >
         <View style={styles.sheetContent}>
           {(['date', 'name', 'size'] as const).map((field) => (
@@ -1372,6 +1379,7 @@ export function VaultHomeScreen(): React.JSX.Element {
           </Pressable>
         </View>
       </AppBottomSheet>
+      )}
 
       {/* Create Note Sheet (NOTES-001) */}
       {showCreateNote && (
@@ -1425,13 +1433,15 @@ export function VaultHomeScreen(): React.JSX.Element {
         onProperties={selectedIds.size === 1 ? handlePropertiesPress : undefined}
       />
 
-      {/* Rename Modal */}
-      <RenameModal
-        visible={showRenameModal}
-        currentName={singleSelectedItem?.name ?? ''}
-        onRename={handleRenameConfirm}
-        onClose={() => setShowRenameModal(false)}
-      />
+      {/* Rename Modal — conditional mount to prevent autoFocus keyboard grab */}
+      {showRenameModal && (
+        <RenameModal
+          visible={showRenameModal}
+          currentName={singleSelectedItem?.name ?? ''}
+          onRename={handleRenameConfirm}
+          onClose={() => setShowRenameModal(false)}
+        />
+      )}
 
       {/* Properties Modal */}
       <PropertiesModal

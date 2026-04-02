@@ -26,7 +26,6 @@ export function AudioList({
   onItemLongPress,
 }: AudioListProps): React.JSX.Element {
   const showSkeleton = useDelayedLoading(isLoading && items.length === 0);
-  if (showSkeleton) return <ListSkeleton />;
   const selectedIds = useVaultStore(s => s.selectedIds);
 
   const renderItem = useCallback(({ item, index }: { item: MediaItem; index: number }) => (
@@ -40,6 +39,8 @@ export function AudioList({
   ), [selectedIds, onItemPress, onItemLongPress]);
 
   const keyExtractor = useCallback((item: MediaItem) => item.id, []);
+
+  if (showSkeleton) return <ListSkeleton />;
 
   return (
     <View style={styles.container}>

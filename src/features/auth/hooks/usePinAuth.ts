@@ -8,6 +8,7 @@
  */
 
 import { useCallback, useRef } from 'react';
+import { InteractionManager } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '@typedefs/navigation';
@@ -18,6 +19,7 @@ import {
   isAuthRequired,
 } from '../services/authService';
 import { isPinConfigured } from '../services/pinStorage';
+import { prefetchVaultData } from '../services/vaultPrefetch';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -86,37 +88,43 @@ export function usePinAuth() {
         const result = await attemptPinAuth(input);
 
         if (result.success) {
-          // Authentication successful
+          // CRITICAL PATH: authenticate + navigate immediately.
+          // Everything else is deferred to after the transition.
           authenticate(result.isDecoy);
 
-          // Initialize ad SDK lazily on first unlock + record unlock cycle
-          try {
-            const ads = require('@services/ads');
-            ads.initializeAdsLazily();
-            ads.recordVaultUnlock();
-            ads.preloadInterstitial('Calculator');
-          } catch { /* ads may not be available */ }
+          // Start vault data prefetch while navigation transition plays
+          prefetchVaultData(result.isDecoy ?? false);
 
-          // Show paywall on 3rd vault unlock for free users
-          try {
-            const store = require('@store/settingsStore').useSettingsStore.getState();
-            if (store.premiumStatus === 'free' && !result.isDecoy && store.vaultUnlockCount === 3) {
-              store.setPaywallPending(true);
+          // Navigate immediately — no setTimeout. Zustand's set() is
+          // synchronous, so isAuthenticated is already true.
+          navigation.navigate('Vault');
+
+          // Defer non-critical work until after the navigation transition
+          // completes and the Vault screen is interactive.
+          InteractionManager.runAfterInteractions(() => {
+            // Initialize ad SDK lazily on first unlock + record unlock cycle
+            try {
+              const ads = require('@services/ads');
+              ads.initializeAdsLazily();
+              ads.recordVaultUnlock();
+              ads.preloadInterstitial('Calculator');
+            } catch { /* ads may not be available */ }
+
+            // Show paywall on 3rd vault unlock for free users
+            try {
+              const store = require('@store/settingsStore').useSettingsStore.getState();
+              if (store.premiumStatus === 'free' && !result.isDecoy && store.vaultUnlockCount === 3) {
+                store.setPaywallPending(true);
+              }
+            } catch { /* non-critical */ }
+
+            // Review prompt on 5th unlock (positive engagement moment)
+            if (!result.isDecoy) {
+              setTimeout(() => {
+                try { require('@services/review').triggerReviewPrompt(); } catch {}
+              }, 4000);
             }
-          } catch { /* non-critical */ }
-
-          // Review prompt on 5th unlock (positive engagement moment)
-          if (!result.isDecoy) {
-            setTimeout(() => {
-              try { require('@services/review').triggerReviewPrompt(); } catch {}
-            }, 4000); // 4s delay — let vault UI load first
-          }
-
-          // Navigate to vault
-          // Using setTimeout to ensure state updates before navigation
-          setTimeout(() => {
-            navigation.navigate('Vault');
-          }, 50);
+          });
 
           return {
             wasAuthAttempt: true,

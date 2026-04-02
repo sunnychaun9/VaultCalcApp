@@ -17,11 +17,16 @@ export const colors = {
 
     // Calculator specific
     calcBackground: '#FAFAFA',
+    calcBackgroundGradientEnd: '#F5F5F5',
     calcDisplay: '#FFFFFF',
+    calcDisplayGlass: 'rgba(0, 0, 0, 0.02)',
+    calcDisplayGlassBorder: 'rgba(0, 0, 0, 0.06)',
     calcButtonPrimary: '#F5F5F5',
-    calcButtonOperator: '#E8E8E8',
-    calcButtonEquals: '#3B82F6',
-    calcButtonEqualsPressed: '#2563EB',
+    calcButtonOperator: '#F5F5F5',
+    calcButtonOperatorText: '#16A34A',
+    calcButtonEquals: '#22C55E',
+    calcButtonEqualsPressed: '#16A34A',
+    calcButtonEqualsGlow: 'rgba(34, 197, 94, 0.15)',
     calcButtonEqualsText: '#FFFFFF',
 
     // Text
@@ -60,12 +65,17 @@ export const colors = {
     surfaceContainerLow: '#171717',
 
     // Calculator specific
-    calcBackground: '#121212',
-    calcDisplay: '#1A1A1A',
-    calcButtonPrimary: '#2A2A2A',
-    calcButtonOperator: '#333333',
-    calcButtonEquals: '#3B82F6',
-    calcButtonEqualsPressed: '#2563EB',
+    calcBackground: '#0D0D0D',
+    calcBackgroundGradientEnd: '#111116',
+    calcDisplay: '#151518',
+    calcDisplayGlass: 'rgba(255, 255, 255, 0.04)',
+    calcDisplayGlassBorder: 'rgba(255, 255, 255, 0.08)',
+    calcButtonPrimary: '#1C1C1E',
+    calcButtonOperator: '#1C1C1E',
+    calcButtonOperatorText: '#4ADE80',
+    calcButtonEquals: '#22C55E',
+    calcButtonEqualsPressed: '#16A34A',
+    calcButtonEqualsGlow: 'rgba(34, 197, 94, 0.25)',
     calcButtonEqualsText: '#FFFFFF',
 
     // Text

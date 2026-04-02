@@ -48,6 +48,8 @@ export interface MediaItem {
   isFavorite: boolean;
   isDecoy: boolean;
   metadata: Record<string, unknown> | null;
+  /** Last playback position in ms (for video/audio resume). Null = no saved position. */
+  playbackPosition?: number | null;
 }
 
 /**
@@ -211,7 +213,7 @@ export async function initializeDatabase(): Promise<void> {
   );
 
   if (versionResult === null) {
-    await database.runAsync('INSERT INTO schema_version (version) VALUES (?)', [4]);
+    await database.runAsync('INSERT INTO schema_version (version) VALUES (?)', [5]);
   } else {
     let currentVersion = versionResult.version;
 
@@ -236,7 +238,18 @@ export async function initializeDatabase(): Promise<void> {
     if (currentVersion < 4) {
       // Migration v3 → v4: add intruder intelligence columns (SEC-005)
       await migrateV3ToV4(database);
+      currentVersion = 4;
       await database.runAsync('UPDATE schema_version SET version = 4');
+    }
+
+    if (currentVersion < 5) {
+      // Migration v4 → v5: add playback position for video resume
+      await database.execAsync(
+        'ALTER TABLE media_items ADD COLUMN playback_position INTEGER'
+      ).catch(() => {
+        // Column may already exist
+      });
+      await database.runAsync('UPDATE schema_version SET version = 5');
     }
   }
 }
@@ -353,6 +366,7 @@ type MediaItemRow = {
   is_favorite: number;
   is_decoy: number;
   metadata: string | null;
+  playback_position: number | null;
 };
 
 /**
@@ -505,6 +519,32 @@ export const mediaItems = {
       `UPDATE media_items SET is_favorite = ? WHERE id IN (${placeholders})`,
       [isFavorite ? 1 : 0, ...ids]
     );
+  },
+
+  /**
+   * Save playback position for video resume.
+   * Pass null to clear the saved position.
+   */
+  async savePlaybackPosition(id: string, positionMs: number | null): Promise<void> {
+    const database = await getDatabase();
+    await database.runAsync(
+      'UPDATE media_items SET playback_position = ? WHERE id = ?',
+      [positionMs, id],
+    );
+  },
+
+  /**
+   * Get saved playback position (returns null if none saved or < 5s).
+   */
+  async getPlaybackPosition(id: string): Promise<number | null> {
+    const database = await getDatabase();
+    const row = await database.getFirstAsync<{ playback_position: number | null }>(
+      'SELECT playback_position FROM media_items WHERE id = ?',
+      [id],
+    );
+    const pos = row?.playback_position ?? null;
+    // Ignore positions < 5 seconds (not worth resuming)
+    return pos !== null && pos >= 5000 ? pos : null;
   },
 
   /**
@@ -1061,6 +1101,7 @@ function mapRowToMediaItem(row: {
   is_favorite: number;
   is_decoy: number;
   metadata: string | null;
+  playback_position?: number | null;
 }): MediaItem {
   return {
     id: row.id,
@@ -1080,5 +1121,6 @@ function mapRowToMediaItem(row: {
     isFavorite: row.is_favorite === 1,
     isDecoy: row.is_decoy === 1,
     metadata: row.metadata !== null ? JSON.parse(row.metadata) : null,
+    playbackPosition: row.playback_position ?? null,
   };
 }

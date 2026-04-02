@@ -42,6 +42,7 @@ import { HeroTransition } from '@shared/components/HeroTransition';
 import {
   NativeVideoPlayerView,
   loadVideo,
+  pauseVideo,
   enterFullscreen,
   exitFullscreen,
   releasePlayer,
@@ -215,6 +216,9 @@ export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Eleme
 
   // Video player ref
   const videoPlayerRef = useRef<any>(null);
+  const [resumePosition, setResumePosition] = useState<number | null>(null);
+  const [showResumePrompt, setShowResumePrompt] = useState(false);
+  const lastSavedPositionRef = useRef(0);
 
   // Video playlist (all videos in same query)
   const { data: allVideos } = useMediaQuery('videos');
@@ -300,11 +304,11 @@ export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Eleme
     };
   }, [decryptedPath]);
 
-  // Pause on background (for video)
+  // Pause video when app goes to background
   useEffect(() => {
     const handleAppState = (state: AppStateStatus) => {
       if (state !== 'active' && item?.type === 'video' && videoPlayerRef.current) {
-        // Native player handles pause internally via lifecycle
+        pauseVideo(videoPlayerRef);
       }
     };
     const sub = AppState.addEventListener('change', handleAppState);
@@ -323,12 +327,27 @@ export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Eleme
     };
   }, [decryptedUri, item?.type]);
 
-  // Load video into native player once decrypted
+  // Load video into native player once decrypted — check for saved position
   useEffect(() => {
-    if (decryptedPath && item?.type === 'video' && videoPlayerRef.current) {
-      loadVideo(videoPlayerRef, `file://${decryptedPath}`);
+    if (!decryptedPath || item?.type !== 'video' || !videoPlayerRef.current) return;
+
+    let cancelled = false;
+    async function loadWithResume() {
+      const savedPos = await mediaItems.getPlaybackPosition(item!.id);
+      if (cancelled) return;
+
+      if (savedPos !== null && item!.durationMs !== null && savedPos < item!.durationMs - 5000) {
+        // Has a meaningful saved position — show resume prompt
+        setResumePosition(savedPos);
+        setShowResumePrompt(true);
+      } else {
+        // No saved position or near the end — start from beginning
+        loadVideo(videoPlayerRef, `file://${decryptedPath}`);
+      }
     }
-  }, [decryptedPath, item?.type]);
+    loadWithResume();
+    return () => { cancelled = true; };
+  }, [decryptedPath, item?.type, item?.id, item?.durationMs]);
 
   // PDF page count
   useEffect(() => {
@@ -345,6 +364,46 @@ export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Eleme
   }, [isPdf, decryptedPath]);
 
   // ── Handlers ──
+
+  // Resume prompt handlers
+  const handleResume = useCallback(() => {
+    setShowResumePrompt(false);
+    if (decryptedPath && resumePosition !== null) {
+      loadVideo(videoPlayerRef, `file://${decryptedPath}`, resumePosition);
+    }
+  }, [decryptedPath, resumePosition]);
+
+  const handleStartOver = useCallback(() => {
+    setShowResumePrompt(false);
+    setResumePosition(null);
+    if (decryptedPath) {
+      loadVideo(videoPlayerRef, `file://${decryptedPath}`);
+    }
+    // Clear saved position
+    if (item?.id) {
+      mediaItems.savePlaybackPosition(item.id, null).catch(() => {});
+    }
+  }, [decryptedPath, item?.id]);
+
+  // Save playback position periodically (every ~5s via onProgress at 250ms intervals)
+  const handleVideoProgress = useCallback((event: { nativeEvent: { currentTime: number; duration: number } }) => {
+    if (!item?.id) return;
+    const { currentTime } = event.nativeEvent;
+    const currentMs = Math.round(currentTime);
+    // Only save every 5 seconds of real playback to avoid excessive writes
+    if (Math.abs(currentMs - lastSavedPositionRef.current) >= 5000) {
+      lastSavedPositionRef.current = currentMs;
+      mediaItems.savePlaybackPosition(item.id, currentMs).catch(() => {});
+    }
+  }, [item?.id]);
+
+  // Clear position when video completes
+  const handleVideoEnd = useCallback(() => {
+    if (item?.id) {
+      mediaItems.savePlaybackPosition(item.id, null).catch(() => {});
+      lastSavedPositionRef.current = 0;
+    }
+  }, [item?.id]);
 
   const handleBack = useCallback(() => {
     if (videoPlayerRef.current) {
@@ -508,7 +567,29 @@ export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Eleme
           onNavigate={handleVideoNavigate}
           onError={handleVideoError}
           onPlaybackStateChange={handlePlaybackStateChange}
+          onProgress={handleVideoProgress}
+          onEnd={handleVideoEnd}
         />
+
+        {/* Resume prompt overlay */}
+        {showResumePrompt && resumePosition !== null && (
+          <View style={styles.resumeOverlay}>
+            <View style={styles.resumeCard}>
+              <Text style={styles.resumeTitle}>Resume playback?</Text>
+              <Text style={styles.resumeSubtitle}>
+                Continue from {formatDuration(resumePosition)}
+              </Text>
+              <View style={styles.resumeButtons}>
+                <Pressable onPress={handleStartOver} style={styles.resumeBtn}>
+                  <Text style={styles.resumeBtnText}>Start over</Text>
+                </Pressable>
+                <Pressable onPress={handleResume} style={[styles.resumeBtn, styles.resumeBtnPrimary]}>
+                  <Text style={[styles.resumeBtnText, styles.resumeBtnPrimaryText]}>Resume</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        )}
 
         {/* Video Menu Modal */}
         <Modal visible={showMenu} transparent animationType="fade" onRequestClose={() => setShowMenu(false)}>
@@ -1043,5 +1124,56 @@ const createStyles = (_c: ColorTokens, SCREEN_WIDTH: number, SCREEN_HEIGHT: numb
     ...typography.bodyMedium,
     color: 'rgba(255,255,255,0.6)',
     textAlign: 'center',
+  },
+
+  // ── Resume prompt ──
+  resumeOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 100,
+  },
+  resumeCard: {
+    backgroundColor: 'rgba(30, 41, 59, 0.95)',
+    borderRadius: 20,
+    paddingHorizontal: 28,
+    paddingVertical: 24,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(100, 116, 139, 0.2)',
+    minWidth: 260,
+  },
+  resumeTitle: {
+    ...typography.titleLarge,
+    color: '#F1F5F9',
+    marginBottom: spacing.xs,
+  },
+  resumeSubtitle: {
+    ...typography.bodyMedium,
+    color: '#94A3B8',
+    marginBottom: spacing.lg,
+  },
+  resumeButtons: {
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  resumeBtn: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(100, 116, 139, 0.3)',
+  },
+  resumeBtnPrimary: {
+    backgroundColor: '#3B82F6',
+    borderColor: '#3B82F6',
+  },
+  resumeBtnText: {
+    ...typography.labelLarge,
+    color: '#94A3B8',
+  },
+  resumeBtnPrimaryText: {
+    color: '#FFFFFF',
   },
 });

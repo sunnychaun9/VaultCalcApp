@@ -15,7 +15,7 @@ import type { VaultStackParamList } from '@typedefs/navigation';
 import { AuthGuard, ChangePinScreen, DecoyPinSetupScreen, PatternSetupScreen, ChangePatternScreen } from '@features/auth';
 import { VaultHomeScreen } from '@features/vault';
 import { MediaViewerScreen, AlbumViewScreen, NoteEditorScreen, GalleryAlbumListScreen, GalleryMediaSelectScreen, AudioPlayerScreen, AppLockScreen } from '@features/vault/screens';
-import { SettingsScreen, AboutScreen, IntruderLogsScreen, IntruderDetailScreen, SubscriptionScreen, NotificationPrivacyScreen, UninstallProtectionScreen } from '@features/settings';
+import { SettingsScreen, AboutScreen, IntruderLogsScreen, IntruderDetailScreen, SubscriptionScreen, NotificationPrivacyScreen, UninstallProtectionScreen, PrivacyPolicyScreen } from '@features/settings';
 import {
   pushTransition,
   fadeUpTransition,
@@ -179,6 +179,13 @@ export function VaultNavigator(): React.JSX.Element {
         <Stack.Screen
           name="UninstallProtection"
           component={UninstallProtectionScreen}
+          options={pushTransition}
+        />
+
+        {/* Privacy Policy */}
+        <Stack.Screen
+          name="PrivacyPolicy"
+          component={PrivacyPolicyScreen}
           options={pushTransition}
         />
       </Stack.Navigator>

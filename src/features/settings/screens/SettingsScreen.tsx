@@ -272,6 +272,11 @@ export function SettingsScreen(): React.JSX.Element {
     navigation.navigate('About');
   }, [onActivity, navigation]);
 
+  const handlePrivacyPolicy = useCallback(() => {
+    onActivity();
+    navigation.navigate('PrivacyPolicy');
+  }, [onActivity, navigation]);
+
   const handleShareApp = useCallback(async () => {
     onActivity();
     try {
@@ -805,6 +810,7 @@ export function SettingsScreen(): React.JSX.Element {
             <SettingsRow type="value" icon="play" title="Ad-free mode" value={`${adFreeRemainingHours}h left`} onPress={() => {}} />
           )}
           <SettingsRow type="navigation" icon="share" title="Tell a friend" subtitle="Help others discover private file protection" onPress={handleShareApp} />
+          <SettingsRow type="navigation" icon="shield" title="Privacy Policy" subtitle="How your data is handled" onPress={handlePrivacyPolicy} />
           <SettingsRow type="navigation" icon="settings" title="About VaultCalc" onPress={handleAbout} showDivider={false} />
         </SettingsSection>
       </ScrollView>

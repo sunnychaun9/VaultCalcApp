@@ -1,16 +1,21 @@
 /**
- * VaultCalc - Calculator Button Component
+ * VaultCalc - Calculator Button Component (Premium Redesign)
  *
- * Individual calculator button with proper styling and press feedback.
+ * Individual calculator button with:
+ * - Animated scale press feedback (spring physics)
+ * - Subtle elevation shadow
+ * - Accent-colored operators
+ * - Glowing equals button
+ * - Haptic feedback
  *
- * @see 03-Design-System.md Section 6.3
- * @see FEATURE_INDEX.md CALC-001
+ * @see CALC-001
  */
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useRef } from 'react';
 import {
   Pressable,
   Text,
+  Animated,
   StyleSheet,
   Vibration,
   ViewStyle,
@@ -32,10 +37,6 @@ interface CalcButtonProps {
   compact?: boolean;
 }
 
-/**
- * Calculator button component
- * Supports different button types with appropriate styling
- */
 export function CalcButton({
   label,
   type = 'number',
@@ -47,6 +48,25 @@ export function CalcButton({
   compact = false,
 }: CalcButtonProps): React.JSX.Element {
   const themeColors = useThemeColors();
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  const handlePressIn = useCallback(() => {
+    Animated.spring(scaleAnim, {
+      toValue: 0.92,
+      useNativeDriver: true,
+      speed: 50,
+      bounciness: 4,
+    }).start();
+  }, [scaleAnim]);
+
+  const handlePressOut = useCallback(() => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+      speed: 30,
+      bounciness: 6,
+    }).start();
+  }, [scaleAnim]);
 
   const handlePress = useCallback(() => {
     if (!disabled) {
@@ -62,89 +82,131 @@ export function CalcButton({
   const textStyle = getTextStyle(type, themeColors);
 
   return (
-    <Pressable
-      onPress={handlePress}
-      onLongPress={onLongPress}
-      disabled={disabled}
-      style={({ pressed }) => [
-        styles.button,
-        compact && styles.buttonCompact,
-        buttonStyle,
-        pressed && styles.pressed,
-        pressed && type === 'equals' && { backgroundColor: themeColors.calcButtonEqualsPressed },
-        disabled && styles.disabled,
+    <Animated.View
+      style={[
+        styles.wrapper,
+        compact && styles.wrapperCompact,
+        { flex: span > 1 ? span : 1 },
+        { transform: [{ scale: scaleAnim }] },
       ]}
-      accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel ?? `${label} button`}
-      accessibilityState={{ disabled }}
     >
-      <Text style={[styles.text, compact && styles.textCompact, textStyle, disabled && styles.textDisabled]}>
-        {label}
-      </Text>
-    </Pressable>
+      <Pressable
+        onPress={handlePress}
+        onLongPress={onLongPress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        disabled={disabled}
+        style={[
+          styles.button,
+          compact && styles.buttonCompact,
+          buttonStyle,
+          disabled && styles.disabled,
+        ]}
+        android_ripple={{
+          color: type === 'equals'
+            ? 'rgba(255, 255, 255, 0.15)'
+            : 'rgba(255, 255, 255, 0.08)',
+          borderless: false,
+        }}
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel ?? `${label} button`}
+        accessibilityState={{ disabled }}
+      >
+        <Text
+          style={[
+            styles.text,
+            compact && styles.textCompact,
+            textStyle,
+            disabled && styles.textDisabled,
+          ]}
+        >
+          {label}
+        </Text>
+      </Pressable>
+    </Animated.View>
   );
 }
 
-function getButtonStyle(type: ButtonType, span: number, c: ColorTokens): ViewStyle {
-  const baseStyle: ViewStyle = {};
-
-  if (span > 1) {
-    baseStyle.flex = span;
-  }
-
+function getButtonStyle(type: ButtonType, _span: number, c: ColorTokens): ViewStyle {
   switch (type) {
     case 'number':
-      return { ...baseStyle, backgroundColor: c.calcButtonPrimary };
+      return {
+        backgroundColor: c.calcButtonPrimary,
+        elevation: 2,
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.2,
+        shadowRadius: 3,
+      };
     case 'operator':
-      return { ...baseStyle, backgroundColor: c.calcButtonOperator };
+      return {
+        backgroundColor: c.calcButtonOperator,
+        elevation: 2,
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.2,
+        shadowRadius: 3,
+      };
     case 'function':
-      return { ...baseStyle, backgroundColor: 'transparent' };
+      return {
+        backgroundColor: 'transparent',
+      };
     case 'clear':
-      return { ...baseStyle, backgroundColor: 'transparent' };
+      return {
+        backgroundColor: 'transparent',
+      };
     case 'equals':
-      return { ...baseStyle, backgroundColor: c.calcButtonEquals, borderRadius: 24 };
+      return {
+        backgroundColor: c.calcButtonEquals,
+        elevation: 6,
+        shadowColor: c.calcButtonEqualsGlow,
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 1,
+        shadowRadius: 10,
+      };
     default:
-      return baseStyle;
+      return {};
   }
 }
 
 function getTextStyle(type: ButtonType, c: ColorTokens): TextStyle {
   switch (type) {
     case 'equals':
-      return { color: c.calcButtonEqualsText, fontSize: 28 };
+      return { color: c.calcButtonEqualsText, fontSize: 32, fontWeight: '600' };
     case 'function':
-      return { ...typography.calcButtonSmall, color: c.accent };
+      return { ...typography.calcButtonSmall, color: c.calcButtonOperatorText };
     case 'operator':
-      return { color: c.accent };
+      return { color: c.calcButtonOperatorText, fontSize: 30 };
     case 'clear':
-      return { color: c.accent };
+      return { color: c.calcButtonOperatorText };
     default:
       return { color: c.textPrimary };
   }
 }
 
 const styles = StyleSheet.create({
+  wrapper: {
+    height: layout.calcButtonHeight,
+  },
+  wrapperCompact: {
+    height: layout.calcButtonHeightCompact,
+  },
   button: {
     flex: 1,
-    height: layout.calcButtonHeight,
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius: 16,
     minWidth: layout.minTouchTarget,
+    overflow: 'hidden',
   },
   buttonCompact: {
-    height: layout.calcButtonHeightCompact,
     borderRadius: 12,
   },
   text: {
     ...typography.calcButton,
   },
   textCompact: {
-    fontSize: 20,
-  },
-  pressed: {
-    opacity: 0.8,
-    transform: [{ scale: 0.95 }],
+    fontSize: 22,
   },
   disabled: {
     opacity: 0.38,

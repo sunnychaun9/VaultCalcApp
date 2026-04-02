@@ -3,8 +3,38 @@
     android:height="108dp"
     android:viewportWidth="512"
     android:viewportHeight="512">
-  <path
-      android:fillColor="#3A3A3C"
-      android:fillType="evenOdd"
-      android:pathData="M114,194 L398,194 A12,12 0 0 1 410,206 L410,223 A12,12 0 0 1 398,235 L114,235 A12,12 0 0 1 102,223 L102,206 A12,12 0 0 1 114,194 Z M114,277 L398,277 A12,12 0 0 1 410,289 L410,306 A12,12 0 0 1 398,318 L114,318 A12,12 0 0 1 102,306 L102,289 A12,12 0 0 1 114,277 Z M256,225 L287,256 L256,287 L225,256 Z"/>
+
+    <!-- Calculator body — dark glass card (smaller for splash safe zone) -->
+    <path
+        android:fillColor="#1A1A1E"
+        android:pathData="M176,120 L336,120 A20,20 0 0 1 356,140 L356,372 A20,20 0 0 1 336,392 L176,392 A20,20 0 0 1 156,372 L156,140 A20,20 0 0 1 176,120 Z" />
+
+    <!-- Top edge highlight -->
+    <path
+        android:fillColor="#2A2A30"
+        android:pathData="M176,120 L336,120 A20,20 0 0 1 356,140 L356,143 L156,143 L156,140 A20,20 0 0 1 176,120 Z" />
+
+    <!-- Display -->
+    <path
+        android:fillColor="#111114"
+        android:pathData="M176,143 L336,143 A8,8 0 0 1 344,151 L344,196 A8,8 0 0 1 336,204 L176,204 A8,8 0 0 1 168,196 L168,151 A8,8 0 0 1 176,143 Z" />
+
+    <!-- Button grid 3x3 -->
+    <path android:fillColor="#2C2C32" android:pathData="M180,228 A14,14 0 1 1 208,228 A14,14 0 1 1 180,228 Z" />
+    <path android:fillColor="#2C2C32" android:pathData="M242,228 A14,14 0 1 1 270,228 A14,14 0 1 1 242,228 Z" />
+    <path android:fillColor="#2C2C32" android:pathData="M304,228 A14,14 0 1 1 332,228 A14,14 0 1 1 304,228 Z" />
+
+    <path android:fillColor="#252528" android:pathData="M180,272 A14,14 0 1 1 208,272 A14,14 0 1 1 180,272 Z" />
+    <path android:fillColor="#252528" android:pathData="M242,272 A14,14 0 1 1 270,272 A14,14 0 1 1 242,272 Z" />
+    <path android:fillColor="#252528" android:pathData="M304,272 A14,14 0 1 1 332,272 A14,14 0 1 1 304,272 Z" />
+
+    <path android:fillColor="#252528" android:pathData="M180,316 A14,14 0 1 1 208,316 A14,14 0 1 1 180,316 Z" />
+    <path android:fillColor="#252528" android:pathData="M242,316 A14,14 0 1 1 270,316 A14,14 0 1 1 242,316 Z" />
+
+    <!-- Equals — green accent -->
+    <path android:fillColor="#22C55E" android:pathData="M304,316 A14,14 0 1 1 332,316 A14,14 0 1 1 304,316 Z" />
+
+    <!-- Bottom wide button -->
+    <path android:fillColor="#252528" android:pathData="M180,356 L270,356 A8,8 0 0 1 278,364 L278,370 A8,8 0 0 1 270,378 L180,378 A8,8 0 0 1 172,370 L172,364 A8,8 0 0 1 180,356 Z" />
+
 </vector>

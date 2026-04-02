@@ -28,40 +28,40 @@ export const typography = {
     fontFamily: fontFamily.mono,
     fontSize: 56,
     lineHeight: 64,
-    fontWeight: '400',
-    letterSpacing: -1,
+    fontWeight: '300',
+    letterSpacing: -1.5,
   } as TextStyle,
 
   calcDisplayMedium: {
     fontFamily: fontFamily.mono,
     fontSize: 40,
     lineHeight: 48,
-    fontWeight: '400',
-    letterSpacing: -0.5,
+    fontWeight: '300',
+    letterSpacing: -1,
   } as TextStyle,
 
   calcDisplaySmall: {
     fontFamily: fontFamily.mono,
     fontSize: 28,
     lineHeight: 36,
-    fontWeight: '400',
-    letterSpacing: 0,
+    fontWeight: '300',
+    letterSpacing: -0.5,
   } as TextStyle,
 
   calcButton: {
     fontFamily: fontFamily.regular,
-    fontSize: 24,
-    lineHeight: 28,
-    fontWeight: '400',
+    fontSize: 28,
+    lineHeight: 32,
+    fontWeight: '500',
     letterSpacing: 0,
   } as TextStyle,
 
   calcButtonSmall: {
     fontFamily: fontFamily.regular,
-    fontSize: 18,
-    lineHeight: 22,
-    fontWeight: '400',
-    letterSpacing: 0.15,
+    fontSize: 20,
+    lineHeight: 24,
+    fontWeight: '500',
+    letterSpacing: 0,
   } as TextStyle,
 
   // App UI

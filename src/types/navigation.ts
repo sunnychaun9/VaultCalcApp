@@ -83,6 +83,8 @@ export type VaultStackParamList = {
   ChangePattern: undefined;
   /** Uninstall Protection settings */
   UninstallProtection: undefined;
+  /** Privacy Policy screen */
+  PrivacyPolicy: undefined;
 };
 
 /**

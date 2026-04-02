@@ -49,10 +49,11 @@ export const modalTransition: NativeStackNavigationOptions = {
  * Fade-only transition.
  * Quick crossfade — used for vault entry and the media viewer
  * where content appears "in place" rather than sliding in.
+ * Kept fast (150ms) so vault entry feels instant after PIN check.
  */
 export const fadeTransition: NativeStackNavigationOptions = {
   animation: 'fade',
-  animationDuration: 250,
+  animationDuration: 150,
 };
 
 /**

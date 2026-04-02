@@ -11,6 +11,11 @@
 package com.vaultcalcapp.modules.videoplayer
 
 import android.media.MediaMetadataRetriever
+import android.os.Handler
+import android.os.Looper
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
 import com.facebook.react.bridge.*
 import com.facebook.react.modules.core.DeviceEventManagerModule
 import kotlinx.coroutines.*
@@ -126,9 +131,151 @@ class VideoPlayerModule(reactContext: ReactApplicationContext) :
         }
     }
 
+    // ════════════════════════════════════════════════════════════
+    // Audio Player — lightweight ExoPlayer for decrypted audio files
+    // ════════════════════════════════════════════════════════════
+
+    private var audioPlayer: ExoPlayer? = null
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var audioProgressRunnable: Runnable? = null
+
+    @ReactMethod
+    fun audioLoad(filePath: String, promise: Promise) {
+        mainHandler.post {
+            try {
+                val player = audioPlayer ?: ExoPlayer.Builder(reactApplicationContext).build().also {
+                    it.addListener(object : Player.Listener {
+                        override fun onPlaybackStateChanged(state: Int) {
+                            if (state == Player.STATE_ENDED) {
+                                emitAudioEvent("onAudioEnd", Arguments.createMap())
+                                stopAudioProgress()
+                            }
+                        }
+
+                        override fun onIsPlayingChanged(isPlaying: Boolean) {
+                            val event = Arguments.createMap().apply {
+                                putBoolean("isPlaying", isPlaying)
+                            }
+                            emitAudioEvent("onAudioPlaybackState", event)
+                            if (isPlaying) startAudioProgress() else stopAudioProgress()
+                        }
+                    })
+                    audioPlayer = it
+                }
+                player.setMediaItem(MediaItem.fromUri("file://$filePath"))
+                player.prepare()
+
+                val result = Arguments.createMap().apply {
+                    putBoolean("success", true)
+                }
+                promise.resolve(result)
+            } catch (e: Exception) {
+                promise.reject("AUDIO_LOAD_ERROR", e.message)
+            }
+        }
+    }
+
+    @ReactMethod
+    fun audioPlay(promise: Promise) {
+        mainHandler.post {
+            audioPlayer?.play()
+            promise.resolve(true)
+        }
+    }
+
+    @ReactMethod
+    fun audioPause(promise: Promise) {
+        mainHandler.post {
+            audioPlayer?.pause()
+            promise.resolve(true)
+        }
+    }
+
+    @ReactMethod
+    fun audioSeekTo(positionMs: Double, promise: Promise) {
+        mainHandler.post {
+            audioPlayer?.seekTo(positionMs.toLong())
+            promise.resolve(true)
+        }
+    }
+
+    @ReactMethod
+    fun audioSetSpeed(speed: Double, promise: Promise) {
+        mainHandler.post {
+            audioPlayer?.setPlaybackSpeed(speed.toFloat())
+            promise.resolve(true)
+        }
+    }
+
+    @ReactMethod
+    fun audioGetPosition(promise: Promise) {
+        mainHandler.post {
+            val p = audioPlayer
+            if (p != null) {
+                val result = Arguments.createMap().apply {
+                    putDouble("currentTime", p.currentPosition.toDouble())
+                    putDouble("duration", p.duration.toDouble())
+                    putBoolean("isPlaying", p.isPlaying)
+                }
+                promise.resolve(result)
+            } else {
+                promise.resolve(Arguments.createMap().apply {
+                    putDouble("currentTime", 0.0)
+                    putDouble("duration", 0.0)
+                    putBoolean("isPlaying", false)
+                })
+            }
+        }
+    }
+
+    @ReactMethod
+    fun audioRelease(promise: Promise) {
+        mainHandler.post {
+            stopAudioProgress()
+            audioPlayer?.stop()
+            audioPlayer?.release()
+            audioPlayer = null
+            promise.resolve(true)
+        }
+    }
+
+    private fun startAudioProgress() {
+        stopAudioProgress()
+        val runnable = object : Runnable {
+            override fun run() {
+                audioPlayer?.let { p ->
+                    if (p.isPlaying) {
+                        val event = Arguments.createMap().apply {
+                            putDouble("currentTime", p.currentPosition.toDouble())
+                            putDouble("duration", p.duration.toDouble())
+                        }
+                        emitAudioEvent("onAudioProgress", event)
+                    }
+                }
+                mainHandler.postDelayed(this, 250)
+            }
+        }
+        audioProgressRunnable = runnable
+        mainHandler.post(runnable)
+    }
+
+    private fun stopAudioProgress() {
+        audioProgressRunnable?.let { mainHandler.removeCallbacks(it) }
+        audioProgressRunnable = null
+    }
+
+    private fun emitAudioEvent(eventName: String, params: WritableMap) {
+        reactApplicationContext
+            .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+            .emit(eventName, params)
+    }
+
     @Deprecated("Deprecated in Java")
     override fun onCatalystInstanceDestroy() {
         super.onCatalystInstanceDestroy()
+        stopAudioProgress()
+        audioPlayer?.release()
+        audioPlayer = null
         scope.cancel()
     }
 }

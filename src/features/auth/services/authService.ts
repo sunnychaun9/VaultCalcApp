@@ -78,35 +78,38 @@ export async function attemptPinAuth(pin: string): Promise<AuthResult> {
   }
 
   try {
-    // Get primary PIN credentials
+    // Get credentials for both PINs upfront (MMKV reads are synchronous, ~0ms)
     const primaryCredentials = await getPinCredentials(false);
     if (!primaryCredentials) {
       return { success: false, error: 'Failed to retrieve credentials' };
     }
+    const decoyCredentials = await getPinCredentials(true);
 
-    // Verify against primary PIN
-    const primaryResult = await verifyPin(
+    // Run primary and decoy Argon2id hashes IN PARALLEL.
+    // Each takes ~500-800ms on its own coroutine in CryptoModule.
+    // Running both concurrently means the decoy check is "free" —
+    // total time ≈ max(primary, decoy) instead of primary + decoy.
+    const primaryPromise = verifyPin(
       pin,
       primaryCredentials.hash,
-      primaryCredentials.salt
+      primaryCredentials.salt,
     );
+
+    const decoyPromise = decoyCredentials
+      ? verifyPin(pin, decoyCredentials.hash, decoyCredentials.salt)
+      : Promise.resolve({ success: true, data: false });
+
+    const [primaryResult, decoyResult] = await Promise.all([
+      primaryPromise,
+      decoyPromise,
+    ]);
 
     if (primaryResult.success && primaryResult.data === true) {
       return { success: true, isDecoy: false };
     }
 
-    // Check decoy PIN if primary didn't match
-    const decoyCredentials = await getPinCredentials(true);
-    if (decoyCredentials) {
-      const decoyResult = await verifyPin(
-        pin,
-        decoyCredentials.hash,
-        decoyCredentials.salt
-      );
-
-      if (decoyResult.success && decoyResult.data === true) {
-        return { success: true, isDecoy: true };
-      }
+    if (decoyResult.success && decoyResult.data === true) {
+      return { success: true, isDecoy: true };
     }
 
     // Neither PIN matched

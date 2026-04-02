@@ -3,8 +3,60 @@
     android:height="108dp"
     android:viewportWidth="512"
     android:viewportHeight="512">
-  <path
-      android:fillColor="#E5E5EA"
-      android:fillType="evenOdd"
-      android:pathData="M114,194 L398,194 A12,12 0 0 1 410,206 L410,223 A12,12 0 0 1 398,235 L114,235 A12,12 0 0 1 102,223 L102,206 A12,12 0 0 1 114,194 Z M114,277 L398,277 A12,12 0 0 1 410,289 L410,306 A12,12 0 0 1 398,318 L114,318 A12,12 0 0 1 102,306 L102,289 A12,12 0 0 1 114,277 Z M256,225 L287,256 L256,287 L225,256 Z"/>
+
+    <!-- Calculator body — dark glass card with rounded corners -->
+    <path
+        android:fillColor="#1A1A1E"
+        android:pathData="M148,88 L364,88 A28,28 0 0 1 392,116 L392,396 A28,28 0 0 1 364,424 L148,424 A28,28 0 0 1 120,396 L120,116 A28,28 0 0 1 148,88 Z" />
+
+    <!-- Top edge highlight — glass reflection -->
+    <path
+        android:fillColor="#2A2A30"
+        android:pathData="M148,88 L364,88 A28,28 0 0 1 392,116 L392,120 L120,120 L120,116 A28,28 0 0 1 148,88 Z" />
+
+    <!-- Display area — darker inset -->
+    <path
+        android:fillColor="#111114"
+        android:pathData="M148,112 L364,112 A12,12 0 0 1 376,124 L376,192 A12,12 0 0 1 364,204 L148,204 A12,12 0 0 1 136,192 L136,124 A12,12 0 0 1 148,112 Z" />
+
+    <!-- Display text hint — subtle "0" -->
+    <path
+        android:fillColor="#3A3A42"
+        android:pathData="M346,164 A4,4 0 0 1 350,160 L360,160 A4,4 0 0 1 364,164 L364,186 A4,4 0 0 1 360,190 L350,190 A4,4 0 0 1 346,186 Z"
+        android:fillType="evenOdd" />
+
+    <!-- Button grid: 3x4 — dark buttons with subtle highlight -->
+    <!-- Row 1 (function keys — slightly different tone) -->
+    <path android:fillColor="#2C2C32" android:pathData="M148,228 A18,18 0 1 1 184,228 A18,18 0 1 1 148,228 Z" />
+    <path android:fillColor="#2C2C32" android:pathData="M238,228 A18,18 0 1 1 274,228 A18,18 0 1 1 238,228 Z" />
+    <path android:fillColor="#2C2C32" android:pathData="M328,228 A18,18 0 1 1 364,228 A18,18 0 1 1 328,228 Z" />
+
+    <!-- Row 2 -->
+    <path android:fillColor="#252528" android:pathData="M148,284 A18,18 0 1 1 184,284 A18,18 0 1 1 148,284 Z" />
+    <path android:fillColor="#252528" android:pathData="M238,284 A18,18 0 1 1 274,284 A18,18 0 1 1 238,284 Z" />
+    <path android:fillColor="#252528" android:pathData="M328,284 A18,18 0 1 1 364,284 A18,18 0 1 1 328,284 Z" />
+
+    <!-- Row 3 -->
+    <path android:fillColor="#252528" android:pathData="M148,340 A18,18 0 1 1 184,340 A18,18 0 1 1 148,340 Z" />
+    <path android:fillColor="#252528" android:pathData="M238,340 A18,18 0 1 1 274,340 A18,18 0 1 1 238,340 Z" />
+    <path android:fillColor="#252528" android:pathData="M328,340 A18,18 0 1 1 364,340 A18,18 0 1 1 328,340 Z" />
+
+    <!-- Row 4 — 0 (wide) + dot + equals (accent) -->
+    <path android:fillColor="#252528" android:pathData="M148,388 L274,388 A12,12 0 0 1 286,400 L286,400 A12,12 0 0 1 274,412 L148,412 A12,12 0 0 1 136,400 L136,400 A12,12 0 0 1 148,388 Z" />
+    <path android:fillColor="#252528" android:pathData="M238,396 A18,18 0 1 1 274,396 A18,18 0 1 1 238,396 Z" />
+
+    <!-- Equals button — green accent (the premium signature) -->
+    <path android:fillColor="#22C55E" android:pathData="M328,396 A18,18 0 1 1 364,396 A18,18 0 1 1 328,396 Z" />
+
+    <!-- Subtle glow around equals button -->
+    <path android:fillColor="#22C55E" android:fillAlpha="0.15" android:pathData="M325,396 A21,21 0 1 1 367,396 A21,21 0 1 1 325,396 Z" />
+
+    <!-- Button top highlights (glass reflection on row 1) -->
+    <path android:fillColor="#FFFFFF" android:fillAlpha="0.06"
+        android:pathData="M152,218 L180,218 A14,14 0 0 1 168,212 A14,14 0 0 1 152,218 Z" />
+    <path android:fillColor="#FFFFFF" android:fillAlpha="0.06"
+        android:pathData="M242,218 L270,218 A14,14 0 0 1 258,212 A14,14 0 0 1 242,218 Z" />
+    <path android:fillColor="#FFFFFF" android:fillAlpha="0.06"
+        android:pathData="M332,218 L360,218 A14,14 0 0 1 348,212 A14,14 0 0 1 332,218 Z" />
+
 </vector>

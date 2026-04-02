@@ -34,9 +34,11 @@ import { useThemeColors, type ColorTokens, spacing, layout } from '@shared/theme
 
 /**
  * Returns true only after `isLoading` has been true for >= `delayMs`.
- * Prevents skeleton flash when data loads quickly (<300ms).
+ * Prevents skeleton flash when data loads quickly.
+ * Default 100ms — low enough to feel instant on cold cache, high enough
+ * to avoid a skeleton flash when React Query cache is warm (~0-50ms).
  */
-export function useDelayedLoading(isLoading: boolean, delayMs: number = 300): boolean {
+export function useDelayedLoading(isLoading: boolean, delayMs: number = 100): boolean {
   const [showSkeleton, setShowSkeleton] = useState(false);
 
   useEffect(() => {

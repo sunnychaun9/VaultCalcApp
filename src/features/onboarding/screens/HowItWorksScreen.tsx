@@ -66,6 +66,10 @@ export function HowItWorksScreen(): React.JSX.Element {
             </View>
           ))}
         </View>
+
+        <Text style={styles.disclosure}>
+          This app can appear as a calculator, weather, or notes app on your home screen for privacy. You can change this anytime in Settings.
+        </Text>
       </View>
 
       <View style={styles.bottom}>
@@ -103,6 +107,14 @@ const createStyles = (c: ColorTokens) =>
     },
     steps: {
       gap: spacing.xl,
+    },
+    disclosure: {
+      ...typography.bodySmall,
+      color: c.textSecondary,
+      textAlign: 'center',
+      marginTop: spacing['2xl'],
+      paddingHorizontal: spacing.base,
+      lineHeight: 18,
     },
     step: {
       flexDirection: 'row',

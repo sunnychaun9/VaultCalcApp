@@ -8,20 +8,22 @@
  * @see AUTH-010 Premium Lock UI
  */
 
-import React, { useMemo } from 'react';
-import { View, Text, ScrollView, StyleSheet, StatusBar } from 'react-native';
+import React, { useMemo, useEffect, useRef } from 'react';
+import { View, Text, ScrollView, StyleSheet, StatusBar, Animated, Easing } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Svg, { Defs, LinearGradient, Stop, Rect, RadialGradient } from 'react-native-svg';
 import { typography, spacing } from '@shared/theme';
 import { Icon } from '@shared/components/Icon';
 
-/** Dark gradient colors */
-const BG_TOP = '#0F172A';
-const BG_BOTTOM = '#1E293B';
-const CARD_BG = 'rgba(30, 41, 59, 0.65)';
-const CARD_BORDER = 'rgba(100, 116, 139, 0.2)';
+/** Premium dark palette — synced with PinSetupScreen */
+const BG_TOP = '#0A0E1A';
+const BG_BOTTOM = '#141B2D';
+const CARD_BG = 'rgba(30, 41, 59, 0.55)';
+const CARD_BORDER = 'rgba(100, 116, 139, 0.15)';
 const TEXT_PRIMARY = '#F1F5F9';
 const TEXT_SECONDARY = '#94A3B8';
 const TEXT_MUTED = '#64748B';
+const ACCENT = '#3B82F6';
 
 export { TEXT_PRIMARY, TEXT_SECONDARY, TEXT_MUTED, CARD_BG, CARD_BORDER, BG_TOP, BG_BOTTOM };
 
@@ -55,22 +57,50 @@ export function LockScreenContainer({
 }: LockScreenContainerProps): React.JSX.Element {
   const styles = useMemo(() => createStyles(), []);
 
+  // Lock icon breathing pulse
+  const pulseScale = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseScale, { toValue: 1.06, duration: 1800, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(pulseScale, { toValue: 1, duration: 1800, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ]),
+    );
+    anim.start();
+    return () => anim.stop();
+  }, [pulseScale]);
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={BG_TOP} />
 
-      {/* Gradient background layers */}
-      <View style={styles.bgTop} />
-      <View style={styles.bgBottom} />
+      {/* SVG gradient background */}
+      <View style={StyleSheet.absoluteFill} pointerEvents="none">
+        <Svg width="100%" height="100%">
+          <Defs>
+            <LinearGradient id="lockBg" x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0" stopColor={BG_TOP} />
+              <Stop offset="0.5" stopColor={BG_BOTTOM} />
+              <Stop offset="1" stopColor="#0F1629" />
+            </LinearGradient>
+            <RadialGradient id="lockGlow" cx="50%" cy="12%" rx="40%" ry="22%">
+              <Stop offset="0" stopColor={ACCENT} stopOpacity="0.08" />
+              <Stop offset="1" stopColor={ACCENT} stopOpacity="0" />
+            </RadialGradient>
+          </Defs>
+          <Rect x="0" y="0" width="100%" height="100%" fill="url(#lockBg)" />
+          <Rect x="0" y="0" width="100%" height="100%" fill="url(#lockGlow)" />
+        </Svg>
+      </View>
 
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <ScrollView contentContainerStyle={styles.scrollContent} bounces={false} showsVerticalScrollIndicator={false}>
         {/* Top section: brand + status */}
         <View style={styles.topSection}>
-          {/* Lock icon */}
-          <View style={styles.lockIconWrapper}>
-            <Icon name="lock" size={48} color="rgba(255,255,255,0.9)" />
-          </View>
+          {/* Pulsing lock icon */}
+          <Animated.View style={[styles.lockIconWrapper, { transform: [{ scale: pulseScale }] }]}>
+            <Icon name="lock" size={28} color="rgba(255,255,255,0.95)" />
+          </Animated.View>
 
           {/* Title */}
           <Text style={styles.title}>{title}</Text>
@@ -114,20 +144,6 @@ const createStyles = () =>
       flex: 1,
       backgroundColor: BG_TOP,
     },
-    bgTop: {
-      ...StyleSheet.absoluteFillObject,
-      backgroundColor: BG_TOP,
-    },
-    bgBottom: {
-      position: 'absolute',
-      left: 0,
-      right: 0,
-      bottom: 0,
-      height: '60%',
-      backgroundColor: BG_BOTTOM,
-      borderTopLeftRadius: 40,
-      borderTopRightRadius: 40,
-    },
     safeArea: {
       flex: 1,
     },
@@ -140,21 +156,18 @@ const createStyles = () =>
       paddingBottom: spacing.lg,
     },
     lockIconWrapper: {
-      width: 48,
-      height: 48,
-      borderRadius: 24,
-      backgroundColor: 'rgba(59, 130, 246, 0.15)',
+      width: 56,
+      height: 56,
+      borderRadius: 28,
+      backgroundColor: 'rgba(59, 130, 246, 0.12)',
       justifyContent: 'center',
       alignItems: 'center',
       marginBottom: spacing.md,
     },
-    lockIcon: {
-      fontSize: 22,
-    },
     title: {
       ...typography.headlineMedium,
       color: TEXT_PRIMARY,
-      fontWeight: '600',
+      fontWeight: '700',
       marginBottom: spacing.xs,
     },
     subtitle: {

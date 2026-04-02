@@ -59,6 +59,10 @@ class VaultVideoPlayerViewManager : SimpleViewManager<VaultVideoPlayerView>() {
             .put("unlockScreen", 13)
             .put("rotateScreen", 14)
             .put("setAutoRotate", 15)
+            .put("loadSubtitle", 16)
+            .put("toggleSubtitles", 17)
+            .put("adjustSubtitleDelay", 18)
+            .put("resetSubtitleDelay", 19)
             .build()
     }
 
@@ -100,6 +104,16 @@ class VaultVideoPlayerViewManager : SimpleViewManager<VaultVideoPlayerView>() {
                 val enabled = args?.getBoolean(0) ?: return
                 root.setAutoRotate(enabled)
             }
+            "loadSubtitle" -> {
+                val srtPath = args?.getString(0) ?: return
+                root.loadSubtitle(srtPath)
+            }
+            "toggleSubtitles" -> root.toggleSubtitles()
+            "adjustSubtitleDelay" -> {
+                val deltaMs = args?.getDouble(0)?.toLong() ?: return
+                root.adjustSubtitleDelay(deltaMs)
+            }
+            "resetSubtitleDelay" -> root.resetSubtitleDelay()
         }
     }
 
@@ -120,6 +134,7 @@ class VaultVideoPlayerViewManager : SimpleViewManager<VaultVideoPlayerView>() {
             .put("onBackPress", MapBuilder.of("registrationName", "onBackPress"))
             .put("onMenuPress", MapBuilder.of("registrationName", "onMenuPress"))
             .put("onLockStateChange", MapBuilder.of("registrationName", "onLockStateChange"))
+            .put("onSubtitleStateChange", MapBuilder.of("registrationName", "onSubtitleStateChange"))
             .build()
     }
 

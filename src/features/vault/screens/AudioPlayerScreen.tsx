@@ -3,13 +3,13 @@
  *
  * Full-screen audio player with:
  * - Album art placeholder with music note
- * - Track title with horizontal marquee
+ * - Track title
  * - Seek bar with timestamps
  * - Play/pause, prev/next, skip ±5s
  * - Speed selector (0.5x–3x)
  * - Playlist bottom sheet
  *
- * Uses ExoPlayer via NativeModules for decrypted audio playback.
+ * Uses ExoPlayer via VideoPlayerModule for decrypted audio playback.
  * Suppresses auto-lock while playing.
  */
 
@@ -23,6 +23,8 @@ import {
   StatusBar,
   useWindowDimensions,
   Modal,
+  NativeModules,
+  NativeEventEmitter,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { VaultStackScreenProps } from '@typedefs/navigation';
@@ -33,6 +35,8 @@ import { deleteFile } from '@services/media';
 import { Icon, IconButton } from '@shared/components/Icon';
 
 type Props = VaultStackScreenProps<'AudioPlayer'>;
+
+const AudioBridge = NativeModules.VideoPlayerModule;
 
 function formatTime(ms: number): string {
   const totalSeconds = Math.floor(ms / 1000);
@@ -53,7 +57,6 @@ export function AudioPlayerScreen({ navigation, route }: Props): React.JSX.Eleme
 
   // State
   const [item, setItem] = useState<MediaItem | null>(null);
-  const [_decryptedPath, setDecryptedPath] = useState<string | null>(null);
   const [_isLoading, setIsLoading] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -68,8 +71,39 @@ export function AudioPlayerScreen({ navigation, route }: Props): React.JSX.Eleme
   const [currentIndex, setCurrentIndex] = useState(0);
 
   // Refs
-  const progressInterval = useRef<ReturnType<typeof setInterval> | null>(null);
   const tempPathRef = useRef<string | null>(null);
+  const isLoadingRef = useRef(false);
+
+  // Native event listeners
+  useEffect(() => {
+    const emitter = new NativeEventEmitter(NativeModules.VideoPlayerModule);
+
+    const progressSub = emitter.addListener('onAudioProgress', (event) => {
+      if (!isSeeking) {
+        setCurrentTime(event.currentTime);
+        if (event.duration > 0) setDuration(event.duration);
+      }
+    });
+
+    const stateSub = emitter.addListener('onAudioPlaybackState', (event) => {
+      setIsPlaying(event.isPlaying);
+    });
+
+    const endSub = emitter.addListener('onAudioEnd', () => {
+      setIsPlaying(false);
+      // Auto-play next
+      setCurrentIndex(prev => {
+        if (prev < audioSiblings.length - 1) return prev + 1;
+        return prev;
+      });
+    });
+
+    return () => {
+      progressSub.remove();
+      stateSub.remove();
+      endSub.remove();
+    };
+  }, [isSeeking, audioSiblings.length]);
 
   // Build sibling list
   useEffect(() => {
@@ -87,23 +121,28 @@ export function AudioPlayerScreen({ navigation, route }: Props): React.JSX.Eleme
     return () => { cancelled = true; };
   }, [mediaIds, mediaId]);
 
-  // Load and decrypt audio
+  // Load and decrypt audio, then play via native ExoPlayer
   useEffect(() => {
+    if (isLoadingRef.current) return;
     let cancelled = false;
 
     async function loadAudio() {
+      isLoadingRef.current = true;
       setIsLoading(true);
       setIsPlaying(false);
       setCurrentTime(0);
-      setDuration(0);
 
       try {
+        // Release previous player instance
+        await AudioBridge.audioRelease().catch(() => {});
+
         const currentId = audioSiblings.length > 0 ? audioSiblings[currentIndex]?.id : mediaId;
         if (!currentId) return;
 
         const mediaItem = await mediaItems.getById(currentId);
         if (cancelled || !mediaItem) return;
         setItem(mediaItem);
+        setDuration(mediaItem.durationMs || 0);
 
         const vaultDirResult = await getVaultDirectory();
         if (!vaultDirResult.success || !vaultDirResult.data) return;
@@ -113,21 +152,33 @@ export function AudioPlayerScreen({ navigation, route }: Props): React.JSX.Eleme
           await deleteFile(tempPathRef.current).catch(() => {});
         }
 
-        const ext = mediaItem.originalName.includes('.') ?
-          mediaItem.originalName.substring(mediaItem.originalName.lastIndexOf('.')) : '.mp3';
+        const ext = mediaItem.originalName.includes('.')
+          ? mediaItem.originalName.substring(mediaItem.originalName.lastIndexOf('.'))
+          : '.mp3';
         const tempPath = `${vaultDirResult.data}/viewer_audio_${mediaItem.id}${ext}`;
         tempPathRef.current = tempPath;
 
         const result = await decryptFileStreaming(
-          mediaItem.encryptedPath, tempPath, mediaItem.id
+          mediaItem.encryptedPath, tempPath, mediaItem.id,
         );
         if (cancelled || !result.success) return;
 
-        setDecryptedPath(tempPath);
-        setDuration(mediaItem.durationMs || 0);
+        // Load into native ExoPlayer
+        const loadResult = await AudioBridge.audioLoad(tempPath);
+        if (cancelled || !loadResult.success) return;
+
+        // Set speed if not default
+        if (speed !== 1.0) {
+          await AudioBridge.audioSetSpeed(speed);
+        }
+
+        // Auto-play
+        await AudioBridge.audioPlay();
         setIsLoading(false);
       } catch {
         if (!cancelled) setIsLoading(false);
+      } finally {
+        isLoadingRef.current = false;
       }
     }
 
@@ -144,56 +195,35 @@ export function AudioPlayerScreen({ navigation, route }: Props): React.JSX.Eleme
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (progressInterval.current) clearInterval(progressInterval.current);
+      AudioBridge.audioRelease().catch(() => {});
       if (tempPathRef.current) deleteFile(tempPathRef.current).catch(() => {});
     };
   }, []);
 
-  // Simulate playback progress (since we're using a simplified player)
-  useEffect(() => {
-    if (isPlaying && duration > 0) {
-      const startTime = Date.now();
-      const startPos = currentTime;
-      progressInterval.current = setInterval(() => {
-        if (isSeeking) return;
-        const elapsed = (Date.now() - startTime) * speed;
-        const newTime = startPos + elapsed;
-        if (newTime >= duration) {
-          setIsPlaying(false);
-          setCurrentTime(duration);
-          // Auto-play next
-          if (currentIndex < audioSiblings.length - 1) {
-            setCurrentIndex(prev => prev + 1);
-          }
-        } else {
-          setCurrentTime(newTime);
-        }
-      }, 250);
+  const handlePlayPause = useCallback(async () => {
+    if (isPlaying) {
+      await AudioBridge.audioPause();
+    } else {
+      await AudioBridge.audioPlay();
     }
-    return () => {
-      if (progressInterval.current) {
-        clearInterval(progressInterval.current);
-        progressInterval.current = null;
-      }
-    };
-  }, [isPlaying, duration, speed, isSeeking]);
+  }, [isPlaying]);
 
-  const handlePlayPause = useCallback(() => {
-    setIsPlaying(prev => !prev);
-  }, []);
-
-  const handleSeek = useCallback((ratio: number) => {
+  const handleSeek = useCallback(async (ratio: number) => {
     const newTime = ratio * duration;
     setCurrentTime(newTime);
+    await AudioBridge.audioSeekTo(newTime);
   }, [duration]);
 
-  const handleSkip = useCallback((deltaMs: number) => {
-    setCurrentTime(prev => Math.max(0, Math.min(duration, prev + deltaMs)));
-  }, [duration]);
+  const handleSkip = useCallback(async (deltaMs: number) => {
+    const newTime = Math.max(0, Math.min(duration, currentTime + deltaMs));
+    setCurrentTime(newTime);
+    await AudioBridge.audioSeekTo(newTime);
+  }, [duration, currentTime]);
 
-  const handlePrev = useCallback(() => {
+  const handlePrev = useCallback(async () => {
     if (currentTime > 3000 || currentIndex === 0) {
       setCurrentTime(0);
+      await AudioBridge.audioSeekTo(0);
     } else {
       setCurrentIndex(prev => prev - 1);
     }
@@ -205,12 +235,14 @@ export function AudioPlayerScreen({ navigation, route }: Props): React.JSX.Eleme
     }
   }, [currentIndex, audioSiblings.length]);
 
-  const handleSpeedSelect = useCallback((s: number) => {
+  const handleSpeedSelect = useCallback(async (s: number) => {
     setSpeed(s);
     setShowSpeedPicker(false);
+    await AudioBridge.audioSetSpeed(s);
   }, []);
 
-  const handleBack = useCallback(() => {
+  const handleBack = useCallback(async () => {
+    await AudioBridge.audioRelease().catch(() => {});
     navigation.goBack();
   }, [navigation]);
 
@@ -281,9 +313,11 @@ export function AudioPlayerScreen({ navigation, route }: Props): React.JSX.Eleme
             }}
             onResponderMove={(e) => {
               const ratio = Math.max(0, Math.min(1, e.nativeEvent.locationX / (screenWidth - 48)));
-              handleSeek(ratio);
+              setCurrentTime(ratio * duration);
             }}
-            onResponderRelease={() => {
+            onResponderRelease={(e) => {
+              const ratio = Math.max(0, Math.min(1, e.nativeEvent.locationX / (screenWidth - 48)));
+              handleSeek(ratio);
               setIsSeeking(false);
             }}
           >
@@ -305,7 +339,7 @@ export function AudioPlayerScreen({ navigation, route }: Props): React.JSX.Eleme
             <IconButton name="skip-back" size={28} onPress={handlePrev} color="#FFFFFF" accessibilityLabel="Previous" />
 
             <Pressable onPress={handlePlayPause} style={styles.playButton}>
-              <Icon name={isPlaying ? 'pause' : 'play'} size={32} color="#FFFFFF" fill="#FFFFFF" />
+              <Icon name={isPlaying ? 'pause' : 'play'} size={32} color="#0a0a0a" fill="#0a0a0a" />
             </Pressable>
 
             <IconButton name="skip-forward" size={28} onPress={handleNext} color="#FFFFFF" accessibilityLabel="Next" />
@@ -383,282 +417,46 @@ export function AudioPlayerScreen({ navigation, route }: Props): React.JSX.Eleme
 const ACCENT = '#3B82F6';
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0a0a0a',
-  },
-  safeArea: {
-    flex: 1,
-  },
-  // Back
-  backButton: {
-    width: 44,
-    height: 44,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: 4,
-  },
-  backIcon: {
-    fontSize: 32,
-    color: '#FFFFFF',
-  },
-  // Art
-  artContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  artBox: {
-    borderRadius: 20,
-    backgroundColor: '#1a1a2e',
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.5,
-    shadowRadius: 16,
-  },
-  artIcon: {
-    fontSize: 80,
-    opacity: 0.4,
-  },
-  // Title
-  titleContainer: {
-    alignItems: 'center',
-    paddingHorizontal: 32,
-    marginBottom: 16,
-  },
-  titleText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    textAlign: 'center',
-  },
-  subtitleText: {
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.5)',
-    marginTop: 4,
-  },
-  // Controls
-  controlsArea: {
-    paddingHorizontal: 24,
-    paddingBottom: 16,
-  },
-  // Skip row
-  skipRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 40,
-    marginBottom: 16,
-  },
-  skipButton: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: 44,
-    height: 44,
-  },
-  skipIcon: {
-    fontSize: 22,
-    color: 'rgba(255,255,255,0.6)',
-  },
-  skipLabel: {
-    fontSize: 10,
-    color: 'rgba(255,255,255,0.6)',
-    marginTop: -4,
-  },
-  speedBadge: {
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
-    borderRadius: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-  },
-  speedText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.7)',
-  },
-  // Seek
-  seekContainer: {
-    height: 28,
-    justifyContent: 'center',
-    marginBottom: 4,
-  },
-  seekTrack: {
-    height: 3,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 2,
-    overflow: 'hidden',
-  },
-  seekFill: {
-    height: '100%',
-    backgroundColor: ACCENT,
-    borderRadius: 2,
-  },
-  seekThumb: {
-    position: 'absolute',
-    top: 7,
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: '#FFFFFF',
-    marginLeft: -7,
-    elevation: 3,
-  },
-  timeRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-  },
-  timeText: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.5)',
-    fontVariant: ['tabular-nums'],
-  },
-  // Playback
-  playbackRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-  },
-  controlButton: {
-    width: 44,
-    height: 44,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  controlIcon: {
-    fontSize: 22,
-    color: 'rgba(255,255,255,0.6)',
-  },
-  controlIconLarge: {
-    fontSize: 28,
-    color: '#FFFFFF',
-  },
-  playButton: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 6,
-  },
-  playIcon: {
-    fontSize: 28,
-    color: '#0a0a0a',
-    marginLeft: 2,
-  },
-  // Modal shared
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  // Speed menu
-  speedMenu: {
-    backgroundColor: '#1a1a1a',
-    borderRadius: 16,
-    padding: 16,
-    width: 200,
-  },
-  speedMenuTitle: {
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.5)',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  speedMenuItem: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 10,
-  },
-  speedMenuItemActive: {
-    backgroundColor: 'rgba(59,130,246,0.15)',
-  },
-  speedMenuItemText: {
-    fontSize: 15,
-    color: '#FFFFFF',
-    textAlign: 'center',
-  },
-  speedMenuItemTextActive: {
-    color: ACCENT,
-    fontWeight: '700',
-  },
-  // Playlist
-  playlistBackdrop: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  playlistDismiss: {
-    flex: 1,
-  },
-  playlistSheet: {
-    backgroundColor: '#1a1a1a',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: '50%',
-    paddingBottom: 16,
-  },
-  playlistHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(255,255,255,0.1)',
-  },
-  playlistClose: {
-    fontSize: 18,
-    color: 'rgba(255,255,255,0.6)',
-    width: 32,
-  },
-  playlistTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  playlistList: {
-    paddingHorizontal: 12,
-  },
-  playlistItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    borderRadius: 10,
-  },
-  playlistItemActive: {
-    backgroundColor: 'rgba(59,130,246,0.1)',
-  },
-  playlistItemIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  playlistItemText: {
-    flex: 1,
-  },
-  playlistItemName: {
-    fontSize: 14,
-    color: '#FFFFFF',
-  },
-  playlistItemNameActive: {
-    color: ACCENT,
-    fontWeight: '600',
-  },
-  playlistItemMeta: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.4)',
-    marginTop: 2,
-  },
+  container: { flex: 1, backgroundColor: '#0a0a0a' },
+  safeArea: { flex: 1 },
+  backButton: { width: 44, height: 44, justifyContent: 'center', alignItems: 'center', marginLeft: 4 },
+  artContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  artBox: { borderRadius: 20, backgroundColor: '#1a1a2e', justifyContent: 'center', alignItems: 'center', elevation: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.5, shadowRadius: 16 },
+  titleContainer: { alignItems: 'center', paddingHorizontal: 32, marginBottom: 16 },
+  titleText: { fontSize: 18, fontWeight: '600', color: '#FFFFFF', textAlign: 'center' },
+  subtitleText: { fontSize: 13, color: 'rgba(255,255,255,0.5)', marginTop: 4 },
+  controlsArea: { paddingHorizontal: 24, paddingBottom: 16 },
+  skipRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 40, marginBottom: 16 },
+  skipButton: { alignItems: 'center', justifyContent: 'center', width: 44, height: 44 },
+  skipLabel: { fontSize: 10, color: 'rgba(255,255,255,0.6)', marginTop: -4 },
+  speedBadge: { borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)', borderRadius: 6, paddingHorizontal: 12, paddingVertical: 4 },
+  speedText: { fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,0.7)' },
+  seekContainer: { height: 28, justifyContent: 'center', marginBottom: 4 },
+  seekTrack: { height: 3, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 2, overflow: 'hidden' },
+  seekFill: { height: '100%', backgroundColor: ACCENT, borderRadius: 2 },
+  seekThumb: { position: 'absolute', top: 7, width: 14, height: 14, borderRadius: 7, backgroundColor: '#FFFFFF', marginLeft: -7, elevation: 3 },
+  timeRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
+  timeText: { fontSize: 12, color: 'rgba(255,255,255,0.5)', fontVariant: ['tabular-nums'] },
+  playbackRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 8 },
+  playButton: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center', elevation: 6 },
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center' },
+  speedMenu: { backgroundColor: '#1a1a1a', borderRadius: 16, padding: 16, width: 200 },
+  speedMenuTitle: { fontSize: 13, color: 'rgba(255,255,255,0.5)', marginBottom: 8, textAlign: 'center' },
+  speedMenuItem: { paddingVertical: 12, paddingHorizontal: 16, borderRadius: 10 },
+  speedMenuItemActive: { backgroundColor: 'rgba(59,130,246,0.15)' },
+  speedMenuItemText: { fontSize: 15, color: '#FFFFFF', textAlign: 'center' },
+  speedMenuItemTextActive: { color: ACCENT, fontWeight: '700' },
+  playlistBackdrop: { flex: 1, justifyContent: 'flex-end' },
+  playlistDismiss: { flex: 1 },
+  playlistSheet: { backgroundColor: '#1a1a1a', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '50%', paddingBottom: 16 },
+  playlistHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(255,255,255,0.1)' },
+  playlistTitle: { fontSize: 16, fontWeight: '600', color: '#FFFFFF' },
+  playlistList: { paddingHorizontal: 12 },
+  playlistItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 8, borderRadius: 10 },
+  playlistItemActive: { backgroundColor: 'rgba(59,130,246,0.1)' },
+  playlistItemIcon: { width: 40, height: 40, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.05)', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+  playlistItemText: { flex: 1 },
+  playlistItemName: { fontSize: 14, color: '#FFFFFF' },
+  playlistItemNameActive: { color: ACCENT, fontWeight: '600' },
+  playlistItemMeta: { fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 2 },
 });
