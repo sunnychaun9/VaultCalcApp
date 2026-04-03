@@ -821,7 +821,7 @@ export function VaultHomeScreen(): React.JSX.Element {
       const siblingIds = filteredItems.map(i => i.id);
       navigation.navigate('MediaViewer', { mediaId: item.id, mediaIds: siblingIds, originRect });
     }
-  }, [isDeleting, onActivity, isSelectionMode, toggleSelection, navigation, filteredItems]);
+  }, [isDeleting, onActivity, isSelectionMode, toggleSelection, navigation, activeTab, filteredItems]);
 
   /**
    * Handle grid item long press — enter selection mode

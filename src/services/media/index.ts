@@ -7,7 +7,7 @@
  */
 
 // Main media service
-export { generateThumbnail, generateVideoThumbnail, deleteFile, deleteContentUri, secureDeleteDirectoryContents, THUMBNAIL_MAX_DIMENSION } from './mediaService';
+export { generateThumbnail, generateVideoThumbnail, extractAudioMetadata, deleteFile, deleteContentUri, secureDeleteDirectoryContents, THUMBNAIL_MAX_DIMENSION } from './mediaService';
 
 export type { MediaResult, MediaError } from './mediaService';
 

@@ -87,6 +87,23 @@ export async function generateVideoThumbnail(
 }
 
 /**
+ * Extract audio metadata (duration) from a content URI.
+ * Uses MediaMetadataRetriever without requiring a video frame.
+ *
+ * @param sourceUri content:// URI of the audio file
+ * @returns Duration in milliseconds (0 if unavailable)
+ */
+export async function extractAudioMetadata(
+  sourceUri: string,
+): Promise<{ durationMs: number }> {
+  try {
+    return await NativeMedia.extractAudioMetadata(sourceUri);
+  } catch {
+    return { durationMs: 0 };
+  }
+}
+
+/**
  * Delete a file at the given absolute path.
  *
  * @param filePath Absolute path to the file to delete

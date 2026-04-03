@@ -120,9 +120,9 @@ export const AppBottomSheet = forwardRef<BottomSheet, AppBottomSheetProps>(
         backgroundStyle={styles.background}
         // Differentiated spring: fast open, clean close
         animationConfigs={SPRING_OPEN}
-        // Keyboard behavior: pad content up so inputs stay visible
+        // Keyboard behavior: extend sheet above keyboard so inputs stay visible
         android_keyboardInputMode="adjustResize"
-        keyboardBehavior="interactive"
+        keyboardBehavior="extend"
         keyboardBlurBehavior="restore"
       >
         <BottomSheetView style={styles.contentContainer}>

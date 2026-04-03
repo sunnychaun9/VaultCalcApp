@@ -254,6 +254,39 @@ class MediaModule(reactContext: ReactApplicationContext) :
     }
 
     /**
+     * Extract audio metadata (duration) from a content URI without requiring a video frame.
+     *
+     * @param sourceUri content:// URI of the audio file
+     * @param promise Resolves with { durationMs }
+     */
+    @ReactMethod
+    fun extractAudioMetadata(sourceUri: String, promise: Promise) {
+        scope.launch {
+            val retriever = MediaMetadataRetriever()
+            try {
+                val uri = Uri.parse(sourceUri)
+                retriever.setDataSource(reactApplicationContext, uri)
+
+                val durationStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+                val durationMs = durationStr?.toLongOrNull() ?: 0L
+
+                val result = Arguments.createMap().apply {
+                    putDouble("durationMs", durationMs.toDouble())
+                }
+                withContext(Dispatchers.Main) { promise.resolve(result) }
+            } catch (e: Exception) {
+                // Return 0 duration rather than rejecting — metadata unavailable is not fatal
+                val result = Arguments.createMap().apply {
+                    putDouble("durationMs", 0.0)
+                }
+                withContext(Dispatchers.Main) { promise.resolve(result) }
+            } finally {
+                retriever.release()
+            }
+        }
+    }
+
+    /**
      * Delete a file at the given absolute path.
      *
      * @param filePath Absolute path to the file to delete

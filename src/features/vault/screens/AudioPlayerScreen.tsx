@@ -13,7 +13,7 @@
  * Suppresses auto-lock while playing.
  */
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -21,6 +21,7 @@ import {
   FlatList,
   StyleSheet,
   StatusBar,
+  ActivityIndicator,
   useWindowDimensions,
   Modal,
   NativeModules,
@@ -57,7 +58,8 @@ export function AudioPlayerScreen({ navigation, route }: Props): React.JSX.Eleme
 
   // State
   const [item, setItem] = useState<MediaItem | null>(null);
-  const [_isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isBuffering, setIsBuffering] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -72,7 +74,6 @@ export function AudioPlayerScreen({ navigation, route }: Props): React.JSX.Eleme
 
   // Refs
   const tempPathRef = useRef<string | null>(null);
-  const isLoadingRef = useRef(false);
 
   // Native event listeners
   useEffect(() => {
@@ -98,10 +99,23 @@ export function AudioPlayerScreen({ navigation, route }: Props): React.JSX.Eleme
       });
     });
 
+    const errorSub = emitter.addListener('onAudioError', (event) => {
+      setIsPlaying(false);
+      setIsBuffering(false);
+      setIsLoading(false);
+      console.warn('Audio playback error:', event.error);
+    });
+
+    const bufferingSub = emitter.addListener('onAudioBuffering', (event) => {
+      setIsBuffering(event.isBuffering);
+    });
+
     return () => {
       progressSub.remove();
       stateSub.remove();
       endSub.remove();
+      errorSub.remove();
+      bufferingSub.remove();
     };
   }, [isSeeking, audioSiblings.length]);
 
@@ -121,13 +135,24 @@ export function AudioPlayerScreen({ navigation, route }: Props): React.JSX.Eleme
     return () => { cancelled = true; };
   }, [mediaIds, mediaId]);
 
+  // Stable track ID — only changes when the user picks a different track,
+  // NOT when the siblings list finishes loading for the same track.
+  const currentTrackId = useMemo(() => {
+    if (audioSiblings.length > 0 && audioSiblings[currentIndex]) {
+      return audioSiblings[currentIndex].id;
+    }
+    return mediaId;
+  }, [audioSiblings, currentIndex, mediaId]);
+
+  // Monotonic load ID — only the latest invocation may update state / play
+  const loadIdRef = useRef(0);
+
   // Load and decrypt audio, then play via native ExoPlayer
   useEffect(() => {
-    if (isLoadingRef.current) return;
-    let cancelled = false;
+    const thisLoadId = ++loadIdRef.current;
+    const isCurrent = () => thisLoadId === loadIdRef.current;
 
     async function loadAudio() {
-      isLoadingRef.current = true;
       setIsLoading(true);
       setIsPlaying(false);
       setCurrentTime(0);
@@ -135,37 +160,35 @@ export function AudioPlayerScreen({ navigation, route }: Props): React.JSX.Eleme
       try {
         // Release previous player instance
         await AudioBridge.audioRelease().catch(() => {});
+        if (!isCurrent()) return;
 
-        const currentId = audioSiblings.length > 0 ? audioSiblings[currentIndex]?.id : mediaId;
-        if (!currentId) return;
-
-        const mediaItem = await mediaItems.getById(currentId);
-        if (cancelled || !mediaItem) return;
-        setItem(mediaItem);
-        setDuration(mediaItem.durationMs || 0);
+        const trackItem = await mediaItems.getById(currentTrackId);
+        if (!isCurrent() || !trackItem) return;
+        setItem(trackItem);
+        setDuration(trackItem.durationMs || 0);
 
         const vaultDirResult = await getVaultDirectory();
-        if (!vaultDirResult.success || !vaultDirResult.data) return;
+        if (!isCurrent() || !vaultDirResult.success || !vaultDirResult.data) return;
 
         // Clean up previous temp file
         if (tempPathRef.current) {
           await deleteFile(tempPathRef.current).catch(() => {});
         }
 
-        const ext = mediaItem.originalName.includes('.')
-          ? mediaItem.originalName.substring(mediaItem.originalName.lastIndexOf('.'))
+        const ext = trackItem.originalName.includes('.')
+          ? trackItem.originalName.substring(trackItem.originalName.lastIndexOf('.'))
           : '.mp3';
-        const tempPath = `${vaultDirResult.data}/viewer_audio_${mediaItem.id}${ext}`;
+        const tempPath = `${vaultDirResult.data}/viewer_audio_${trackItem.id}${ext}`;
         tempPathRef.current = tempPath;
 
         const result = await decryptFileStreaming(
-          mediaItem.encryptedPath, tempPath, mediaItem.id,
+          trackItem.encryptedPath, tempPath, trackItem.id,
         );
-        if (cancelled || !result.success) return;
+        if (!isCurrent() || !result.success) return;
 
         // Load into native ExoPlayer
         const loadResult = await AudioBridge.audioLoad(tempPath);
-        if (cancelled || !loadResult.success) return;
+        if (!isCurrent() || !loadResult.success) return;
 
         // Set speed if not default
         if (speed !== 1.0) {
@@ -174,17 +197,17 @@ export function AudioPlayerScreen({ navigation, route }: Props): React.JSX.Eleme
 
         // Auto-play
         await AudioBridge.audioPlay();
-        setIsLoading(false);
+        if (isCurrent()) setIsLoading(false);
       } catch {
-        if (!cancelled) setIsLoading(false);
-      } finally {
-        isLoadingRef.current = false;
+        if (isCurrent()) setIsLoading(false);
       }
     }
 
     loadAudio();
-    return () => { cancelled = true; };
-  }, [mediaId, audioSiblings, currentIndex]);
+    return () => {
+      // Incrementing loadIdRef in the next effect invocation invalidates isCurrent()
+    };
+  }, [currentTrackId]);
 
   // Suppress auto-lock while playing
   useEffect(() => {
@@ -266,7 +289,11 @@ export function AudioPlayerScreen({ navigation, route }: Props): React.JSX.Eleme
         {/* Album art area */}
         <View style={styles.artContainer}>
           <View style={[styles.artBox, { width: artSize, height: artSize }]}>
-            <Icon name="music" size={64} color="rgba(255,255,255,0.3)" />
+            {isLoading ? (
+              <ActivityIndicator size="large" color={ACCENT} />
+            ) : (
+              <Icon name="music" size={64} color="rgba(255,255,255,0.3)" />
+            )}
           </View>
         </View>
 
@@ -276,7 +303,7 @@ export function AudioPlayerScreen({ navigation, route }: Props): React.JSX.Eleme
             {item?.originalName ?? 'Loading...'}
           </Text>
           <Text style={styles.subtitleText}>
-            {item ? `${formatTime(item.durationMs || 0)}` : ''}
+            {isLoading ? 'Preparing...' : item ? formatTime(item.durationMs || 0) : ''}
           </Text>
         </View>
 
@@ -338,8 +365,12 @@ export function AudioPlayerScreen({ navigation, route }: Props): React.JSX.Eleme
 
             <IconButton name="skip-back" size={28} onPress={handlePrev} color="#FFFFFF" accessibilityLabel="Previous" />
 
-            <Pressable onPress={handlePlayPause} style={styles.playButton}>
-              <Icon name={isPlaying ? 'pause' : 'play'} size={32} color="#0a0a0a" fill="#0a0a0a" />
+            <Pressable onPress={handlePlayPause} style={styles.playButton} disabled={isLoading}>
+              {isBuffering || isLoading ? (
+                <ActivityIndicator size={28} color="#0a0a0a" />
+              ) : (
+                <Icon name={isPlaying ? 'pause' : 'play'} size={32} color="#0a0a0a" fill="#0a0a0a" />
+              )}
             </Pressable>
 
             <IconButton name="skip-forward" size={28} onPress={handleNext} color="#FFFFFF" accessibilityLabel="Next" />

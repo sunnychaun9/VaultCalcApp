@@ -19,7 +19,7 @@
 
 import React, { useState, useCallback } from 'react';
 import { View, Text, Pressable, StyleSheet, Animated } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '@typedefs/navigation';
 import { PatternView, type PatternState } from '../components/PatternView';
@@ -61,6 +61,15 @@ export function PatternUnlockScreen(): React.JSX.Element {
 
   const { shakeValue, triggerShake } = useShakeAnimation();
   const { opacity: successOpacity, scale: successScale, triggerSuccess } = useSuccessAnimation();
+
+  // Reset pattern when screen regains focus (e.g. navigating back from vault)
+  useFocusEffect(
+    useCallback(() => {
+      setPattern([]);
+      setPatternState('idle');
+      setIsProcessing(false);
+    }, [])
+  );
 
   const handlePatternChange = useCallback((p: number[]) => {
     setPattern(p);

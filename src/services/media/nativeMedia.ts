@@ -62,6 +62,14 @@ interface MediaModuleInterface {
   ): Promise<VideoThumbnailResult>;
 
   /**
+   * Extract audio metadata (duration) from a content URI.
+   * Unlike generateVideoThumbnail, this does not require a video frame.
+   * @param sourceUri content:// URI of the audio file
+   * @returns Audio duration in milliseconds
+   */
+  extractAudioMetadata(sourceUri: string): Promise<{ durationMs: number }>;
+
+  /**
    * Delete a file at the given absolute path.
    * @param filePath Absolute path to the file to delete
    * @returns true if deleted or didn't exist, false on error

@@ -23,6 +23,8 @@ import {
   StyleSheet,
   Animated,
   StatusBar,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -79,6 +81,8 @@ export function PinSetupScreen(): React.JSX.Element {
   // Recovery question state
   const [selectedQuestionId, setSelectedQuestionId] = useState(0);
   const [securityAnswer, setSecurityAnswer] = useState('');
+
+  const scrollRef = useRef<ScrollView>(null);
 
   const currentPin = mode === 'create' ? pin : confirmPin;
   const setCurrentPin = mode === 'create' ? setPin : setConfirmPin;
@@ -265,7 +269,17 @@ export function PinSetupScreen(): React.JSX.Element {
       </View>
 
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <ScrollView contentContainerStyle={styles.scrollContent} bounces={false} showsVerticalScrollIndicator={false}>
+        <KeyboardAvoidingView
+          style={styles.keyboardAvoid}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+        <ScrollView
+          ref={scrollRef}
+          contentContainerStyle={styles.scrollContent}
+          bounces={false}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
           {/* Header */}
           <View style={styles.header}>
             {(mode === 'confirm' || mode === 'recovery' || !isInitialSetup) ? (
@@ -328,6 +342,9 @@ export function PinSetupScreen(): React.JSX.Element {
                     placeholderTextColor="rgba(100, 116, 139, 0.5)"
                     autoCapitalize="none"
                     autoCorrect={false}
+                    onFocus={() => {
+                      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 300);
+                    }}
                   />
                   {error && <Text style={styles.errorText}>{error}</Text>}
                 </View>
@@ -455,6 +472,7 @@ export function PinSetupScreen(): React.JSX.Element {
             </View>
           </View>
         </ScrollView>
+        </KeyboardAvoidingView>
       </SafeAreaView>
     </View>
   );
@@ -463,6 +481,7 @@ export function PinSetupScreen(): React.JSX.Element {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: BG_TOP },
   safeArea: { flex: 1 },
+  keyboardAvoid: { flex: 1 },
   scrollContent: { flexGrow: 1 },
 
   // Header

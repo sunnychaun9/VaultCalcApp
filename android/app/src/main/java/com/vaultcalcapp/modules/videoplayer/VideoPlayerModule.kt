@@ -14,6 +14,7 @@ import android.media.MediaMetadataRetriever
 import android.os.Handler
 import android.os.Looper
 import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import com.facebook.react.bridge.*
@@ -143,12 +144,47 @@ class VideoPlayerModule(reactContext: ReactApplicationContext) :
     fun audioLoad(filePath: String, promise: Promise) {
         mainHandler.post {
             try {
-                val player = audioPlayer ?: ExoPlayer.Builder(reactApplicationContext).build().also {
+                // Verify the decrypted file actually exists and has content
+                val file = File(filePath)
+                if (!file.exists() || file.length() == 0L) {
+                    promise.reject("AUDIO_LOAD_ERROR", "Audio file not found or empty: $filePath")
+                    return@post
+                }
+
+                // Always create a fresh player to avoid reusing one stuck in error state
+                audioPlayer?.let {
+                    stopAudioProgress()
+                    it.stop()
+                    it.release()
+                }
+                audioPlayer = null
+
+                var promiseSettled = false
+
+                val player = ExoPlayer.Builder(reactApplicationContext).build().also {
                     it.addListener(object : Player.Listener {
                         override fun onPlaybackStateChanged(state: Int) {
-                            if (state == Player.STATE_ENDED) {
-                                emitAudioEvent("onAudioEnd", Arguments.createMap())
-                                stopAudioProgress()
+                            // Emit buffering state so JS can show/hide loading indicator
+                            val bufferingEvent = Arguments.createMap().apply {
+                                putBoolean("isBuffering", state == Player.STATE_BUFFERING)
+                            }
+                            emitAudioEvent("onAudioBuffering", bufferingEvent)
+
+                            when (state) {
+                                Player.STATE_READY -> {
+                                    // Player prepared successfully — resolve promise now
+                                    if (!promiseSettled) {
+                                        promiseSettled = true
+                                        val result = Arguments.createMap().apply {
+                                            putBoolean("success", true)
+                                        }
+                                        promise.resolve(result)
+                                    }
+                                }
+                                Player.STATE_ENDED -> {
+                                    emitAudioEvent("onAudioEnd", Arguments.createMap())
+                                    stopAudioProgress()
+                                }
                             }
                         }
 
@@ -159,16 +195,26 @@ class VideoPlayerModule(reactContext: ReactApplicationContext) :
                             emitAudioEvent("onAudioPlaybackState", event)
                             if (isPlaying) startAudioProgress() else stopAudioProgress()
                         }
+
+                        override fun onPlayerError(error: PlaybackException) {
+                            // Reject the promise if still pending, otherwise emit error event
+                            if (!promiseSettled) {
+                                promiseSettled = true
+                                promise.reject("AUDIO_LOAD_ERROR", "ExoPlayer error: ${error.message}")
+                            } else {
+                                val event = Arguments.createMap().apply {
+                                    putString("error", error.message ?: "Playback error")
+                                }
+                                emitAudioEvent("onAudioError", event)
+                            }
+                            stopAudioProgress()
+                        }
                     })
                     audioPlayer = it
                 }
-                player.setMediaItem(MediaItem.fromUri("file://$filePath"))
-                player.prepare()
 
-                val result = Arguments.createMap().apply {
-                    putBoolean("success", true)
-                }
-                promise.resolve(result)
+                player.setMediaItem(MediaItem.fromUri(android.net.Uri.fromFile(file)))
+                player.prepare()
             } catch (e: Exception) {
                 promise.reject("AUDIO_LOAD_ERROR", e.message)
             }

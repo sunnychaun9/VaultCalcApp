@@ -10,7 +10,7 @@
 import type { PickedFile } from '@services/filePicker';
 import { mediaItems, type MediaType } from '@services/storage/database';
 import { encryptFile, encryptFileStreaming, generateKey, getVaultDirectory } from '@services/crypto';
-import { generateThumbnail, generateVideoThumbnail, deleteFile, deleteContentUri } from '@services/media';
+import { generateThumbnail, generateVideoThumbnail, extractAudioMetadata, deleteFile, deleteContentUri } from '@services/media';
 import { generatePdfThumbnail } from '@services/pdf';
 
 /**
@@ -192,14 +192,9 @@ export async function importFiles(
           }
         }
       } else if (mediaType === 'audio') {
-        // Extract audio duration using the video thumbnail extractor (shares MediaMetadataRetriever)
-        const thumbTemp = `${vaultDir}/${THUMBNAIL_SUBDIR}/${fileId}.tmp`;
-        const thumbResult = await generateVideoThumbnail(file.uri, thumbTemp);
-        if (thumbResult.success && thumbResult.data) {
-          durationMs = thumbResult.data.durationMs || null;
-        }
-        // Clean up any generated thumb file — audio doesn't use thumbnail display
-        await deleteFile(thumbTemp).catch(() => {});
+        // Extract audio duration via dedicated metadata method (no video frame needed)
+        const meta = await extractAudioMetadata(file.uri);
+        durationMs = meta.durationMs > 0 ? meta.durationMs : null;
       }
 
       // 5. Insert metadata into SQLite
