@@ -185,7 +185,10 @@ class VaultVideoPlayerView @JvmOverloads constructor(
     private val progressRunnable = object : Runnable {
         override fun run() {
             player?.let { p ->
-                if (p.isPlaying) sendProgressEvent(p.currentPosition, p.duration)
+                if (p.isPlaying) {
+                    sendProgressEvent(p.currentPosition, p.duration)
+                    updateSeekBar()
+                }
             }
             handler.postDelayed(this, 250)
         }

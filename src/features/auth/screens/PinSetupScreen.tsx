@@ -13,7 +13,7 @@
  * @see FEATURE_INDEX.md AUTH-004, AUTH-010
  */
 
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -25,6 +25,7 @@ import {
   StatusBar,
   KeyboardAvoidingView,
   Platform,
+  Easing,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -91,6 +92,66 @@ export function PinSetupScreen(): React.JSX.Element {
   const { scales, glows, animateDotIn, resetAll } = useDotScaleAnimations(PIN_RULES.MAX_LENGTH);
   const { pulseScale, pulseOpacity } = useLockIconPulse();
   const tap = useTapHaptic();
+
+  // Recovery entry animations
+  const recoveryFade = useRef(new Animated.Value(0)).current;
+  const recoverySlide = useRef(new Animated.Value(30)).current;
+  const questionAnims = useMemo(
+    () => SECURITY_QUESTIONS.map(() => new Animated.Value(0)),
+    [],
+  );
+  const answerFade = useRef(new Animated.Value(0)).current;
+  const inputBorderAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (mode === 'recovery') {
+      // Card fade-in + slide-up
+      Animated.parallel([
+        Animated.timing(recoveryFade, {
+          toValue: 1, duration: 400, useNativeDriver: true,
+          easing: Easing.out(Easing.cubic),
+        }),
+        Animated.timing(recoverySlide, {
+          toValue: 0, duration: 400, useNativeDriver: true,
+          easing: Easing.out(Easing.cubic),
+        }),
+      ]).start();
+
+      // Staggered question rows
+      const stagger = questionAnims.map((anim, i) =>
+        Animated.timing(anim, {
+          toValue: 1, duration: 300, delay: 200 + i * 50,
+          useNativeDriver: true, easing: Easing.out(Easing.cubic),
+        }),
+      );
+      Animated.stagger(50, stagger).start();
+
+      // Answer section fades in after questions
+      Animated.timing(answerFade, {
+        toValue: 1, duration: 350,
+        delay: 200 + SECURITY_QUESTIONS.length * 50 + 100,
+        useNativeDriver: true, easing: Easing.out(Easing.cubic),
+      }).start();
+    }
+  }, [mode, recoveryFade, recoverySlide, questionAnims, answerFade]);
+
+  const handleInputFocus = useCallback(() => {
+    Animated.timing(inputBorderAnim, {
+      toValue: 1, duration: 250, useNativeDriver: false,
+    }).start();
+    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 300);
+  }, [inputBorderAnim]);
+
+  const handleInputBlur = useCallback(() => {
+    Animated.timing(inputBorderAnim, {
+      toValue: 0, duration: 250, useNativeDriver: false,
+    }).start();
+  }, [inputBorderAnim]);
+
+  const inputBorderColor = inputBorderAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['rgba(100, 116, 139, 0.1)', ACCENT],
+  });
 
   // Animate dot when currentPin length increases
   const prevLength = useRef(0);
@@ -313,42 +374,72 @@ export function PinSetupScreen(): React.JSX.Element {
 
           {mode === 'recovery' ? (
             <>
-              {/* Security Question Picker */}
-              <View style={styles.cardWrapper}>
+              {/* Security Question Picker — animated */}
+              <Animated.View style={[
+                styles.cardWrapper,
+                { opacity: recoveryFade, transform: [{ translateY: recoverySlide }] },
+              ]}>
                 <View style={styles.card}>
-                  <Text style={styles.recoveryLabel}>Security Question</Text>
-                  {SECURITY_QUESTIONS.map((q, idx) => (
-                    <Pressable
-                      key={idx}
-                      onPress={() => { setSelectedQuestionId(idx); setError(null); }}
-                      style={[
-                        styles.questionRow,
-                        idx === selectedQuestionId && styles.questionRowSelected,
-                      ]}
-                    >
-                      <Text style={[
-                        styles.questionText,
-                        idx === selectedQuestionId && styles.questionTextSelected,
-                      ]}>{q}</Text>
-                    </Pressable>
-                  ))}
+                  <View style={styles.recoveryLabelRow}>
+                    <Icon name="shield" size={16} color={ACCENT} />
+                    <Text style={styles.recoveryLabel}>Security Question</Text>
+                  </View>
 
-                  <Text style={[styles.recoveryLabel, { marginTop: 16 }]}>Your Answer</Text>
-                  <TextInput
-                    style={styles.answerInput}
-                    value={securityAnswer}
-                    onChangeText={(t) => { setSecurityAnswer(t); setError(null); }}
-                    placeholder="Type your answer"
-                    placeholderTextColor="rgba(100, 116, 139, 0.5)"
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    onFocus={() => {
-                      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 300);
-                    }}
-                  />
-                  {error && <Text style={styles.errorText}>{error}</Text>}
+                  {SECURITY_QUESTIONS.map((q, idx) => {
+                    const isSelected = idx === selectedQuestionId;
+                    return (
+                      <Animated.View
+                        key={idx}
+                        style={{
+                          opacity: questionAnims[idx],
+                          transform: [{
+                            translateX: questionAnims[idx].interpolate({
+                              inputRange: [0, 1], outputRange: [20, 0],
+                            }),
+                          }],
+                        }}
+                      >
+                        <Pressable
+                          onPress={() => { setSelectedQuestionId(idx); setError(null); }}
+                          style={[
+                            styles.questionRow,
+                            isSelected && styles.questionRowSelected,
+                          ]}
+                        >
+                          <View style={[styles.radioOuter, isSelected && styles.radioOuterSelected]}>
+                            {isSelected && <View style={styles.radioInner} />}
+                          </View>
+                          <Text style={[
+                            styles.questionText,
+                            isSelected && styles.questionTextSelected,
+                          ]}>{q}</Text>
+                        </Pressable>
+                      </Animated.View>
+                    );
+                  })}
+
+                  <Animated.View style={{ opacity: answerFade }}>
+                    <View style={[styles.recoveryLabelRow, { marginTop: 20 }]}>
+                      <Icon name="lock" size={14} color={TEXT_SECONDARY} />
+                      <Text style={styles.recoveryLabel}>Your Answer</Text>
+                    </View>
+                    <Animated.View style={[styles.answerInputWrapper, { borderColor: inputBorderColor }]}>
+                      <TextInput
+                        style={styles.answerInput}
+                        value={securityAnswer}
+                        onChangeText={(t) => { setSecurityAnswer(t); setError(null); }}
+                        placeholder="Type your answer"
+                        placeholderTextColor="rgba(100, 116, 139, 0.5)"
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        onFocus={handleInputFocus}
+                        onBlur={handleInputBlur}
+                      />
+                    </Animated.View>
+                    {error && <Text style={styles.errorText}>{error}</Text>}
+                  </Animated.View>
                 </View>
-              </View>
+              </Animated.View>
             </>
           ) : (
             <>
@@ -514,17 +605,17 @@ const styles = StyleSheet.create({
 
   // PIN dots
   dotsContainer: { alignItems: 'center', paddingVertical: spacing.xl },
-  dotsRow: { flexDirection: 'row', justifyContent: 'center', gap: 16, marginBottom: spacing.sm },
+  dotsRow: { flexDirection: 'row', justifyContent: 'center', flexWrap: 'wrap', gap: 6, marginBottom: spacing.sm, paddingHorizontal: spacing.md },
   dotWrapper: {
-    width: 24, height: 24,
+    width: 20, height: 20,
     alignItems: 'center', justifyContent: 'center',
   },
   dotGlow: {
     position: 'absolute',
-    width: 36, height: 36, borderRadius: 18,
+    width: 30, height: 30, borderRadius: 15,
   },
   pinDot: {
-    width: 18, height: 18, borderRadius: 9, borderWidth: 2,
+    width: 14, height: 14, borderRadius: 7, borderWidth: 2,
   },
   pinDotExtra: { borderStyle: 'dashed' },
   lengthIndicator: { ...typography.labelSmall, color: TEXT_MUTED },
@@ -538,6 +629,7 @@ const styles = StyleSheet.create({
   keypad: {
     flexDirection: 'row', flexWrap: 'wrap',
     justifyContent: 'center', gap: 16,
+    maxWidth: KEY_SIZE * 3 + 16 * 2, alignSelf: 'center',
   },
   keyCell: {
     width: KEY_SIZE, height: KEY_SIZE,
@@ -587,17 +679,40 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: CARD_BG, borderRadius: 24,
     borderWidth: 1, borderColor: CARD_BORDER,
-    padding: spacing.md, elevation: 8,
+    padding: spacing.lg, elevation: 8,
   },
-  recoveryLabel: { ...typography.labelMedium, color: TEXT_SECONDARY, marginBottom: spacing.sm },
-  questionRow: { paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, marginBottom: 4 },
-  questionRowSelected: { backgroundColor: 'rgba(59, 130, 246, 0.12)' },
-  questionText: { ...typography.bodySmall, color: TEXT_SECONDARY },
+  recoveryLabelRow: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginBottom: spacing.sm,
+  },
+  recoveryLabel: { ...typography.labelMedium, color: TEXT_SECONDARY },
+  questionRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingVertical: 11, paddingHorizontal: 12, borderRadius: 12, marginBottom: 4,
+    borderWidth: 1, borderColor: 'transparent',
+  },
+  questionRowSelected: {
+    backgroundColor: 'rgba(59, 130, 246, 0.10)',
+    borderColor: 'rgba(59, 130, 246, 0.25)',
+  },
+  radioOuter: {
+    width: 18, height: 18, borderRadius: 9,
+    borderWidth: 2, borderColor: 'rgba(100, 116, 139, 0.35)',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  radioOuterSelected: { borderColor: ACCENT },
+  radioInner: {
+    width: 8, height: 8, borderRadius: 4, backgroundColor: ACCENT,
+  },
+  questionText: { ...typography.bodySmall, color: TEXT_SECONDARY, flex: 1 },
   questionTextSelected: { color: ACCENT, fontWeight: '600' },
+  answerInputWrapper: {
+    borderRadius: 14, borderWidth: 1.5,
+    borderColor: 'rgba(100, 116, 139, 0.1)',
+    overflow: 'hidden',
+  },
   answerInput: {
     backgroundColor: KEY_BG, color: TEXT_PRIMARY,
-    borderRadius: 14, paddingHorizontal: 16, paddingVertical: 12,
-    fontSize: 16, marginTop: spacing.xs,
-    borderWidth: 1, borderColor: 'rgba(100, 116, 139, 0.1)',
+    borderRadius: 14, paddingHorizontal: 16, paddingVertical: 13,
+    fontSize: 16,
   },
 });

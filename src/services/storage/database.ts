@@ -146,7 +146,8 @@ export async function initializeDatabase(): Promise<void> {
       imported_at INTEGER NOT NULL,
       is_favorite INTEGER NOT NULL DEFAULT 0,
       is_decoy INTEGER NOT NULL DEFAULT 0,
-      metadata TEXT
+      metadata TEXT,
+      playback_position INTEGER
     );
 
     -- Indexes for media_items
@@ -213,7 +214,7 @@ export async function initializeDatabase(): Promise<void> {
   );
 
   if (versionResult === null) {
-    await database.runAsync('INSERT INTO schema_version (version) VALUES (?)', [5]);
+    await database.runAsync('INSERT INTO schema_version (version) VALUES (?)', [6]);
   } else {
     let currentVersion = versionResult.version;
 
@@ -250,6 +251,17 @@ export async function initializeDatabase(): Promise<void> {
         // Column may already exist
       });
       await database.runAsync('UPDATE schema_version SET version = 5');
+    }
+
+    if (currentVersion < 6) {
+      // Migration v5 → v6: ensure playback_position column exists
+      // (was missing from CREATE TABLE in v5, so fresh installs at v5 lacked it)
+      await database.execAsync(
+        'ALTER TABLE media_items ADD COLUMN playback_position INTEGER'
+      ).catch(() => {
+        // Column already exists — expected for migrated installs
+      });
+      await database.runAsync('UPDATE schema_version SET version = 6');
     }
   }
 }

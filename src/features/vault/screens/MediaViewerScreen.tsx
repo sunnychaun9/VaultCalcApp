@@ -46,6 +46,7 @@ import {
   enterFullscreen,
   exitFullscreen,
   releasePlayer,
+  setPlaylist,
   getVideoDetails,
   type VideoDetails,
 } from '@services/videoPlayer/nativeVideoPlayer';
@@ -326,6 +327,16 @@ export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Eleme
       }
     };
   }, [decryptedUri, item?.type]);
+
+  // Set playlist on native player so prev/next buttons are enabled
+  useEffect(() => {
+    if (!allVideos || allVideos.length === 0 || item?.type !== 'video' || !videoPlayerRef.current) return;
+    const currentIdx = allVideos.findIndex(v => v.id === mediaId);
+    if (currentIdx < 0) return;
+    // Native side only needs paths for count/index — navigation is handled via onNavigate in JS
+    const placeholderPaths = allVideos.map(v => v.id);
+    setPlaylist(videoPlayerRef, placeholderPaths, currentIdx);
+  }, [allVideos, mediaId, item?.type]);
 
   // Load video into native player once decrypted — check for saved position
   useEffect(() => {

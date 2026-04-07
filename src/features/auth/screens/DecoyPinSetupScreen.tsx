@@ -439,6 +439,7 @@ const createStyles = (c: ColorTokens) => StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: spacing.lg,
     gap: spacing.md,
+    maxWidth: 72 * 3 + spacing.md * 2 + spacing.lg * 2, alignSelf: 'center',
   },
   keypadButton: {
     width: 72,
