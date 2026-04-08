@@ -74,13 +74,20 @@ export function AudioPlayerScreen({ navigation, route }: Props): React.JSX.Eleme
 
   // Refs
   const tempPathRef = useRef<string | null>(null);
+  const isSeekingRef = useRef(false);
+  const siblingsLenRef = useRef(0);
 
-  // Native event listeners
+  // Keep refs in sync so event listeners always see current values
+  // without needing to be torn down and recreated.
+  isSeekingRef.current = isSeeking;
+  siblingsLenRef.current = audioSiblings.length;
+
+  // Native event listeners — mounted ONCE, use refs for mutable state
   useEffect(() => {
     const emitter = new NativeEventEmitter(NativeModules.VideoPlayerModule);
 
     const progressSub = emitter.addListener('onAudioProgress', (event) => {
-      if (!isSeeking) {
+      if (!isSeekingRef.current) {
         setCurrentTime(event.currentTime);
         if (event.duration > 0) setDuration(event.duration);
       }
@@ -92,9 +99,8 @@ export function AudioPlayerScreen({ navigation, route }: Props): React.JSX.Eleme
 
     const endSub = emitter.addListener('onAudioEnd', () => {
       setIsPlaying(false);
-      // Auto-play next
       setCurrentIndex(prev => {
-        if (prev < audioSiblings.length - 1) return prev + 1;
+        if (prev < siblingsLenRef.current - 1) return prev + 1;
         return prev;
       });
     });
@@ -117,7 +123,7 @@ export function AudioPlayerScreen({ navigation, route }: Props): React.JSX.Eleme
       errorSub.remove();
       bufferingSub.remove();
     };
-  }, [isSeeking, audioSiblings.length]);
+  }, []);
 
   // Build sibling list
   useEffect(() => {
@@ -189,6 +195,17 @@ export function AudioPlayerScreen({ navigation, route }: Props): React.JSX.Eleme
         // Load into native ExoPlayer
         const loadResult = await AudioBridge.audioLoad(tempPath);
         if (!isCurrent() || !loadResult.success) return;
+
+        // Backfill duration if it was missing at import time.
+        // The native player now has the accurate duration from ExoPlayer.
+        const pos = await AudioBridge.audioGetPosition();
+        if (isCurrent() && pos.duration > 0) {
+          setDuration(pos.duration);
+          // Persist to DB so the list also shows correct duration next time
+          if (!trackItem.durationMs || trackItem.durationMs <= 0) {
+            mediaItems.updateDuration(trackItem.id, pos.duration).catch(() => {});
+          }
+        }
 
         // Set speed if not default
         if (speed !== 1.0) {
@@ -266,6 +283,11 @@ export function AudioPlayerScreen({ navigation, route }: Props): React.JSX.Eleme
 
   const handleBack = useCallback(async () => {
     await AudioBridge.audioRelease().catch(() => {});
+    // Natural transition — try interstitial when returning to vault
+    try {
+      const { tryShowInterstitial } = require('@services/ads');
+      tryShowInterstitial('VaultHome', 'audio_close').catch(() => {});
+    } catch { /* non-critical */ }
     navigation.goBack();
   }, [navigation]);
 

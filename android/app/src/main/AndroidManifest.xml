@@ -27,10 +27,10 @@
       android:theme="@style/AppTheme"
       android:networkSecurityConfig="@xml/network_security_config"
       android:supportsRtl="true">
-      <!-- AdMob App ID (ADS-001) — replace with production ID before release -->
+      <!-- AdMob App ID (ADS-001) — production -->
       <meta-data
           android:name="com.google.android.gms.ads.APPLICATION_ID"
-          android:value="ca-app-pub-3940256099942544~3347511713" />
+          android:value="ca-app-pub-2002876774760881~5522875326" />
       <!-- Delay ad measurement init to avoid cold-start impact -->
       <meta-data
           android:name="com.google.android.gms.ads.DELAY_APP_MEASUREMENT_INIT"
@@ -149,6 +149,11 @@
                     android:host="9876" />
           </intent-filter>
       </receiver>
+      <!-- Local notification alarm receiver -->
+      <receiver
+          android:name=".modules.localnotif.LocalNotifReceiver"
+          android:exported="false" />
+
       <receiver
           android:name=".widget.CalculatorWidgetProvider"
           android:exported="true"

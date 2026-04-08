@@ -22,6 +22,7 @@ export function ImportProgressOverlay({
   const themeColors = useThemeColors();
   const styles = useMemo(() => createStyles(themeColors), [themeColors]);
   const fraction = progress.total > 0 ? progress.current / progress.total : 0;
+  const percent = Math.round(fraction * 100);
 
   return (
     <View style={styles.scrim}>
@@ -29,16 +30,19 @@ export function ImportProgressOverlay({
         <ActivityIndicator size="large" color={themeColors.accent} />
 
         <Text style={styles.title}>
-          Importing {progress.current} of {progress.total}
+          Encrypting {progress.current} of {progress.total}
         </Text>
 
         <Text style={styles.filename} numberOfLines={1}>
           {progress.currentFileName}
         </Text>
 
-        {/* Progress bar */}
-        <View style={styles.progressTrack}>
-          <View style={[styles.progressFill, { width: `${Math.round(fraction * 100)}%` }]} />
+        {/* Progress bar with percentage */}
+        <View style={styles.progressRow}>
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: `${percent}%` }]} />
+          </View>
+          <Text style={styles.percentText}>{percent}%</Text>
         </View>
       </View>
     </View>
@@ -72,8 +76,14 @@ const createStyles = (c: ColorTokens) => StyleSheet.create({
     textAlign: 'center',
     maxWidth: '100%',
   },
-  progressTrack: {
+  progressRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     width: '100%',
+    gap: spacing.sm,
+  },
+  progressTrack: {
+    flex: 1,
     height: 4,
     backgroundColor: c.surfaceContainerHigh,
     borderRadius: 2,
@@ -83,5 +93,11 @@ const createStyles = (c: ColorTokens) => StyleSheet.create({
     height: '100%',
     backgroundColor: c.accent,
     borderRadius: 2,
+  },
+  percentText: {
+    ...typography.labelSmall,
+    color: c.textTertiary,
+    width: 32,
+    textAlign: 'right',
   },
 });

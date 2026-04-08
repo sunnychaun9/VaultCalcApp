@@ -16,10 +16,34 @@ import { decryptFile, getVaultDirectory } from '@services/crypto';
 const CACHE_SUBDIR = 'thumbcache';
 
 /**
- * In-memory map: MediaItem id → resolved decrypted path (or null if failed).
- * Prevents kicking off duplicate decrypt operations for the same thumbnail.
+ * LRU cache: MediaItem id → resolved decrypted path (or null if failed).
+ * Capped at MAX_ENTRIES to prevent unbounded memory growth for large vaults.
+ * Least-recently-accessed entries are evicted first.
  */
+const MAX_ENTRIES = 500;
 const cache = new Map<string, string | null>();
+
+/** Touch an entry to mark it as recently used (move to end of Map insertion order). */
+function cacheTouchAndGet(key: string): string | null | undefined {
+  if (!cache.has(key)) return undefined;
+  const value = cache.get(key)!;
+  // Map iteration order is insertion order — delete + re-set moves to end
+  cache.delete(key);
+  cache.set(key, value);
+  return value;
+}
+
+/** Set a cache entry, evicting the oldest if at capacity. */
+function cacheSet(key: string, value: string | null): void {
+  // If key already exists, delete first so the re-set puts it at the end
+  if (cache.has(key)) cache.delete(key);
+  cache.set(key, value);
+  // Evict oldest entries (first in iteration order) if over limit
+  if (cache.size > MAX_ENTRIES) {
+    const oldest = cache.keys().next().value;
+    if (oldest !== undefined) cache.delete(oldest);
+  }
+}
 
 /**
  * In-flight decrypt promises keyed by item id.
@@ -60,8 +84,9 @@ export async function getDecryptedThumbnail(
 ): Promise<string | null> {
   if (thumbPath === null) return null;
 
-  // 1. Already cached in memory
-  if (cache.has(id)) return cache.get(id) ?? null;
+  // 1. Already cached in memory (touch to mark as recently used)
+  const cached = cacheTouchAndGet(id);
+  if (cached !== undefined) return cached;
 
   // 2. Decrypt already in flight — wait for it
   const inflight = pending.get(id);
@@ -74,10 +99,10 @@ export async function getDecryptedThumbnail(
       const destPath = `${dir}/${id}.jpg`;
       const result = await decryptFile(thumbPath, destPath, keyId);
       const resolved = result.success ? destPath : null;
-      cache.set(id, resolved);
+      cacheSet(id, resolved);
       return resolved;
     } catch {
-      cache.set(id, null);
+      cacheSet(id, null);
       return null;
     } finally {
       pending.delete(id);
@@ -94,8 +119,7 @@ export async function getDecryptedThumbnail(
  * or undefined if the item has not been decrypted yet.
  */
 export function getCachedThumbnailSync(id: string): string | null | undefined {
-  if (!cache.has(id)) return undefined;
-  return cache.get(id) ?? null;
+  return cacheTouchAndGet(id);
 }
 
 /**

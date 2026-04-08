@@ -33,11 +33,13 @@ export interface AdResult<T = void> {
 export type InterstitialTrigger =
   | 'vault_exit'
   | 'post_import'
+  | 'media_close'
+  | 'audio_close'
+  | 'note_close'
   | 'unlock_cycle';
 
 /** Screen route names classified as secure (no ads allowed) */
 export type SecureScreen =
-  | 'VaultHome'
   | 'MediaViewer'
   | 'AlbumView'
   | 'NoteEditor'

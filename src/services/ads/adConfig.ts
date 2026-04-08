@@ -10,19 +10,19 @@
 import type { SecureScreen } from './types';
 
 // ---------------------------------------------------------------------------
-// Ad Unit IDs — Google test IDs for development, replace for production
+// Ad Unit IDs — test IDs in dev, production IDs in release
 // ---------------------------------------------------------------------------
 
 export const AD_UNIT_IDS = {
   interstitial: __DEV__
     ? 'ca-app-pub-3940256099942544/1033173712' // Google test interstitial
-    : 'ca-app-pub-XXXXXXXX/YYYYYYYYYY',        // TODO: production ID
+    : 'ca-app-pub-2002876774760881/6968449824',
   rewarded: __DEV__
     ? 'ca-app-pub-3940256099942544/5224354917'  // Google test rewarded
-    : 'ca-app-pub-XXXXXXXX/ZZZZZZZZZZ',        // TODO: production ID
+    : 'ca-app-pub-2002876774760881/5958620487',
   appOpen: __DEV__
     ? 'ca-app-pub-3940256099942544/9257395921'  // Google test app open
-    : 'ca-app-pub-XXXXXXXX/AAAAAAAAAA',        // TODO: production ID
+    : 'ca-app-pub-2002876774760881/3332457147',
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -65,7 +65,6 @@ export const CLOCK_DRIFT_TOLERANCE_MS = 5 * 60 * 1000;
 // ---------------------------------------------------------------------------
 
 export const SECURE_SCREENS: ReadonlySet<string> = new Set<SecureScreen>([
-  'VaultHome',
   'MediaViewer',
   'AlbumView',
   'NoteEditor',

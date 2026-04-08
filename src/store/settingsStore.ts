@@ -152,6 +152,15 @@ interface SettingsState {
   /** How many times the user has shared the app (for referral reward) */
   appShareCount: number;
 
+  /** Timestamp when premium lapsed (for win-back offer after 30 days) */
+  premiumLapsedAt: number | null;
+
+  /** Whether win-back offer has been shown this install */
+  winBackShown: boolean;
+
+  /** A/B test: paywall unlock threshold (assigned randomly on first launch) */
+  paywallUnlockThreshold: 3 | 5;
+
   /** Whether to show pattern path while drawing (AUTH-009) */
   showPatternPath: boolean;
 }
@@ -256,6 +265,12 @@ interface SettingsActions {
   /** Increment app share count */
   incrementAppShareCount: () => void;
 
+  /** Record when premium subscription lapsed (for win-back) */
+  recordPremiumLapsed: () => void;
+
+  /** Mark win-back offer as shown */
+  markWinBackShown: () => void;
+
   /** Toggle secret quick unlock gesture */
   setQuickUnlockEnabled: (enabled: boolean) => void;
 
@@ -308,6 +323,9 @@ const defaultSettings: SettingsState = {
   lastReviewPromptAt: null,
   reviewPromptCount: 0,
   appShareCount: 0,
+  premiumLapsedAt: null,
+  winBackShown: false,
+  paywallUnlockThreshold: (Math.random() < 0.5 ? 3 : 5) as 3 | 5,
   quickUnlockEnabled: false,
   unlockMethod: 'pin' as UnlockMethod,
   showPatternPath: true,
@@ -416,7 +434,17 @@ export const useSettingsStore = create<SettingsState & SettingsActions>()(
       },
 
       setPremiumStatus: (status) => {
-        set({ premiumStatus: status });
+        set((state) => {
+          // Track when premium lapses for win-back offer logic
+          const wasPremium = state.premiumStatus === 'premium' || state.premiumStatus === 'trial';
+          const isLapsing = wasPremium && status === 'free';
+          return {
+            premiumStatus: status,
+            ...(isLapsing ? { premiumLapsedAt: Date.now() } : {}),
+            // Clear lapse timestamp when re-subscribing
+            ...(status === 'premium' ? { premiumLapsedAt: null, winBackShown: false } : {}),
+          };
+        });
       },
 
       setPremiumPurchase: (productId, purchaseToken) => {
@@ -461,6 +489,14 @@ export const useSettingsStore = create<SettingsState & SettingsActions>()(
       },
       incrementAppShareCount: () => {
         set((state) => ({ appShareCount: state.appShareCount + 1 }));
+      },
+      recordPremiumLapsed: () => {
+        set((state) => ({
+          premiumLapsedAt: state.premiumLapsedAt ?? Date.now(),
+        }));
+      },
+      markWinBackShown: () => {
+        set({ winBackShown: true });
       },
       setQuickUnlockEnabled: (enabled) => {
         set({ quickUnlockEnabled: enabled });

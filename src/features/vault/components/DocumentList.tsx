@@ -11,6 +11,7 @@ import React, { useCallback } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import type { MediaItem } from '@services/storage/database';
+import { layout } from '@shared/theme';
 import { useVaultStore } from '@store/vaultStore';
 import { DocumentListItem } from './DocumentListItem';
 import { ListSkeleton, useDelayedLoading } from '@shared/components/Skeleton';
@@ -50,7 +51,9 @@ export function DocumentList({
         data={items}
         renderItem={renderItem}
         keyExtractor={keyExtractor}
-        extraData={selectedIds}
+        overrideItemLayout={(itemLayout: { span?: number; size?: number }) => {
+          itemLayout.size = layout.vaultListItemHeight;
+        }}
       />
     </View>
   );

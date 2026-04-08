@@ -9,7 +9,7 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { AppState, StatusBar, StyleSheet, type AppStateStatus } from 'react-native';
+import { AppState, InteractionManager, StatusBar, StyleSheet, type AppStateStatus } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -94,16 +94,19 @@ function App(): React.JSX.Element {
   useEffect(() => {
     initializeDatabase().then(() => {
       setDbReady(true);
-      // Fire-and-forget startup tasks — run in background, don't block UI
-      checkPremiumStatus();
-      tryAutoBackup();
-      // Validate rewarded ad-free mode (drift detection, anti-tamper)
-      import('@services/ads').then(({ validateAdFreeMode }) => validateAdFreeMode()).catch(() => {});
-      // Restore Google Drive session if previously connected (CLOUD-001)
-      const gdEmail = useSettingsStore.getState().googleDriveEmail;
-      if (gdEmail) {
-        import('@services/googleDrive').then(({ signInSilently }) => signInSilently());
-      }
+      // Defer all non-critical startup work until after the first frame renders.
+      // This keeps the calculator screen interactive as fast as possible.
+      InteractionManager.runAfterInteractions(() => {
+        checkPremiumStatus();
+        tryAutoBackup();
+        // Validate rewarded ad-free mode (drift detection, anti-tamper)
+        import('@services/ads').then(({ validateAdFreeMode }) => validateAdFreeMode()).catch(() => {});
+        // Restore Google Drive session if previously connected (CLOUD-001)
+        const gdEmail = useSettingsStore.getState().googleDriveEmail;
+        if (gdEmail) {
+          import('@services/googleDrive').then(({ signInSilently }) => signInSilently());
+        }
+      });
     });
   }, []);
 

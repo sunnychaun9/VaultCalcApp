@@ -520,6 +520,17 @@ export const mediaItems = {
   },
 
   /**
+   * Backfill duration for items where metadata extraction failed at import time.
+   */
+  async updateDuration(id: string, durationMs: number): Promise<void> {
+    const database = await getDatabase();
+    await database.runAsync(
+      'UPDATE media_items SET duration_ms = ? WHERE id = ?',
+      [Math.round(durationMs), id]
+    );
+  },
+
+  /**
    * Batch set favorite status for multiple items
    */
   async setFavorite(ids: string[], isFavorite: boolean): Promise<void> {

@@ -12,6 +12,7 @@ export const fontFamily = {
   regular: 'System',
   medium: 'System',
   semibold: 'System',
+  bold: 'System',
   mono: Platform.select({
     android: 'monospace',
     default: 'monospace',
@@ -81,6 +82,14 @@ export const typography = {
     letterSpacing: 0,
   } as TextStyle,
 
+  headlineSmall: {
+    fontFamily: fontFamily.bold,
+    fontSize: 20,
+    lineHeight: 28,
+    fontWeight: '700',
+    letterSpacing: 0,
+  } as TextStyle,
+
   titleLarge: {
     fontFamily: fontFamily.medium,
     fontSize: 20,
@@ -127,6 +136,15 @@ export const typography = {
     lineHeight: 16,
     fontWeight: '400',
     letterSpacing: 0.4,
+  } as TextStyle,
+
+  /** Bold body for inline emphasis (e.g. "Encrypted!" confirmation text) */
+  bodyBold: {
+    fontFamily: fontFamily.bold,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: '700',
+    letterSpacing: 0.15,
   } as TextStyle,
 
   labelLarge: {

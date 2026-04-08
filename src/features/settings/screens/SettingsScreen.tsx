@@ -36,6 +36,7 @@ import { SettingsSection } from '../components/SettingsSection';
 import { SettingsRow } from '../components/SettingsRow';
 import { enableStealth, disableStealth } from '@services/security/stealth';
 import { setAppIcon as nativeSetAppIcon, type AppIconAlias } from '@services/appicon';
+import { showRewardedAd, grantAdFreeMode } from '@services/ads';
 
 /** Format bytes to human-readable string */
 function formatBytes(bytes: number): string {
@@ -314,16 +315,16 @@ export function SettingsScreen(): React.JSX.Element {
           onPress: async () => {
             setIsWatchingAd(true);
             try {
-              const { showRewardedAd, grantAdFreeMode } = await import('@services/ads');
               const result = await showRewardedAd();
               if (result.success && result.data?.rewarded) {
                 await grantAdFreeMode();
                 alert('You\'re ad-free!', 'No ads for the next 24 hours. Enjoy the quiet.');
               } else if (!result.success) {
-                alert('No video available', 'We couldn\'t load a video right now. Try again later.');
+                alert('No video available', result.error || 'We couldn\'t load a video right now. Try again in a minute.');
               }
-            } catch {
-              alert('Something went wrong', 'Please try again later.');
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : 'Unknown error';
+              alert('Couldn\'t play video', `${msg}. Please check your internet and try again.`);
             } finally {
               setIsWatchingAd(false);
             }

@@ -57,6 +57,8 @@ import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.CaptionStyleCompat
 import androidx.media3.ui.PlayerView
 import androidx.media3.ui.SubtitleView
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
 import java.io.File
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.ReactContext
@@ -88,9 +90,14 @@ class VaultVideoPlayerView @JvmOverloads constructor(
     private var currentSpeed = 1.0f
     private var resumePosition = 0L
     private var autoPlayNext = true
+    private var isShuffleEnabled = false
+    private var isRepeatEnabled = false
+    private var shuffleHistory = mutableListOf<Int>() // tracks played indices for prev-in-shuffle
     private var isScreenLocked = false
     private var rotationState = 0 // 0=portrait, 1=landscape, 2=reverse-landscape
     private var hasAutoOrientationApplied = false
+    private var wasPlayingBeforePause = false
+    private lateinit var lifecycleObserver: DefaultLifecycleObserver
 
     // ── Gesture tracking ───────────────────────────────────────
     private var gestureStartX = 0f
@@ -123,6 +130,8 @@ class VaultVideoPlayerView @JvmOverloads constructor(
     private lateinit var scrubPreviewImage: ImageView
     private lateinit var scrubPreviewTime: TextView
     private var isScrubbing = false
+    private val thumbHalfPx = (9 * context.resources.displayMetrics.density).toInt() // cached dp(9)
+    private var lastDisplayedPosSec = -1 // throttle formatTime allocations
 
     // ── Center indicator card (volume / brightness) ──────────
     private lateinit var centerIndicator: FrameLayout
@@ -170,6 +179,7 @@ class VaultVideoPlayerView @JvmOverloads constructor(
     private val bottomContainer: LinearLayout
     private val seekBarContainer: FrameLayout
     private val seekTrack: View
+    private val seekBuffered: View
     private val seekFill: View
     private val seekThumb: View
     private val timeStartText: TextView
@@ -179,6 +189,8 @@ class VaultVideoPlayerView @JvmOverloads constructor(
     private val playPauseBtn: ImageView
     private val nextBtn: ImageView
     private val rotateBtn: ImageView
+    private val shuffleBtn: ImageView
+    private val repeatBtn: ImageView
     private val speedBtn: TextView
 
     // ── Progress reporting ──────────────────────────────────────
@@ -187,6 +199,11 @@ class VaultVideoPlayerView @JvmOverloads constructor(
             player?.let { p ->
                 if (p.isPlaying) {
                     sendProgressEvent(p.currentPosition, p.duration)
+                }
+                // Always sync seek bar with player position — even when
+                // buffering or paused after a seek — but never while the
+                // user is actively dragging the thumb.
+                if (!isScrubbing) {
                     updateSeekBar()
                 }
             }
@@ -516,14 +533,20 @@ class VaultVideoPlayerView @JvmOverloads constructor(
 
         // Volume/brightness sliders added later (after controls) for z-order
 
-        // ── Seek overlay (center pill) ──
+        // ── Seek overlay (center pill — glassmorphic) ──
         seekOverlay = TextView(context).apply {
-            background = createPillBg(0xCC000000.toInt(), dp(24).toFloat())
+            background = GradientDrawable().apply {
+                setColor(0xBB1A1A2E.toInt())
+                cornerRadius = dp(20).toFloat()
+                setStroke(dp(1), 0x20FFFFFF)
+            }
             setTextColor(Color.WHITE)
             textSize = 16f
             typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
             gravity = Gravity.CENTER
-            setPadding(dp(24), dp(12), dp(24), dp(12))
+            elevation = 16f
+            setPadding(dp(28), dp(14), dp(28), dp(14))
+            setShadowLayer(3f, 0f, 1f, 0x60000000.toInt())
             visibility = GONE
             layoutParams = LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.CENTER)
         }
@@ -541,47 +564,54 @@ class VaultVideoPlayerView @JvmOverloads constructor(
         }
         addView(errorOverlay)
 
-        // ── Center play button ──
+        // ── Center play button (glassmorphic) ──
         centerPlayBtn = ImageView(context).apply {
             setImageResource(R.drawable.ic_player_play)
-            imageAlpha = 221 // 0xDD
+            imageAlpha = 255 // drawable carries alpha="0.9"
             scaleType = ImageView.ScaleType.CENTER_INSIDE
-            background = createPillBg(0x55000000, dp(44).toFloat())
-            setPadding(dp(20), dp(20), dp(20), dp(20))
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(0x40FFFFFF) // frosted glass tint
+                setStroke(dp(1), 0x30FFFFFF) // subtle glass edge
+            }
+            setPadding(dp(24), dp(24), dp(24), dp(24))
+            elevation = 12f
             visibility = GONE
-            layoutParams = LayoutParams(dp(88), dp(88), Gravity.CENTER)
+            layoutParams = LayoutParams(dp(96), dp(96), Gravity.CENTER)
             setOnClickListener { togglePlayPause() }
         }
         addView(centerPlayBtn)
 
         // ══════════════════════════════════════════════════════
-        // TOP BAR (multi-stop gradient — softer fade)
+        // TOP BAR (5-stop gradient — cinematic fade)
         // ══════════════════════════════════════════════════════
         topBar = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             background = GradientDrawable(
                 GradientDrawable.Orientation.TOP_BOTTOM,
                 intArrayOf(
-                    0xCC000000.toInt(),   // 80% at top edge
-                    0x88000000.toInt(),   // 53% mid
-                    0x33000000.toInt(),   // 20% lower
+                    0xE0000000.toInt(),   // 88% at top edge
+                    0xB3000000.toInt(),   // 70%
+                    0x66000000.toInt(),   // 40%
+                    0x22000000.toInt(),   // 13%
                     0x00000000,           // transparent
                 )
             )
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(8), dp(8), dp(8), dp(40))
+            setPadding(dp(6), dp(10), dp(12), dp(48))
             layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT, Gravity.TOP)
         }
 
-        backBtn = makeIconView(R.drawable.ic_player_back, 24) { sendSimpleEvent("onBackPress") }
+        backBtn = makeIconView(R.drawable.ic_player_back, 26) { sendSimpleEvent("onBackPress") }
         titleText = TextView(context).apply {
-            setTextColor(Color.WHITE)
-            textSize = 15f
+            setTextColor(0xF0FFFFFF.toInt())
+            textSize = 16f
             typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
             maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.MIDDLE
+            setShadowLayer(4f, 0f, 1f, 0x80000000.toInt())
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
-                marginStart = dp(4); marginEnd = dp(4)
+                marginStart = dp(2); marginEnd = dp(4)
             }
         }
         menuBtn = makeIconView(R.drawable.ic_player_more, 24) { sendSimpleEvent("onMenuPress") }
@@ -592,45 +622,58 @@ class VaultVideoPlayerView @JvmOverloads constructor(
         addView(topBar)
 
         // ══════════════════════════════════════════════════════
-        // BOTTOM CONTROLS (multi-stop gradient + glass inner)
+        // BOTTOM CONTROLS (5-stop cinematic gradient)
         // ══════════════════════════════════════════════════════
         bottomContainer = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             background = GradientDrawable(
                 GradientDrawable.Orientation.BOTTOM_TOP,
                 intArrayOf(
-                    0xDD000000.toInt(),   // 87% at bottom edge
-                    0x99000000.toInt(),   // 60% mid
-                    0x44000000.toInt(),   // 27% upper
+                    0xE8000000.toInt(),   // 91% at bottom edge
+                    0xCC000000.toInt(),   // 80%
+                    0x80000000.toInt(),   // 50%
+                    0x33000000.toInt(),   // 20%
                     0x00000000,           // transparent
                 )
             )
-            setPadding(dp(12), dp(32), dp(12), dp(8))
+            setPadding(dp(16), dp(40), dp(16), dp(10))
             layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT, Gravity.BOTTOM)
         }
 
-        // ── Seekbar ──
+        // ── Seekbar (6dp thick, rounded, with buffered progress) ──
         seekBarContainer = FrameLayout(context).apply {
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(28))
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(32))
         }
         seekTrack = View(context).apply {
-            background = createPillBg(0x44FFFFFF, dp(2).toFloat())
-            layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, dp(4), Gravity.CENTER_VERTICAL)
+            background = createPillBg(0x33FFFFFF, dp(3).toFloat())
+            layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, dp(6), Gravity.CENTER_VERTICAL)
+        }
+        seekBuffered = View(context).apply {
+            background = createPillBg(0x55FFFFFF, dp(3).toFloat())
+            layoutParams = FrameLayout.LayoutParams(0, dp(6), Gravity.CENTER_VERTICAL)
         }
         seekFill = View(context).apply {
-            background = createPillBg(0xFF3B82F6.toInt(), dp(2).toFloat())
-            layoutParams = FrameLayout.LayoutParams(0, dp(4), Gravity.CENTER_VERTICAL)
+            background = createPillBg(0xFF3B82F6.toInt(), dp(3).toFloat())
+            layoutParams = FrameLayout.LayoutParams(0, dp(6), Gravity.CENTER_VERTICAL)
         }
         seekThumb = View(context).apply {
             background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
-                setColor(0xFF3B82F6.toInt())
-                setStroke(dp(2), 0x33FFFFFF) // subtle white ring
+                setColor(Color.WHITE)
+                setStroke(dp(1), 0x22000000)
             }
-            layoutParams = FrameLayout.LayoutParams(dp(16), dp(16), Gravity.CENTER_VERTICAL)
-            elevation = 6f
+            layoutParams = FrameLayout.LayoutParams(dp(18), dp(18), Gravity.CENTER_VERTICAL)
+            elevation = 8f
+            // Outer glow via outline shadow
+            outlineProvider = object : android.view.ViewOutlineProvider() {
+                override fun getOutline(view: View, outline: android.graphics.Outline) {
+                    outline.setOval(0, 0, view.width, view.height)
+                }
+            }
+            clipToOutline = false
         }
         seekBarContainer.addView(seekTrack)
+        seekBarContainer.addView(seekBuffered)
         seekBarContainer.addView(seekFill)
         seekBarContainer.addView(seekThumb)
         seekBarContainer.setOnTouchListener { v, event ->
@@ -638,6 +681,8 @@ class VaultVideoPlayerView @JvmOverloads constructor(
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
                     isScrubbing = true
+                    // Expand thumb on touch
+                    seekThumb.animate().scaleX(1.4f).scaleY(1.4f).setDuration(120).start()
                     updateSeekBarVisuals(v, ratio)
                     showScrubPreview(ratio, v)
                     resetHideTimer()
@@ -648,6 +693,9 @@ class VaultVideoPlayerView @JvmOverloads constructor(
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     isScrubbing = false
+                    // Shrink thumb back
+                    seekThumb.animate().scaleX(1f).scaleY(1f).setDuration(150)
+                        .setInterpolator(OvershootInterpolator(2f)).start()
                     // Commit seek on release
                     player?.let { p -> p.seekTo((ratio * p.duration).toLong()) }
                     updateSeekBarVisuals(v, ratio)
@@ -659,24 +707,26 @@ class VaultVideoPlayerView @JvmOverloads constructor(
         }
         bottomContainer.addView(seekBarContainer)
 
-        // ── Time row: start time ─────── end time ──
+        // ── Time row ──
         val timeRow = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-            setPadding(0, dp(2), 0, dp(6))
+            setPadding(dp(2), dp(2), dp(2), dp(8))
         }
         timeStartText = TextView(context).apply {
             text = "00:00"
-            setTextColor(0xB3FFFFFF.toInt())
-            textSize = 12f
-            typeface = Typeface.MONOSPACE
+            setTextColor(0xCCFFFFFF.toInt())
+            textSize = 13f
+            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            setShadowLayer(2f, 0f, 1f, 0x60000000.toInt())
         }
         timeEndText = TextView(context).apply {
             text = "-00:00"
-            setTextColor(0xB3FFFFFF.toInt())
-            textSize = 12f
-            typeface = Typeface.MONOSPACE
+            setTextColor(0x99FFFFFF.toInt())
+            textSize = 13f
+            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            setShadowLayer(2f, 0f, 1f, 0x60000000.toInt())
         }
         val timeSpacer = View(context).apply { layoutParams = LinearLayout.LayoutParams(0, 1, 1f) }
         timeRow.addView(timeStartText)
@@ -684,46 +734,68 @@ class VaultVideoPlayerView @JvmOverloads constructor(
         timeRow.addView(timeEndText)
         bottomContainer.addView(timeRow)
 
-        // ── Bottom button row: Lock | Prev | Play | Next | (spacer) | Speed | Rotate ──
+        // ── Bottom button row (glassmorphic inner panel) ──
         val btnRow = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            background = GradientDrawable().apply {
+                setColor(0x1AFFFFFF) // frosted glass tint
+                cornerRadius = dp(16).toFloat()
+                setStroke(dp(1), 0x15FFFFFF) // glass edge
+            }
+            setPadding(dp(6), dp(4), dp(6), dp(4))
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                topMargin = dp(2)
+            }
         }
 
         lockBtn = makeIconView(R.drawable.ic_player_lock, 22) { lockScreen() }
-        prevBtn = makeIconView(R.drawable.ic_player_skip_prev, 24) { playPrevious() }
-        playPauseBtn = makeIconView(R.drawable.ic_player_pause, 32) { togglePlayPause() }
-        nextBtn = makeIconView(R.drawable.ic_player_skip_next, 24) { playNext() }
+        shuffleBtn = makeIconView(R.drawable.ic_player_shuffle, 22) { toggleShuffle() }.apply {
+            imageAlpha = 102
+        }
+        prevBtn = makeIconView(R.drawable.ic_player_skip_prev, 28) { playPrevious() }
+        playPauseBtn = makeIconView(R.drawable.ic_player_pause, 36) { togglePlayPause() }
+        nextBtn = makeIconView(R.drawable.ic_player_skip_next, 28) { playNext() }
+        repeatBtn = makeIconView(R.drawable.ic_player_repeat, 22) { toggleRepeat() }.apply {
+            imageAlpha = 102
+        }
         speedBtn = TextView(context).apply {
             text = "1.0x"
-            setTextColor(0xCCFFFFFF.toInt())
+            setTextColor(0xDDFFFFFF.toInt())
             textSize = 13f
             typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-            background = createPillBg(0x33FFFFFF, dp(14).toFloat())
-            setPadding(dp(14), dp(6), dp(14), dp(6))
+            background = GradientDrawable().apply {
+                setColor(0x22FFFFFF)
+                cornerRadius = dp(14).toFloat()
+                setStroke(dp(1), 0x18FFFFFF)
+            }
+            setPadding(dp(14), dp(7), dp(14), dp(7))
             gravity = Gravity.CENTER
             setOnClickListener { showSpeedMenu() }
         }
         rotateBtn = makeIconView(R.drawable.ic_player_rotate, 22) { rotateScreen() }
         subtitleBtn = makeIconView(R.drawable.ic_player_subtitles, 22) { toggleSubtitles() }.apply {
-            imageAlpha = 102 // dimmed when no subtitle loaded
+            imageAlpha = 102
         }
 
         val bSpacer = View(context).apply { layoutParams = LinearLayout.LayoutParams(0, 1, 1f) }
 
         btnRow.addView(lockBtn)
-        btnRow.addView(createGap(dp(12)))
+        btnRow.addView(createGap(dp(4)))
+        btnRow.addView(shuffleBtn)
+        btnRow.addView(createGap(dp(4)))
         btnRow.addView(prevBtn)
-        btnRow.addView(createGap(dp(8)))
+        btnRow.addView(createGap(dp(2)))
         btnRow.addView(playPauseBtn)
-        btnRow.addView(createGap(dp(8)))
+        btnRow.addView(createGap(dp(2)))
         btnRow.addView(nextBtn)
+        btnRow.addView(createGap(dp(4)))
+        btnRow.addView(repeatBtn)
         btnRow.addView(bSpacer)
         btnRow.addView(subtitleBtn)
-        btnRow.addView(createGap(dp(8)))
+        btnRow.addView(createGap(dp(6)))
         btnRow.addView(speedBtn)
-        btnRow.addView(createGap(dp(8)))
+        btnRow.addView(createGap(dp(6)))
         btnRow.addView(rotateBtn)
 
         bottomContainer.addView(btnRow)
@@ -739,13 +811,18 @@ class VaultVideoPlayerView @JvmOverloads constructor(
         val lockContent = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            background = createPillBg(0xAA000000.toInt(), dp(20).toFloat())
+            background = GradientDrawable().apply {
+                setColor(0xBB1A1A2E.toInt())
+                cornerRadius = dp(20).toFloat()
+                setStroke(dp(1), 0x20FFFFFF)
+            }
+            elevation = 16f
             setPadding(dp(28), dp(16), dp(28), dp(16))
             layoutParams = LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.CENTER)
         }
         lockContent.addView(ImageView(context).apply {
             setImageResource(R.drawable.ic_player_lock)
-            imageAlpha = 221
+            imageAlpha = 255
             layoutParams = LinearLayout.LayoutParams(dp(36), dp(36)).apply { gravity = Gravity.CENTER_HORIZONTAL }
         })
         lockContent.addView(TextView(context).apply {
@@ -802,7 +879,7 @@ class VaultVideoPlayerView @JvmOverloads constructor(
         // Icon
         centerIndicatorIcon = ImageView(context).apply {
             setImageResource(R.drawable.ic_player_volume)
-            imageAlpha = 230
+            imageAlpha = 255
             scaleType = ImageView.ScaleType.CENTER_INSIDE
             layoutParams = FrameLayout.LayoutParams(dp(40), dp(40)).apply {
                 gravity = Gravity.CENTER_HORIZONTAL or Gravity.TOP
@@ -920,6 +997,25 @@ class VaultVideoPlayerView @JvmOverloads constructor(
         addView(subtitleDelayOverlay)
 
         initializePlayer()
+
+        // Lifecycle-aware pause/release: pause in onPause, release in onStop
+        lifecycleObserver = object : DefaultLifecycleObserver {
+            override fun onPause(owner: LifecycleOwner) {
+                wasPlayingBeforePause = player?.isPlaying == true
+                player?.pause()
+            }
+
+            override fun onResume(owner: LifecycleOwner) {
+                if (wasPlayingBeforePause) {
+                    player?.play()
+                }
+            }
+
+            override fun onStop(owner: LifecycleOwner) {
+                release()
+            }
+        }
+        (context as? androidx.lifecycle.LifecycleOwner)?.lifecycle?.addObserver(lifecycleObserver)
     }
 
     // ════════════════════════════════════════════════════════════
@@ -927,15 +1023,14 @@ class VaultVideoPlayerView @JvmOverloads constructor(
     // ════════════════════════════════════════════════════════════
 
     private fun initializePlayer() {
-        // Aggressive buffering for instant start and smooth seeking.
-        // minBuffer 1.5s keeps memory low for encrypted vault files;
-        // maxBuffer 5s is enough for local playback without wasting RAM.
+        // Buffer config: minBuffer must be >= bufferForPlaybackAfterRebuffer (ExoPlayer constraint).
+        // 2.5s min keeps memory low for local vault files; 5s max is enough without wasting RAM.
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
-                /* minBufferMs */          1500,
+                /* minBufferMs */          2500,
                 /* maxBufferMs */          5000,
-                /* bufferForPlaybackMs */  500,
-                /* bufferForPlaybackAfterRebufferMs */ 1500,
+                /* bufferForPlaybackMs */  1000,
+                /* bufferForPlaybackAfterRebufferMs */ 2000,
             )
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()
@@ -971,6 +1066,7 @@ class VaultVideoPlayerView @JvmOverloads constructor(
         resumePosition = startPosition
         hasAutoOrientationApplied = false
         subtitleDelayMs = 0
+        lastDisplayedPosSec = -1
         player?.let { p ->
             p.setMediaItem(MediaItem.fromUri(filePath))
             p.prepare()
@@ -986,6 +1082,7 @@ class VaultVideoPlayerView @JvmOverloads constructor(
         playlist.clear()
         playlist.addAll(paths)
         currentIndex = startIndex.coerceIn(0, paths.size - 1)
+        shuffleHistory.clear()
         updateNavButtonAlpha()
     }
 
@@ -1153,7 +1250,8 @@ class VaultVideoPlayerView @JvmOverloads constructor(
             }
             Player.STATE_ENDED -> {
                 sendSimpleEvent("onEnd")
-                if (autoPlayNext && currentIndex < playlist.size - 1) {
+                val hasNext = isShuffleEnabled || isRepeatEnabled || currentIndex < playlist.size - 1
+                if (autoPlayNext && hasNext) {
                     playNext()
                 } else {
                     showControls()
@@ -1546,6 +1644,11 @@ class VaultVideoPlayerView @JvmOverloads constructor(
     // ════════════════════════════════════════════════════════════
 
     private fun showCenterIndicator(iconRes: Int, percentage: Float) {
+        // Cancel any pending or in-flight hide animation so a new gesture
+        // doesn't get stuck at partial opacity from a mid-fade collision.
+        handler.removeCallbacksAndMessages(CENTER_INDICATOR_TOKEN)
+        centerIndicator.animate().cancel()
+
         centerIndicatorIcon.setImageResource(iconRes)
         centerIndicatorText.text = "${(percentage * 100).toInt()}%"
 
@@ -1557,8 +1660,8 @@ class VaultVideoPlayerView @JvmOverloads constructor(
             centerIndicatorBarFill.layoutParams = fillLp
         }
 
-        // Animate entrance if not already visible
-        if (centerIndicator.visibility != VISIBLE) {
+        // Animate entrance if not already visible, or restore after cancelled hide
+        if (centerIndicator.visibility != VISIBLE || centerIndicator.alpha < 1f) {
             centerIndicator.alpha = 0f
             centerIndicator.scaleX = 0.85f
             centerIndicator.scaleY = 0.85f
@@ -1578,7 +1681,7 @@ class VaultVideoPlayerView @JvmOverloads constructor(
                 .setDuration(180).setInterpolator(DecelerateInterpolator())
                 .withEndAction { centerIndicator.visibility = GONE }
                 .start()
-        }, CENTER_INDICATOR_TOKEN, android.os.SystemClock.uptimeMillis() + 800)
+        }, CENTER_INDICATOR_TOKEN, android.os.SystemClock.uptimeMillis() + 1500)
     }
 
     private fun handleTap(x: Float, y: Float) {
@@ -1690,23 +1793,83 @@ class VaultVideoPlayerView @JvmOverloads constructor(
     }
 
     private fun playNext() {
-        if (currentIndex < playlist.size - 1) {
+        if (playlist.isEmpty()) return
+        if (isShuffleEnabled) {
+            shuffleHistory.add(currentIndex)
+            val candidates = (playlist.indices).filter { it != currentIndex }
+            if (candidates.isEmpty()) return
+            currentIndex = candidates.random()
+            updateNavButtonAlpha()
+            sendNavigationEvent("next", currentIndex)
+        } else if (currentIndex < playlist.size - 1) {
+            shuffleHistory.add(currentIndex)
             currentIndex++
+            updateNavButtonAlpha()
+            sendNavigationEvent("next", currentIndex)
+        } else if (isRepeatEnabled) {
+            shuffleHistory.add(currentIndex)
+            currentIndex = 0
+            updateNavButtonAlpha()
             sendNavigationEvent("next", currentIndex)
         }
     }
 
     private fun playPrevious() {
         player?.let { p -> if (p.currentPosition > 3000) { p.seekTo(0); return } }
-        if (currentIndex > 0) { currentIndex--; sendNavigationEvent("previous", currentIndex) }
+        if (shuffleHistory.isNotEmpty()) {
+            // Go back through shuffle history
+            currentIndex = shuffleHistory.removeAt(shuffleHistory.size - 1)
+            updateNavButtonAlpha()
+            sendNavigationEvent("previous", currentIndex)
+        } else if (currentIndex > 0) {
+            currentIndex--
+            updateNavButtonAlpha()
+            sendNavigationEvent("previous", currentIndex)
+        } else if (isRepeatEnabled) {
+            currentIndex = playlist.size - 1
+            updateNavButtonAlpha()
+            sendNavigationEvent("previous", currentIndex)
+        }
+    }
+
+    private fun toggleShuffle() {
+        isShuffleEnabled = !isShuffleEnabled
+        shuffleHistory.clear()
+        shuffleBtn.imageAlpha = if (isShuffleEnabled) 255 else 102
+        val event = Arguments.createMap().apply { putBoolean("enabled", isShuffleEnabled) }
+        sendEvent("onShuffleChange", event)
+    }
+
+    private fun toggleRepeat() {
+        isRepeatEnabled = !isRepeatEnabled
+        repeatBtn.imageAlpha = if (isRepeatEnabled) 255 else 102
+        updateNavButtonAlpha()
+        val event = Arguments.createMap().apply { putBoolean("enabled", isRepeatEnabled) }
+        sendEvent("onRepeatChange", event)
+    }
+
+    fun setShuffle(enabled: Boolean) {
+        isShuffleEnabled = enabled
+        shuffleHistory.clear()
+        shuffleBtn.imageAlpha = if (enabled) 255 else 102
+    }
+
+    fun setRepeat(enabled: Boolean) {
+        isRepeatEnabled = enabled
+        repeatBtn.imageAlpha = if (enabled) 255 else 102
+        updateNavButtonAlpha()
     }
 
     private fun showSpeedMenu() {
         val popupView = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
-            background = createPillBg(0xF0181818.toInt(), dp(16).toFloat())
+            background = GradientDrawable().apply {
+                setColor(0xEE1A1A2E.toInt())
+                cornerRadius = dp(16).toFloat()
+                setStroke(dp(1), 0x20FFFFFF)
+            }
             setPadding(0, dp(12), 0, dp(12))
-            elevation = 24f
+            elevation = 28f
         }
         popupView.addView(TextView(context).apply {
             text = "Playback Speed"
@@ -1718,7 +1881,7 @@ class VaultVideoPlayerView @JvmOverloads constructor(
 
         val popup = PopupWindow(popupView, dp(160), LayoutParams.WRAP_CONTENT, true).apply {
             setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Color.TRANSPARENT))
-            elevation = 24f
+            elevation = 28f
         }
 
         for (speed in SPEED_OPTIONS) {
@@ -1726,9 +1889,11 @@ class VaultVideoPlayerView @JvmOverloads constructor(
                 text = "${speed}x"
                 setTextColor(if (speed == currentSpeed) 0xFF3B82F6.toInt() else 0xDDFFFFFF.toInt())
                 textSize = 14f
-                typeface = if (speed == currentSpeed) Typeface.create("sans-serif", Typeface.BOLD) else Typeface.DEFAULT
+                typeface = if (speed == currentSpeed) Typeface.create("sans-serif-medium", Typeface.BOLD) else Typeface.create("sans-serif", Typeface.NORMAL)
                 setPadding(dp(20), dp(12), dp(20), dp(12))
-                if (speed == currentSpeed) setBackgroundColor(0x1A3B82F6)
+                if (speed == currentSpeed) {
+                    background = GradientDrawable().apply { setColor(0x1A3B82F6) }
+                }
                 setOnClickListener {
                     setSpeed(speed)
                     popup.dismiss()
@@ -1744,11 +1909,8 @@ class VaultVideoPlayerView @JvmOverloads constructor(
         player?.let { p ->
             if (p.duration <= 0) return
             val ratio = p.currentPosition.toFloat() / p.duration.toFloat()
-            // Use seekBarContainer width (the touch target) as reference since seekTrack
-            // may not have been laid out yet after a layoutParams change
             val barWidth = seekBarContainer.width
             if (barWidth <= 0) {
-                // View not laid out yet — schedule update after layout pass
                 seekBarContainer.post { updateSeekBar() }
                 return
             }
@@ -1758,21 +1920,36 @@ class VaultVideoPlayerView @JvmOverloads constructor(
                 fillLp.width = fillW
                 seekFill.layoutParams = fillLp
             }
+            // Buffered progress
+            val bufferedRatio = p.bufferedPosition.toFloat() / p.duration.toFloat()
+            val buffW = (barWidth * bufferedRatio).toInt()
+            val buffLp = seekBuffered.layoutParams as FrameLayout.LayoutParams
+            if (buffLp.width != buffW) {
+                buffLp.width = buffW
+                seekBuffered.layoutParams = buffLp
+            }
             val thumbLp = seekThumb.layoutParams as FrameLayout.LayoutParams
-            val newMargin = (fillW - dp(7)).coerceAtLeast(0)
+            val newMargin = (fillW - thumbHalfPx).coerceAtLeast(0)
             if (thumbLp.marginStart != newMargin) {
                 thumbLp.marginStart = newMargin
                 seekThumb.layoutParams = thumbLp
             }
-            timeStartText.text = formatTime(p.currentPosition)
-            val remaining = p.duration - p.currentPosition
-            timeEndText.text = "-${formatTime(remaining)}"
+            // Only update text when the displayed second changes
+            val posSec = (p.currentPosition / 1000).toInt()
+            if (posSec != lastDisplayedPosSec) {
+                lastDisplayedPosSec = posSec
+                timeStartText.text = formatTime(p.currentPosition)
+                val remaining = p.duration - p.currentPosition
+                timeEndText.text = "-${formatTime(remaining)}"
+            }
         }
     }
 
     private fun updateNavButtonAlpha() {
-        prevBtn.alpha = if (currentIndex > 0) 1f else 0.3f
-        nextBtn.alpha = if (currentIndex < playlist.size - 1) 1f else 0.3f
+        val canPrev = currentIndex > 0 || shuffleHistory.isNotEmpty() || isRepeatEnabled
+        val canNext = currentIndex < playlist.size - 1 || isShuffleEnabled || isRepeatEnabled
+        prevBtn.alpha = if (canPrev) 1f else 0.3f
+        nextBtn.alpha = if (canNext) 1f else 0.3f
     }
 
     // ════════════════════════════════════════════════════════════
@@ -1789,7 +1966,7 @@ class VaultVideoPlayerView @JvmOverloads constructor(
             fillLp.width = fillW
             seekFill.layoutParams = fillLp
             val thumbLp = seekThumb.layoutParams as FrameLayout.LayoutParams
-            thumbLp.marginStart = (fillW - dp(7)).coerceAtLeast(0)
+            thumbLp.marginStart = (fillW - thumbHalfPx).coerceAtLeast(0)
             seekThumb.layoutParams = thumbLp
             timeStartText.text = formatTime(pos)
             timeEndText.text = "-${formatTime(p.duration - pos)}"
@@ -1875,7 +2052,8 @@ class VaultVideoPlayerView @JvmOverloads constructor(
             putDouble("progress", if (duration > 0) position.toDouble() / duration.toDouble() else 0.0)
         }
         sendEvent("onProgress", event)
-        updateSeekBar()
+        // Note: updateSeekBar() is NOT called here — the progressRunnable
+        // already calls it after sendProgressEvent, avoiding a double layout pass.
     }
 
     private fun sendVolumeEvent(volume: Float) {
@@ -1929,7 +2107,7 @@ class VaultVideoPlayerView @JvmOverloads constructor(
     private fun makeIconView(drawableRes: Int, sizeDp: Int = 24, onClick: () -> Unit): ImageView {
         return ImageView(context).apply {
             setImageResource(drawableRes)
-            imageAlpha = 204 // 80% of 255
+            imageAlpha = 255 // drawables carry alpha="0.9" at vector level
             scaleType = ImageView.ScaleType.CENTER_INSIDE
             setPadding(dp(10), dp(10), dp(10), dp(10))
             minimumWidth = dp(44)
@@ -1992,6 +2170,7 @@ class VaultVideoPlayerView @JvmOverloads constructor(
 
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
+        (context as? androidx.lifecycle.LifecycleOwner)?.lifecycle?.removeObserver(lifecycleObserver)
         thumbnailScrubber.destroy()
         release()
     }

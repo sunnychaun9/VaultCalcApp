@@ -421,6 +421,11 @@ export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Eleme
       exitFullscreen(videoPlayerRef);
       releasePlayer(videoPlayerRef);
     }
+    // Natural transition — try interstitial when returning to vault
+    try {
+      const { tryShowInterstitial } = require('@services/ads');
+      tryShowInterstitial('VaultHome', 'media_close').catch(() => {});
+    } catch { /* non-critical */ }
     navigation.goBack();
   }, [navigation]);
 

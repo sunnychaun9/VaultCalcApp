@@ -115,11 +115,15 @@ export const MediaGridItem = React.memo(function MediaGridItem({
 
   const themeColors = useThemeColors();
   const styles = useMemo(() => createStyles(themeColors), [themeColors]);
-  const { uri: thumbnailUri } = useDecryptedThumbnail(
+  const { uri: thumbnailUri, isLoading: thumbnailLoading } = useDecryptedThumbnail(
     item.thumbnailPath,
     item.id,
     item.keyId,
   );
+  // Track whether this cell's thumbnail was resolved from cache (instant) or async (first load).
+  // Cache hits get fadeDuration=0 (no flash on cell recycle), async loads get 200ms fade-in.
+  const wasCacheHit = useRef(!thumbnailLoading && thumbnailUri !== null);
+  const thumbnailFadeDuration = wasCacheHit.current ? 0 : 200;
 
   // ── Selection animation ──
   const selectionProgress = useSharedValue(isSelected ? 1 : 0);
@@ -216,7 +220,7 @@ export const MediaGridItem = React.memo(function MediaGridItem({
               source={displaySource}
               style={styles.thumbnailImage}
               resizeMode="cover"
-              fadeDuration={0}
+              fadeDuration={thumbnailFadeDuration}
             />
           ) : (
             <Icon

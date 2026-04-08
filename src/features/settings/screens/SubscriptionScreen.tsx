@@ -189,6 +189,7 @@ export function SubscriptionScreen(): React.JSX.Element {
   const [products, setProducts] = useState<BillingProductInfo[]>([]);
   const [isPurchasing, setIsPurchasing] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
+  const [showMorePlans, setShowMorePlans] = useState(false);
 
   const setPremiumStatus = useSettingsStore((s) => s.setPremiumStatus);
   const setPremiumPurchase = useSettingsStore((s) => s.setPremiumPurchase);
@@ -314,7 +315,9 @@ export function SubscriptionScreen(): React.JSX.Element {
     ? `Remove Ads — ${removeAdsPrice}`
     : selectedPlan === 'lifetime'
       ? `Get Lifetime — ${lifetimePrice}`
-      : 'Start 3-Day Free Trial';
+      : selectedPlan === 'yearly'
+        ? 'Start 3-Day Free Trial'
+        : `Subscribe — ${monthlyPrice}/mo`;
 
   return (
     <View style={styles.container}>
@@ -353,13 +356,17 @@ export function SubscriptionScreen(): React.JSX.Element {
             </Text>
           </Animated.View>
 
-          {/* Urgency banner */}
-          {!isPremium && (
-            <Animated.View style={[styles.urgencyBanner, contentAnimStyle]}>
-              <Icon name="clock" size={14} color="#F59E0B" />
-              <Text style={styles.urgencyText}>Limited time offer — Save 72% on yearly</Text>
-            </Animated.View>
-          )}
+          {/* Urgency banner — only within first 72 hours of install */}
+          {!isPremium && (() => {
+            const firstLaunch = useSettingsStore.getState().firstLaunchTimestamp;
+            const isNew = firstLaunch && (Date.now() - firstLaunch) < 72 * 60 * 60 * 1000;
+            return isNew ? (
+              <Animated.View style={[styles.urgencyBanner, contentAnimStyle]}>
+                <Icon name="clock" size={14} color="#F59E0B" />
+                <Text style={styles.urgencyText}>New user offer — Save 72% on yearly</Text>
+              </Animated.View>
+            ) : null;
+          })()}
 
           {/* Feature list */}
           <View style={styles.featureCard}>
@@ -428,60 +435,75 @@ export function SubscriptionScreen(): React.JSX.Element {
                 </Pressable>
               </View>
 
-              {/* Lifetime */}
+              {/* More options toggle */}
               <Pressable
-                onPress={() => handleSelectPlan('lifetime')}
-                style={[
-                  styles.lifetimeCard,
-                  selectedPlan === 'lifetime' && styles.planCardSelected,
-                ]}
+                onPress={() => setShowMorePlans(prev => !prev)}
+                style={styles.moreOptionsToggle}
                 accessibilityRole="button"
-                accessibilityLabel={`Select lifetime plan, ${lifetimePrice} one-time`}
+                accessibilityLabel={showMorePlans ? 'Hide additional plans' : 'Show additional plans'}
               >
-                <View style={styles.lifetimeRow}>
-                  <View>
-                    <Text style={styles.planTitle}>Lifetime</Text>
-                    <Text style={styles.lifetimeSub}>One-time purchase — pay once, own forever</Text>
-                  </View>
-                  <Text style={styles.lifetimePrice}>{lifetimePrice}</Text>
-                </View>
-                {selectedPlan === 'lifetime' && (
-                  <View style={[styles.checkBadge, { top: 14, right: 14 }]}>
-                    <Icon name="check" size={12} color="#FFFFFF" strokeWidth={3} />
-                  </View>
-                )}
+                <Text style={styles.moreOptionsText}>
+                  {showMorePlans ? 'Fewer options' : 'More options'}
+                </Text>
+                <Icon
+                  name="chevron-right"
+                  size={14}
+                  color="#64748B"
+                  style={{ transform: [{ rotate: showMorePlans ? '90deg' : '0deg' }] }}
+                />
               </Pressable>
 
-              {/* "or just remove ads" divider */}
-              <View style={styles.orDivider}>
-                <View style={styles.orLine} />
-                <Text style={styles.orText}>or just remove ads</Text>
-                <View style={styles.orLine} />
-              </View>
+              {showMorePlans && (
+                <>
+                  {/* Lifetime */}
+                  <Pressable
+                    onPress={() => handleSelectPlan('lifetime')}
+                    style={[
+                      styles.lifetimeCard,
+                      selectedPlan === 'lifetime' && styles.planCardSelected,
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Select lifetime plan, ${lifetimePrice} one-time`}
+                  >
+                    <View style={styles.lifetimeRow}>
+                      <View>
+                        <Text style={styles.planTitle}>Lifetime</Text>
+                        <Text style={styles.lifetimeSub}>Pay once, own forever</Text>
+                      </View>
+                      <Text style={styles.lifetimePrice}>{lifetimePrice}</Text>
+                    </View>
+                    {selectedPlan === 'lifetime' && (
+                      <View style={[styles.checkBadge, { top: 14, right: 14 }]}>
+                        <Icon name="check" size={12} color="#FFFFFF" strokeWidth={3} />
+                      </View>
+                    )}
+                  </Pressable>
 
-              {/* Remove Ads */}
-              <Pressable
-                onPress={() => handleSelectPlan('remove_ads')}
-                style={[
-                  styles.lifetimeCard,
-                  selectedPlan === 'remove_ads' && styles.planCardSelected,
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel={`Remove ads for ${removeAdsPrice}`}
-              >
-                <View style={styles.lifetimeRow}>
-                  <View>
-                    <Text style={styles.planTitle}>Remove Ads</Text>
-                    <Text style={styles.lifetimeSub}>One-time purchase</Text>
-                  </View>
-                  <Text style={styles.lifetimePrice}>{removeAdsPrice}</Text>
-                </View>
-                {selectedPlan === 'remove_ads' && (
-                  <View style={[styles.checkBadge, { top: 14, right: 14 }]}>
-                    <Icon name="check" size={12} color="#FFFFFF" strokeWidth={3} />
-                  </View>
-                )}
-              </Pressable>
+                  {/* Remove Ads */}
+                  <Pressable
+                    onPress={() => handleSelectPlan('remove_ads')}
+                    style={[
+                      styles.lifetimeCard,
+                      selectedPlan === 'remove_ads' && styles.planCardSelected,
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Remove ads for ${removeAdsPrice}`}
+                  >
+                    <View style={styles.lifetimeRow}>
+                      <View>
+                        <Text style={styles.planTitle}>Remove Ads Only</Text>
+                        <Text style={styles.lifetimeSub}>One-time purchase</Text>
+                      </View>
+                      <Text style={styles.lifetimePrice}>{removeAdsPrice}</Text>
+                    </View>
+                    {selectedPlan === 'remove_ads' && (
+                      <View style={[styles.checkBadge, { top: 14, right: 14 }]}>
+                        <Icon name="check" size={12} color="#FFFFFF" strokeWidth={3} />
+                      </View>
+                    )}
+                  </Pressable>
+                </>
+              )}
             </Animated.View>
           )}
         </ScrollView>
@@ -729,20 +751,17 @@ const createStyles = (_c: ColorTokens, _isDark: boolean) => StyleSheet.create({
     color: '#F1F5F9',
   },
 
-  // "or" divider
-  orDivider: {
+  // "More options" toggle
+  moreOptionsToggle: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 8,
-    gap: 10,
+    justifyContent: 'center',
+    gap: 4,
+    paddingVertical: 12,
+    marginBottom: 4,
   },
-  orLine: {
-    flex: 1,
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: 'rgba(148, 163, 184, 0.15)',
-  },
-  orText: {
-    fontSize: 12,
+  moreOptionsText: {
+    fontSize: 13,
     color: '#64748B',
   },
 

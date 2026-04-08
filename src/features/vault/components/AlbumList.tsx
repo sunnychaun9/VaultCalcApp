@@ -11,6 +11,7 @@ import React, { useCallback } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import type { Album, CoverMediaInfo } from '@services/storage/database';
+import { layout } from '@shared/theme';
 import { AlbumListItem } from './AlbumListItem';
 import { ListSkeleton, useDelayedLoading } from '@shared/components/Skeleton';
 
@@ -53,6 +54,9 @@ export function AlbumList({
         data={albumsData}
         renderItem={renderItem}
         keyExtractor={keyExtractor}
+        overrideItemLayout={(itemLayout: { span?: number; size?: number }) => {
+          itemLayout.size = layout.vaultListItemHeight;
+        }}
       />
     </View>
   );

@@ -63,6 +63,8 @@ class VaultVideoPlayerViewManager : SimpleViewManager<VaultVideoPlayerView>() {
             .put("toggleSubtitles", 17)
             .put("adjustSubtitleDelay", 18)
             .put("resetSubtitleDelay", 19)
+            .put("setShuffle", 20)
+            .put("setRepeat", 21)
             .build()
     }
 
@@ -114,6 +116,14 @@ class VaultVideoPlayerViewManager : SimpleViewManager<VaultVideoPlayerView>() {
                 root.adjustSubtitleDelay(deltaMs)
             }
             "resetSubtitleDelay" -> root.resetSubtitleDelay()
+            "setShuffle" -> {
+                val enabled = args?.getBoolean(0) ?: return
+                root.setShuffle(enabled)
+            }
+            "setRepeat" -> {
+                val enabled = args?.getBoolean(0) ?: return
+                root.setRepeat(enabled)
+            }
         }
     }
 
@@ -135,6 +145,8 @@ class VaultVideoPlayerViewManager : SimpleViewManager<VaultVideoPlayerView>() {
             .put("onMenuPress", MapBuilder.of("registrationName", "onMenuPress"))
             .put("onLockStateChange", MapBuilder.of("registrationName", "onLockStateChange"))
             .put("onSubtitleStateChange", MapBuilder.of("registrationName", "onSubtitleStateChange"))
+            .put("onShuffleChange", MapBuilder.of("registrationName", "onShuffleChange"))
+            .put("onRepeatChange", MapBuilder.of("registrationName", "onRepeatChange"))
             .build()
     }
 

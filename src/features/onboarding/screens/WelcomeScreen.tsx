@@ -237,6 +237,10 @@ export function WelcomeScreen(): React.JSX.Element {
     useSettingsStore.getState().recordFirstLaunchTimestamp();
     // Mark paywall pending so subscription screen shows on first vault open
     useSettingsStore.getState().setPaywallPending(true);
+    // Schedule re-engagement notifications (Day 1, 3, 7, 14, 30)
+    import('@services/notifications/reengagementService')
+      .then(({ scheduleReengagementNotifications }) => scheduleReengagementNotifications())
+      .catch(() => {});
     navigation.reset({
       index: 1,
       routes: [

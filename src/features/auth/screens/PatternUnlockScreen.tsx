@@ -18,7 +18,7 @@
  */
 
 import React, { useState, useCallback } from 'react';
-import { View, Text, Pressable, StyleSheet, Animated } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Animated, Vibration } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '@typedefs/navigation';
@@ -87,6 +87,12 @@ export function PatternUnlockScreen(): React.JSX.Element {
       if (result.success) {
         setPatternState('success');
         authenticate(false);
+
+        // Satisfying haptic tap on successful unlock
+        try {
+          const { hapticEnabled } = require('@store/settingsStore').useSettingsStore.getState();
+          if (hapticEnabled) Vibration.vibrate(12);
+        } catch { /* non-critical */ }
 
         triggerSuccess(() => {
           navigation.navigate('Vault');

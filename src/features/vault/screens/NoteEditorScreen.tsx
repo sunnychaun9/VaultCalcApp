@@ -197,6 +197,11 @@ export function NoteEditorScreen({ navigation, route }: Props): React.JSX.Elemen
         await queryClient.invalidateQueries({ queryKey: ['notes'] });
       }
     }
+    // Natural transition — try interstitial when returning to vault
+    try {
+      const { tryShowInterstitial } = require('@services/ads');
+      tryShowInterstitial('VaultHome', 'note_close').catch(() => {});
+    } catch { /* non-critical */ }
     navigation.goBack();
   }, [onActivity, isDirty, title, content, noteId, queryClient, navigation]);
 

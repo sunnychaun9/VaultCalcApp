@@ -84,14 +84,19 @@ export async function runConsentFlow(): Promise<ConsentStatus> {
 
 /**
  * Whether ads can be loaded/shown based on consent state.
- * Returns true if consent is obtained or not required.
- * Returns false if consent is required but not yet obtained, or unknown.
+ * Returns true unless consent is explicitly REQUIRED but not yet obtained.
+ *
+ * UNKNOWN is treated as permissible — in non-GDPR regions (e.g. India),
+ * UMP may not return a definitive status, and blocking ads on UNKNOWN
+ * would prevent all ad revenue. The consent flow still runs; if it
+ * determines consent is REQUIRED, ads will be gated until obtained.
  *
  * Synchronous — reads cached status from settingsStore.
  */
 export function canLoadAds(): boolean {
   const status = getCachedConsentStatus();
-  return status === 'OBTAINED' || status === 'NOT_REQUIRED';
+  // Only block if consent is explicitly required but not yet obtained
+  return status !== 'REQUIRED';
 }
 
 /**

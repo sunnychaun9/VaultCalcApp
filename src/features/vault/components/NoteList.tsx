@@ -12,7 +12,7 @@ import { View, TextInput, StyleSheet } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import type { Note } from '@services/storage/database';
 import { useVaultStore } from '@store/vaultStore';
-import { useThemeColors, type ColorTokens, typography, spacing } from '@shared/theme';
+import { useThemeColors, type ColorTokens, typography, spacing, layout } from '@shared/theme';
 import { NoteListItem } from './NoteListItem';
 import { ListSkeleton, useDelayedLoading } from '@shared/components/Skeleton';
 
@@ -76,7 +76,9 @@ export function NoteList({
         data={filteredNotes}
         renderItem={renderItem}
         keyExtractor={keyExtractor}
-        extraData={selectedIds}
+        overrideItemLayout={(itemLayout: { span?: number; size?: number }) => {
+          itemLayout.size = layout.vaultListItemHeight;
+        }}
       />
     </View>
   );

@@ -27,6 +27,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { VaultStackParamList } from '@typedefs/navigation';
 import { VaultHeader, EmptyState, FloatingAddButton, MediaGrid, MediaList, DocumentList, AudioList, SelectionBar, ImportProgressOverlay, AlbumList, AddToAlbumModal, NoteList, SelectionOverflowMenu, RenameModal, PropertiesModal, SearchBar, SoftPremiumCard } from '../components';
+import { FeatureDiscoveryCard } from '../components/FeatureDiscoveryCard';
+import { ImportSuccessToast } from '../components/ImportSuccessToast';
 import { useMediaQuery, useAlbumsQuery, useNotesQuery, type TabType } from '../hooks';
 import { useActivityTracker } from '@features/auth';
 import { useVaultStore } from '@store/vaultStore';
@@ -91,6 +93,8 @@ export function VaultHomeScreen(): React.JSX.Element {
   const [activeTab, setActiveTab] = useState<TabType>('images');
   const [isImporting, setIsImporting] = useState(false);
   const [importProgress, setImportProgress] = useState<ImportProgress | null>(null);
+  const [importSuccessCount, setImportSuccessCount] = useState(0);
+  const [showImportSuccess, setShowImportSuccess] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
@@ -119,15 +123,19 @@ export function VaultHomeScreen(): React.JSX.Element {
     return () => clearTimeout(timer);
   }, []);
 
-  // Auto-show paywall when flagged (after onboarding or 3rd unlock)
+  // Auto-show paywall when flagged — but only after the user has experienced
+  // value (3+ vault unlocks). Before that, clear the flag silently.
   const paywallPending = useSettingsStore(s => s.paywallPending);
   const premiumStatus = useSettingsStore(s => s.premiumStatus);
+  const vaultUnlockCount = useSettingsStore(s => s.vaultUnlockCount);
   useEffect(() => {
     if (!paywallPending || premiumStatus !== 'free') return;
+    const threshold = useSettingsStore.getState().paywallUnlockThreshold;
+    if (vaultUnlockCount < threshold) return; // A/B tested: 3 or 5 unlocks
     useSettingsStore.getState().setPaywallPending(false);
-    const timer = setTimeout(() => navigation.navigate('Subscription'), 300);
+    const timer = setTimeout(() => navigation.navigate('Subscription'), 600);
     return () => clearTimeout(timer);
-  }, [paywallPending, premiumStatus, navigation]);
+  }, [paywallPending, premiumStatus, vaultUnlockCount, navigation]);
 
   // Smart trigger: intruder detected → premium nudge (one-time per session)
   const intruderNudgeShown = useRef(false);
@@ -185,6 +193,33 @@ export function VaultHomeScreen(): React.JSX.Element {
         { text: 'See plans', onPress: () => navigation.navigate('Subscription') },
       ]);
     }, 5000);
+    return () => clearTimeout(timer);
+  }, [premiumStatus, navigation]);
+
+  // Win-back offer: show 50% off after 30+ days of lapsed premium
+  const winBackShown = useRef(false);
+  useEffect(() => {
+    if (premiumStatus !== 'free' || winBackShown.current) return;
+    const { premiumLapsedAt, winBackShown: alreadyShown } = useSettingsStore.getState();
+    if (!premiumLapsedAt || alreadyShown) return;
+
+    const daysSinceLapse = (Date.now() - premiumLapsedAt) / (24 * 60 * 60 * 1000);
+    if (daysSinceLapse < 30) return;
+
+    const timer = setTimeout(() => {
+      if (winBackShown.current) return;
+      winBackShown.current = true;
+      useSettingsStore.getState().markWinBackShown();
+
+      alert(
+        'We miss you!',
+        'Your premium access expired 30+ days ago. Come back and get 50% off yearly — your files are still waiting.',
+        [
+          { text: 'Not now', style: 'cancel' },
+          { text: 'See offer', onPress: () => navigation.navigate('Subscription') },
+        ],
+      );
+    }, 3000);
     return () => clearTimeout(timer);
   }, [premiumStatus, navigation]);
 
@@ -722,33 +757,47 @@ export function VaultHomeScreen(): React.JSX.Element {
           tryShowInterstitial('VaultHome', 'post_import').catch(() => {});
         } catch { /* ad service may not be ready */ }
 
-        // Track imports for paywall trigger (show after 3+ total files imported)
+        // Track imports — paywall only after substantial engagement (10+ files)
         const settings = useSettingsStore.getState();
         settings.incrementImportCount(result.imported);
-        if (settings.premiumStatus === 'free' && settings.totalImportCount >= 3) {
-          // Delay paywall so the success alert shows first
+        if (
+          settings.premiumStatus === 'free' &&
+          settings.totalImportCount >= 10 &&
+          settings.vaultUnlockCount >= settings.paywallUnlockThreshold
+        ) {
+          // Delay paywall so the success feedback shows first
           setTimeout(() => {
             if (useSettingsStore.getState().premiumStatus === 'free') {
               navigation.navigate('Subscription');
             }
-          }, 2000);
+          }, 3000);
         }
       }
 
       if (result.failed.length === 0) {
-        let originalsMsg = '';
-        if (result.originalsDeleted > 0) {
-          originalsMsg += `\n${result.originalsDeleted} ${result.originalsDeleted === 1 ? 'original' : 'originals'} removed from your gallery.`;
-        }
-        if (result.originalsDeleteFailed > 0) {
-          originalsMsg += `\nSome originals couldn't be removed automatically. You may need to delete them manually.`;
-        }
-        alert('Safe and sound', `${result.imported} ${result.imported === 1 ? 'file' : 'files'} encrypted and hidden.${originalsMsg}`);
+        // Show animated success toast instead of a plain alert
+        setImportSuccessCount(result.imported);
+        setShowImportSuccess(true);
 
-        // Positive moment — ask for review after a short delay
+        // If originals were deleted, show a brief supplementary alert after the toast
+        if (result.originalsDeleted > 0 || result.originalsDeleteFailed > 0) {
+          setTimeout(() => {
+            let originalsMsg = '';
+            if (result.originalsDeleted > 0) {
+              originalsMsg += `${result.originalsDeleted} ${result.originalsDeleted === 1 ? 'original' : 'originals'} removed from your gallery.`;
+            }
+            if (result.originalsDeleteFailed > 0) {
+              originalsMsg += originalsMsg ? '\n' : '';
+              originalsMsg += 'Some originals couldn\'t be removed automatically.';
+            }
+            alert('Originals cleaned up', originalsMsg);
+          }, 2800);
+        }
+
+        // Positive moment — ask for review after the toast auto-dismisses
         setTimeout(() => {
           try { require('@services/review').triggerReviewPrompt(); } catch {}
-        }, 3000);
+        }, 4000);
       } else if (result.imported > 0) {
         alert(
           'Almost there',
@@ -1070,6 +1119,11 @@ export function VaultHomeScreen(): React.JSX.Element {
         />
       )}
 
+      {/* Feature discovery — one untried feature tip per session */}
+      {!showPremiumCard && !isSelectionMode && (
+        <FeatureDiscoveryCard />
+      )}
+
       {/* Content Area — native swipeable pager between tabs */}
       <PagerView
         ref={pagerRef}
@@ -1238,6 +1292,13 @@ export function VaultHomeScreen(): React.JSX.Element {
       {importProgress !== null && (
         <ImportProgressOverlay progress={importProgress} />
       )}
+
+      {/* Import success animation toast */}
+      <ImportSuccessToast
+        count={importSuccessCount}
+        visible={showImportSuccess}
+        onDismiss={() => setShowImportSuccess(false)}
+      />
 
       {/* Create Album Sheet (ALBUM-001) */}
       {showCreateAlbum && (

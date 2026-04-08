@@ -8,7 +8,7 @@
  */
 
 import { useCallback, useRef } from 'react';
-import { InteractionManager } from 'react-native';
+import { InteractionManager, Vibration } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '@typedefs/navigation';
@@ -92,6 +92,12 @@ export function usePinAuth() {
           // Everything else is deferred to after the transition.
           authenticate(result.isDecoy);
 
+          // Satisfying haptic "success" tap on unlock
+          try {
+            const { hapticEnabled } = require('@store/settingsStore').useSettingsStore.getState();
+            if (hapticEnabled) Vibration.vibrate(12);
+          } catch { /* non-critical */ }
+
           // Start vault data prefetch while navigation transition plays
           prefetchVaultData(result.isDecoy ?? false);
 
@@ -113,7 +119,7 @@ export function usePinAuth() {
             // Show paywall on 3rd vault unlock for free users
             try {
               const store = require('@store/settingsStore').useSettingsStore.getState();
-              if (store.premiumStatus === 'free' && !result.isDecoy && store.vaultUnlockCount === 3) {
+              if (store.premiumStatus === 'free' && !result.isDecoy && store.vaultUnlockCount === store.paywallUnlockThreshold) {
                 store.setPaywallPending(true);
               }
             } catch { /* non-critical */ }

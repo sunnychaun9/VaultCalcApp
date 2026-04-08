@@ -9,8 +9,8 @@
  * @see FEATURE_INDEX.md CALC-001, CALC-002, AUTH-001, AUTH-006
  */
 
-import React, { useCallback, useMemo, useState } from 'react';
-import { View, Text, Pressable, ScrollView, Modal, StyleSheet, StatusBar } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, Pressable, ScrollView, Modal, StyleSheet, StatusBar, Animated as RNAnimated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { useNavigation } from '@react-navigation/native';
@@ -130,6 +130,28 @@ export function CalculatorScreen(): React.JSX.Element {
     useAuthStore.getState().authenticate(false);
     rootNav.navigate('Vault' as never);
   }, [quickUnlockEnabled, display, rootNav]);
+
+  // One-time vault hint: show after first vault session when user returns to calculator
+  const [showVaultHint, setShowVaultHint] = useState(false);
+  const hintOpacity = useRef(new RNAnimated.Value(0)).current;
+  const isFirstLaunch = useSettingsStore(s => s.isFirstLaunch);
+  const vaultUnlockCount = useSettingsStore(s => s.vaultUnlockCount);
+
+  useEffect(() => {
+    // Show hint only once: after first vault unlock, when user lands back on calculator
+    if (isFirstLaunch || vaultUnlockCount !== 1) return;
+    const timer = setTimeout(() => {
+      setShowVaultHint(true);
+      RNAnimated.timing(hintOpacity, { toValue: 1, duration: 400, useNativeDriver: true }).start();
+      // Auto-dismiss after 5 seconds
+      setTimeout(() => {
+        RNAnimated.timing(hintOpacity, { toValue: 0, duration: 300, useNativeDriver: true }).start(() => {
+          setShowVaultHint(false);
+        });
+      }, 5000);
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [vaultUnlockCount, isFirstLaunch, hintOpacity]);
 
   return (
     <>
@@ -293,6 +315,13 @@ export function CalculatorScreen(): React.JSX.Element {
 
     {/* Decoy exit overlay — panic mode with decoy exit action */}
     <DecoyExitScreen visible={showDecoyExit} onDismiss={dismissDecoyExit} />
+
+    {/* One-time vault hint toast */}
+    {showVaultHint && (
+      <RNAnimated.View style={[styles.vaultHint, { opacity: hintOpacity }]} pointerEvents="none">
+        <Text style={styles.vaultHintText}>Enter your PIN and press = to reopen your vault</Text>
+      </RNAnimated.View>
+    )}
     </>
   );
 }
@@ -471,5 +500,24 @@ const createStyles = (c: ColorTokens, isLandscape: boolean) => StyleSheet.create
     color: c.textPrimary,
     textAlign: 'right',
     marginTop: 4,
+  },
+  vaultHint: {
+    position: 'absolute',
+    bottom: 100,
+    left: 24,
+    right: 24,
+    backgroundColor: 'rgba(30, 41, 59, 0.95)',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    elevation: 8,
+  },
+  vaultHintText: {
+    color: '#E2E8F0',
+    fontSize: 13,
+    fontWeight: '500',
+    textAlign: 'center',
+    letterSpacing: 0.2,
   },
 });

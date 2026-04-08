@@ -34,6 +34,8 @@ export interface NativeVideoPlayerProps extends ViewProps {
   onBackPress?: (event: { nativeEvent: Record<string, never> }) => void;
   onMenuPress?: (event: { nativeEvent: Record<string, never> }) => void;
   onLockStateChange?: (event: { nativeEvent: Record<string, never> }) => void;
+  onShuffleChange?: (event: { nativeEvent: { enabled: boolean } }) => void;
+  onRepeatChange?: (event: { nativeEvent: { enabled: boolean } }) => void;
 }
 
 // ── Native View Component ──────────────────────────────────────
@@ -108,6 +110,14 @@ export function rotateScreen(ref: RefObject<any>) {
 
 export function setAutoRotate(ref: RefObject<any>, enabled: boolean) {
   dispatchCommand(ref, 'setAutoRotate', [enabled]);
+}
+
+export function setShuffle(ref: RefObject<any>, enabled: boolean) {
+  dispatchCommand(ref, 'setShuffle', [enabled]);
+}
+
+export function setRepeat(ref: RefObject<any>, enabled: boolean) {
+  dispatchCommand(ref, 'setRepeat', [enabled]);
 }
 
 // ── Native Module (for non-view operations) ────────────────────
