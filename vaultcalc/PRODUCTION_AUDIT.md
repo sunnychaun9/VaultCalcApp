@@ -3,7 +3,7 @@
 **Date:** 2026-04-08 (Updated after implementation session)
 **Version:** 1.0.0 (Pre-release)
 **Platform:** Android (React Native CLI 0.83.1 + Kotlin)
-**Native modules:** 23 custom Kotlin modules
+**Native modules:** 24 custom Kotlin modules
 **Features complete:** 112/112
 
 ---
@@ -12,7 +12,7 @@
 
 VaultCalcApp is a feature-complete calculator vault with encrypted storage, disguised entry, full monetization, and premium UX. This audit reflects the current state **after** multiple optimization sessions covering ad integration, paywall tuning, performance fixes, UI polish, and bug fixes.
 
-**Overall score: 8.6 / 10** — up from 7.8 at initial audit. Key improvements: production AdMob IDs deployed, ad triggers expanded from 2 to 7, consent gate fixed, paywall timing delayed for conversion, LRU thumbnail cache, FlashList optimization, and animated import feedback.
+**Overall score: 8.9 / 10** — up from 7.8 at initial audit. 26 fixes across all sessions: production AdMob (3 units), 7 ad triggers (was 2), consent gate fixed, A/B paywall testing, re-engagement notifications (Day 1-30), LRU cache, FlashList optimization, video/audio player fixes, and premium UX polish.
 
 ---
 
@@ -103,11 +103,11 @@ Install → Welcome (4 slides, fear→trust arc) → PIN Setup
 
 ### 2.3 Remaining Improvements
 
-| Priority | Item | Impact |
+| Priority | Item | Status |
 |----------|------|--------|
-| P1 | Add one-time toast on first calculator return: "Enter your PIN and press = to reopen your vault" | Reduces "how do I get back in?" support queries |
-| P2 | Add "Did you know?" tip specifically for the calculator disguise on 2nd vault session | Highest-value feature often missed |
-| P3 | Add progress percentage to the first-import screen ("3 photos encrypted!") | Positive reinforcement during first value moment |
+| ~~P1~~ | ~~Add one-time toast on first calculator return~~ | **DONE** — animated hint after first vault session |
+| P2 | Add "Did you know?" tip specifically for the calculator disguise on 2nd vault session | TODO |
+| P3 | Add progress percentage to the first-import screen ("3 photos encrypted!") | TODO |
 
 ---
 
@@ -213,17 +213,29 @@ Install → Welcome (4 slides, fear→trust arc) → PIN Setup
 | System | Status | Quality |
 |--------|--------|---------|
 | In-app review | **Complete** | 3-unlock threshold, 7-day gap, max 2 lifetime, pre-prompt dialog |
-| Feature discovery | **New** | "Did you know?" cards for 6 untried features, one per session |
+| Feature discovery | **Complete** | "Did you know?" cards for 6 untried features, one per session |
 | Soft premium card | **Complete** | Shows after 3rd interstitial with 30s delay |
-| Import success animation | **New** | Shield+checkmark toast with spring physics |
-| Win-back offers | **New** | 30-day lapsed users get discount prompt |
+| Import success animation | **Complete** | Shield+checkmark toast with spring physics |
+| Win-back offers | **Complete** | 30-day lapsed users get discount prompt |
+| Re-engagement notifications | **Complete** | Day 1/3/7/14/30 local notifications via LocalNotifModule + AlarmManager |
+| Vault hint toast | **Complete** | One-time "Enter PIN and press =" hint after first vault session |
+| A/B paywall testing | **Complete** | Random 3 vs 5 unlock threshold per install |
 
-### 5.2 Missing (Not Yet Implemented)
+### 5.2 Re-engagement Notification Schedule
+
+| Day | Title | Message |
+|-----|-------|---------|
+| 1 | Your vault is ready | Import your first photos to keep them safe |
+| 3 | Photos still unprotected | Your gallery photos are visible to anyone who picks up your phone |
+| 7 | Did you know? | You can change the app icon to look like Weather or Notes |
+| 14 | Your private files miss you | Your encrypted vault is waiting |
+| 30 | Still protecting your privacy? | Open the calculator to access your vault |
+
+### 5.3 Missing (Not Yet Implemented)
 
 | System | Priority | Impact | Implementation |
 |--------|----------|--------|----------------|
 | **Referral system** | P1 | HIGH | Firebase Dynamic Links + referral code → 7 days premium per install |
-| **Local push notifications** | P1 | HIGH | Day 1/3/7/14/30 re-engagement schedule via WorkManager |
 | **Share watermark** | P3 | LOW | Optional "Sent securely from VaultCalc" on shared files |
 
 ### 5.3 ASO Recommendations
@@ -278,16 +290,16 @@ Install → Welcome (4 slides, fear→trust arc) → PIN Setup
 
 | Category | Score | Change | Notes |
 |----------|-------|--------|-------|
-| **Features** | 9.5/10 | — | 23 native modules, 112 features, every vault feature covered |
+| **Features** | 9.5/10 | — | 24 native modules, 112 features + notifications, every vault feature covered |
 | **Security** | 9/10 | — | Argon2id, AES, CryptoObject biometric, streaming decrypt |
-| **UI/UX** | 8.5/10 | +1.0 | Typography hierarchy complete, haptics on unlock, animated import toast, feature discovery cards |
-| **Monetization** | 8.5/10 | +1.5 | Production AdMob IDs, 7 trigger points (was 2), consent fix, delayed paywall, simplified pricing, win-back |
-| **Growth** | 6/10 | +1.0 | Feature discovery + win-back + import toast added. Still missing: referrals, push notifications |
+| **UI/UX** | 9/10 | +1.5 | Typography complete, haptics, import toast, feature discovery, vault hint toast, thumbnail fade |
+| **Monetization** | 8.5/10 | +1.5 | Production AdMob, 7 triggers, consent fix, delayed paywall, A/B test infrastructure, win-back |
+| **Growth** | 7.5/10 | +2.5 | Re-engagement notifications (Day 1-30), feature discovery, win-back, vault hint. Missing: referrals |
 | **Performance** | 9/10 | +0.5 | LRU cache, FlashList optimization, deferred cold start, video player fixes |
 | **Play Store Readiness** | 7.5/10 | +1.5 | Production ad IDs done, RECORD_AUDIO justified. Still need: Privacy Policy, Data Safety form, declaration forms |
-| **Overall** | **8.6/10** | **+0.8** | |
+| **Overall** | **8.9/10** | **+1.1** | |
 
-### 7.2 What Was Fixed This Session
+### 7.2 What Was Fixed Across All Sessions (26 items)
 
 1. Production AdMob IDs deployed (App + 3 ad units)
 2. Consent gate unblocked for non-GDPR regions (India)
@@ -311,6 +323,10 @@ Install → Welcome (4 slides, fear→trust arc) → PIN Setup
 20. ExoPlayer buffer constraint fix (minBuffer >= bufferForPlaybackAfterRebuffer)
 21. Audio player event listeners fix (refs instead of dependency recreation)
 22. Audio duration backfill from ExoPlayer
+23. **Local re-engagement notifications** — Day 1/3/7/14/30 schedule via new LocalNotifModule (AlarmManager + BroadcastReceiver), triggered after onboarding
+24. **A/B paywall timing** — `paywallUnlockThreshold` randomly assigned 3 or 5 on first install, wired into all 3 paywall trigger points
+25. **"How to get back in" toast** — one-time animated hint on calculator after first vault session ("Enter your PIN and press = to reopen your vault")
+26. **Thumbnail fadeDuration** — cache-hit cells get `fadeDuration={0}` (no flash on recycle), async-loaded cells get `fadeDuration={200}` (smooth first appearance)
 
 ### 7.3 Priority Action Plan — What's Left
 
@@ -328,25 +344,25 @@ Install → Welcome (4 slides, fear→trust arc) → PIN Setup
 
 #### P1 — First 2 Weeks Post-Launch
 
-| # | Item | Impact |
-|---|------|--------|
-| 8 | Implement local push notifications (Day 1/3/7/14/30) | +15% D7 retention |
-| 9 | Implement referral system (share code → 7 days premium) | Organic growth loop |
-| 10 | A/B test paywall timing (3 unlocks vs 5 unlocks) | Optimize conversion |
-| 11 | Add "How to get back in" toast on first calculator return | Reduce support queries |
+| # | Item | Status | Impact |
+|---|------|--------|--------|
+| 8 | ~~Local push notifications (Day 1/3/7/14/30)~~ | **DONE** | +15% D7 retention |
+| 9 | Implement referral system (share code → 7 days premium) | TODO | Organic growth loop |
+| 10 | ~~A/B test paywall timing (3 vs 5 unlocks)~~ | **DONE** | Optimize conversion |
+| 11 | ~~"How to get back in" toast on calculator~~ | **DONE** | Reduce support queries |
 
 #### P2 — First Month
 
-| # | Item | Impact |
-|---|------|--------|
-| 12 | Test with 1000+ items for scroll performance | Prevent 1-star reviews |
-| 13 | Add thumbnail fadeDuration for first-load cells | Visual polish |
-| 14 | Monitor AdMob fill rate and adjust eCPM floor | Revenue optimization |
-| 15 | Prepare ASO assets (screenshots, feature video, keywords) | Discovery |
+| # | Item | Status | Impact |
+|---|------|--------|--------|
+| 12 | Test with 1000+ items for scroll performance | TODO (manual) | Prevent 1-star reviews |
+| 13 | ~~Thumbnail fadeDuration for first-load cells~~ | **DONE** | Visual polish |
+| 14 | Monitor AdMob fill rate and adjust eCPM floor | TODO (dashboard) | Revenue optimization |
+| 15 | Prepare ASO assets (screenshots, feature video) | TODO (design) | Discovery |
 
 ---
 
-## Appendix: Native Module Inventory
+## Appendix: Native Module Inventory (24 modules)
 
 | Module | Purpose |
 |--------|---------|
@@ -366,6 +382,7 @@ Install → Welcome (4 slides, fear→trust arc) → PIN Setup
 | NotificationPrivacyModule | Mask notification content |
 | VideoPlayerModule | ExoPlayer + audio playback |
 | InAppReviewModule | Google Play review API |
+| **LocalNotifModule** | **Re-engagement notifications via AlarmManager** |
 | VaultShareModule | Secure file sharing |
 | ShakeDetectorModule | Shake-to-lock detection |
 | OrientationModule | Device orientation for video |
@@ -376,4 +393,4 @@ Install → Welcome (4 slides, fear→trust arc) → PIN Setup
 
 ---
 
-*Audit based on full codebase analysis. All scores reflect verified implementation state.*
+*Audit based on full codebase analysis. All scores reflect verified implementation state. Last updated after P1/P2 implementation session.*
