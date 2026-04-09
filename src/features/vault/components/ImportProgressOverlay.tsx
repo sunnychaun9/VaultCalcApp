@@ -2,15 +2,18 @@
  * VaultCalc - Import Progress Overlay
  *
  * Modal overlay shown during file import. Displays a centered card
- * with file count, current filename, and a progress bar.
+ * with animated Lottie loader, file count, current filename, and a progress bar.
  *
  * @see FEATURE_INDEX.md FILE-010
  */
 
 import React, { useMemo } from 'react';
-import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import LottieView from 'lottie-react-native';
 import type { ImportProgress } from '@services/import';
 import { useThemeColors, type ColorTokens, typography, spacing, layout } from '@shared/theme';
+
+const vaultLoaderAnimation = require('@shared/assets/vault-loader.json');
 
 interface ImportProgressOverlayProps {
   progress: ImportProgress;
@@ -27,7 +30,12 @@ export function ImportProgressOverlay({
   return (
     <View style={styles.scrim}>
       <View style={styles.card}>
-        <ActivityIndicator size="large" color={themeColors.accent} />
+        <LottieView
+          source={vaultLoaderAnimation}
+          autoPlay
+          loop
+          style={styles.lottie}
+        />
 
         <Text style={styles.title}>
           Encrypting {progress.current} of {progress.total}
@@ -64,6 +72,10 @@ const createStyles = (c: ColorTokens) => StyleSheet.create({
     maxWidth: 320,
     alignItems: 'center',
     gap: spacing.md,
+  },
+  lottie: {
+    width: 120,
+    height: 120,
   },
   title: {
     ...typography.titleMedium,

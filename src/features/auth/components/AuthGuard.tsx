@@ -7,7 +7,8 @@
  * @see FEATURE_INDEX.md AUTH-008
  */
 
-import React, { useEffect, ReactNode } from 'react';
+import React, { useEffect, useCallback, ReactNode } from 'react';
+import { View, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useAuthStore } from '@store/authStore';
 import { useAuthSession } from '../hooks/useAuthSession';
@@ -31,6 +32,7 @@ interface AuthGuardProps {
 export function AuthGuard({ children }: AuthGuardProps): React.JSX.Element | null {
   const navigation = useNavigation();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const updateActivity = useAuthStore((state) => state.updateActivity);
 
   // Initialize session management (auto-lock on timeout/background)
   useAuthSession();
@@ -40,6 +42,11 @@ export function AuthGuard({ children }: AuthGuardProps): React.JSX.Element | nul
 
   // Initialize volume/power button panic triggers
   usePanicMode();
+
+  // Reset auto-lock timer on any touch interaction
+  const handleTouch = useCallback(() => {
+    updateActivity();
+  }, [updateActivity]);
 
   // Redirect to calculator if not authenticated
   useEffect(() => {
@@ -57,5 +64,15 @@ export function AuthGuard({ children }: AuthGuardProps): React.JSX.Element | nul
     return null;
   }
 
-  return <>{children}</>;
+  return (
+    <View style={styles.container} onTouchStart={handleTouch}>
+      {children}
+    </View>
+  );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+});

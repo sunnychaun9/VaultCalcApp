@@ -65,6 +65,7 @@ export const CLOCK_DRIFT_TOLERANCE_MS = 5 * 60 * 1000;
 // ---------------------------------------------------------------------------
 
 export const SECURE_SCREENS: ReadonlySet<string> = new Set<SecureScreen>([
+  'Calculator',
   'MediaViewer',
   'AlbumView',
   'NoteEditor',

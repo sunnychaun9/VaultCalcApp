@@ -88,7 +88,7 @@ function getExtension(filename: string): string {
 // ─── Image Pager Item ──────────────────────────────────────────────
 // Each page in the horizontal pager decrypts and displays one image.
 
-function ImagePagerItem({ itemId, width }: { itemId: string; width: number }): React.JSX.Element {
+function ImagePagerItem({ itemId, width, onSingleTap }: { itemId: string; width: number; onSingleTap?: () => void }): React.JSX.Element {
   const [uri, setUri] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -129,7 +129,7 @@ function ImagePagerItem({ itemId, width }: { itemId: string; width: number }): R
       {loading ? (
         <ActivityIndicator size="large" color="#3B82F6" />
       ) : uri ? (
-        <ZoomableImage source={{ uri }} style={{ width, flex: 1 }} />
+        <ZoomableImage source={{ uri }} style={{ width, flex: 1 }} onSingleTap={onSingleTap} />
       ) : null}
     </View>
   );
@@ -231,6 +231,29 @@ export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Eleme
   const [renameValue, setRenameValue] = useState('');
   const [videoDetailInfo, setVideoDetailInfo] = useState<VideoDetails | null>(null);
   const [albumList, setAlbumList] = useState<Album[]>([]);
+
+  // Header auto-hide state
+  const [headerVisible, setHeaderVisible] = useState(true);
+  const headerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const resetHeaderTimer = useCallback(() => {
+    if (headerTimerRef.current) clearTimeout(headerTimerRef.current);
+    headerTimerRef.current = setTimeout(() => setHeaderVisible(false), 3000);
+  }, []);
+
+  // Start auto-hide timer on mount and when header becomes visible
+  useEffect(() => {
+    if (headerVisible) {
+      resetHeaderTimer();
+    }
+    return () => {
+      if (headerTimerRef.current) clearTimeout(headerTimerRef.current);
+    };
+  }, [headerVisible, resetHeaderTimer]);
+
+  const toggleHeader = useCallback(() => {
+    setHeaderVisible(prev => !prev);
+  }, []);
 
   // PDF viewer state
   const [pdfPageCount, setPdfPageCount] = useState(0);
@@ -734,21 +757,23 @@ export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Eleme
   // ── Photo / PDF / Document render ──
   return (
     <View style={styles.container}>
-      {/* Header overlay */}
-      <SafeAreaView edges={['top']} style={styles.headerOverlay}>
-        <IconButton name="arrow-left" onPress={handleBack} color="#FFFFFF" accessibilityLabel="Go back" />
-        <Text style={styles.headerTitle} numberOfLines={1}>
-          {item?.originalName ?? ''}
-        </Text>
-        <IconButton
-          name="star"
-          onPress={handleToggleFavorite}
-          color={isFavorite ? '#FFD700' : '#FFFFFF'}
-          fill={isFavorite ? '#FFD700' : 'none'}
-          accessibilityLabel={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-        />
-        <IconButton name="share" onPress={handleShare} color="#FFFFFF" accessibilityLabel="Share" />
-      </SafeAreaView>
+      {/* Header overlay — auto-hides after 3s, toggles on single tap */}
+      {headerVisible && (
+        <SafeAreaView edges={['top']} style={styles.headerOverlay}>
+          <IconButton name="arrow-left" onPress={handleBack} color="#FFFFFF" accessibilityLabel="Go back" />
+          <Text style={styles.headerTitle} numberOfLines={1}>
+            {item?.originalName ?? ''}
+          </Text>
+          <IconButton
+            name="star"
+            onPress={handleToggleFavorite}
+            color={isFavorite ? '#FFD700' : '#FFFFFF'}
+            fill={isFavorite ? '#FFD700' : 'none'}
+            accessibilityLabel={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+          />
+          <IconButton name="share" onPress={handleShare} color="#FFFFFF" accessibilityLabel="Share" />
+        </SafeAreaView>
+      )}
 
       {isPdf && decryptedPath && pdfPageCount > 0 ? (
         <FlatList
@@ -792,7 +817,7 @@ export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Eleme
             setCurrentPagerIndex(idx);
           }}
           renderItem={({ item: itemId }) => (
-            <ImagePagerItem itemId={itemId} width={SCREEN_WIDTH} />
+            <ImagePagerItem itemId={itemId} width={SCREEN_WIDTH} onSingleTap={toggleHeader} />
           )}
           style={{ flex: 1 }}
         />
@@ -800,6 +825,7 @@ export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Eleme
         <ZoomableImage
           source={{ uri: decryptedUri }}
           style={styles.image}
+          onSingleTap={toggleHeader}
         />
       ) : null}
     </View>

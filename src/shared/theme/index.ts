@@ -8,6 +8,8 @@ export { colors } from './colors';
 export type { ColorTheme, ColorTokens } from './colors';
 
 export { useThemeColors } from './useThemeColors';
+export { useCalcThemeColors } from './useCalcThemeColors';
+export { calcThemes } from './calcThemes';
 
 export { typography, fontFamily, getCalcDisplayStyle } from './typography';
 

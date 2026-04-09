@@ -19,6 +19,7 @@ import { requireNativeComponent, type ViewProps } from 'react-native';
 
 interface NativeZoomableImageProps extends ViewProps {
   uri?: string;
+  onSingleTap?: () => void;
 }
 
 const NativeZoomableImageView =
@@ -27,15 +28,17 @@ const NativeZoomableImageView =
 interface ZoomableImageProps {
   source: { uri: string } | number;
   style?: object;
+  onSingleTap?: () => void;
 }
 
-export function ZoomableImage({ source, style }: ZoomableImageProps): React.JSX.Element {
+export function ZoomableImage({ source, style, onSingleTap }: ZoomableImageProps): React.JSX.Element {
   const uri = typeof source === 'object' && 'uri' in source ? source.uri : undefined;
 
   return (
     <NativeZoomableImageView
       style={[{ flex: 1 }, style]}
       uri={uri}
+      onSingleTap={onSingleTap}
     />
   );
 }

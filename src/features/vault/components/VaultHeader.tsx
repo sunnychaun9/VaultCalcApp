@@ -119,15 +119,8 @@ export function VaultHeader({
 
   /**
    * Handle lock button press - return to calculator.
-   * Shows interstitial ad on vault exit, then locks.
    */
-  const handleLockPress = async () => {
-    try {
-      const { tryShowInterstitial } = require('@services/ads');
-      await tryShowInterstitial('Calculator', 'vault_exit');
-    } catch {
-      // Ad service may not be initialized — proceed with lock
-    }
+  const handleLockPress = () => {
     logout();
     navigation.navigate('Calculator' as never);
   };

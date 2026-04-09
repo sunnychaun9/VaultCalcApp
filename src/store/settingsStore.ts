@@ -23,6 +23,11 @@ import { mmkvStorage } from '@services/storage/mmkv';
 type ThemeMode = 'light' | 'dark' | 'system';
 
 /**
+ * Calculator-specific theme (separate from app theme)
+ */
+export type CalcTheme = 'default' | 'rose' | 'ocean' | 'monokai';
+
+/**
  * Unlock method options
  */
 export type UnlockMethod = 'pin' | 'pattern';
@@ -46,6 +51,9 @@ interface SettingsState {
 
   /** Current theme mode */
   themeMode: ThemeMode;
+
+  /** Calculator-specific color theme */
+  calcTheme: CalcTheme;
 
   /** Auto-lock timeout duration */
   lockTimeout: LockTimeout;
@@ -175,6 +183,9 @@ interface SettingsActions {
   /** Set theme mode */
   setThemeMode: (mode: ThemeMode) => void;
 
+  /** Set calculator theme */
+  setCalcTheme: (theme: CalcTheme) => void;
+
   /** Set lock timeout */
   setLockTimeout: (timeout: LockTimeout) => void;
 
@@ -290,6 +301,7 @@ interface SettingsActions {
 const defaultSettings: SettingsState = {
   isFirstLaunch: true,
   themeMode: 'system',
+  calcTheme: 'default' as CalcTheme,
   lockTimeout: 60000, // 1 minute default
   biometricEnabled: false,
   lockOnBackground: true,
@@ -351,6 +363,10 @@ export const useSettingsStore = create<SettingsState & SettingsActions>()(
 
       setThemeMode: (mode) => {
         set({ themeMode: mode });
+      },
+
+      setCalcTheme: (theme) => {
+        set({ calcTheme: theme });
       },
 
       setLockTimeout: (timeout) => {
@@ -525,6 +541,7 @@ export const useSettingsStore = create<SettingsState & SettingsActions>()(
       partialize: (state) => ({
         isFirstLaunch: state.isFirstLaunch,
         themeMode: state.themeMode,
+        calcTheme: state.calcTheme,
         lockTimeout: state.lockTimeout,
         biometricEnabled: state.biometricEnabled,
         lockOnBackground: state.lockOnBackground,

@@ -8,7 +8,7 @@
  * @see FEATURE_INDEX.md CLOUD-001
  */
 
-export const GOOGLE_WEB_CLIENT_ID = 'YOUR_WEB_CLIENT_ID.apps.googleusercontent.com';
+export const GOOGLE_WEB_CLIENT_ID = '592721351328-5t5npunkln76pj2clhchbvn41lno1qdo.apps.googleusercontent.com';
 
 export const GOOGLE_DRIVE_SCOPES = ['https://www.googleapis.com/auth/drive.file'];
 

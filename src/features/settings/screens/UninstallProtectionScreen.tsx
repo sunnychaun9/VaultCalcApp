@@ -90,7 +90,6 @@ export function UninstallProtectionScreen(): React.JSX.Element {
       <View style={styles.header}>
         <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
           <Icon name="arrow-left" size={20} color={themeColors.textPrimary} />
-          <Text style={styles.backText}> Back</Text>
         </Pressable>
         <Text style={styles.title}>Uninstall Protection</Text>
         <View style={styles.backButton} />

@@ -23,7 +23,8 @@ import { isRecoveryConfigured } from '@features/auth/services/recoveryService';
 import { useSettingsStore } from '@store/settingsStore';
 import { useAuthStore } from '@store/authStore';
 import { recordIntruderAttempt, hasCameraPermission } from '@services/intruderCamera';
-import { colors, useThemeColors, type ColorTokens, elevationLevels } from '@shared/theme';
+import { colors, useThemeColors, useCalcThemeColors, calcThemes, type ColorTokens, elevationLevels } from '@shared/theme';
+import type { CalcTheme } from '@store/settingsStore';
 import { useOrientation } from '@shared/hooks';
 import { Icon, IconButton } from '@shared/components/Icon';
 import { DecoyExitScreen } from '@features/auth/components';
@@ -53,8 +54,9 @@ function formatHistoryTime(timestamp: number): string {
  * - Failed attempt tracking and warnings (AUTH-006)
  */
 export function CalculatorScreen(): React.JSX.Element {
-  const themeColors = useThemeColors();
-  const isDark = themeColors === colors.dark;
+  const baseThemeColors = useThemeColors();
+  const themeColors = useCalcThemeColors();
+  const isDark = baseThemeColors === colors.dark;
   const { isLandscape } = useOrientation();
   const styles = useMemo(() => createStyles(themeColors, isLandscape), [themeColors, isLandscape]);
   const rootNav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -117,6 +119,11 @@ export function CalculatorScreen(): React.JSX.Element {
 
   const [showHistory, setShowHistory] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const [showThemePicker, setShowThemePicker] = useState(false);
+
+  // Calculator theme
+  const calcTheme = useSettingsStore(s => s.calcTheme);
+  const setCalcTheme = useSettingsStore(s => s.setCalcTheme);
 
   // Decoy exit overlay (panic mode with decoy exit action)
   const showDecoyExit = useAuthStore(s => s.showDecoyExit);
@@ -200,7 +207,7 @@ export function CalculatorScreen(): React.JSX.Element {
         {showMenu && (
           <Pressable style={styles.menuBackdrop} onPress={() => setShowMenu(false)}>
             <View style={styles.menuPopup}>
-              <Pressable style={styles.menuItem} onPress={() => setShowMenu(false)}>
+              <Pressable style={styles.menuItem} onPress={() => { setShowMenu(false); setShowThemePicker(true); }}>
                 <Text style={styles.menuItemText}>Theme</Text>
               </Pressable>
             </View>
@@ -312,6 +319,33 @@ export function CalculatorScreen(): React.JSX.Element {
         </View>
       </Modal>
     </SafeAreaView>
+
+    {/* Theme picker modal */}
+    <Modal visible={showThemePicker} transparent animationType="fade" onRequestClose={() => setShowThemePicker(false)}>
+      <Pressable style={styles.themePickerBackdrop} onPress={() => setShowThemePicker(false)}>
+        <View style={styles.themePickerCard}>
+          <Text style={styles.themePickerTitle}>Calculator Theme</Text>
+          {(Object.keys(calcThemes) as CalcTheme[]).map((key) => {
+            const theme = calcThemes[key];
+            const isSelected = calcTheme === key;
+            const previewColor = isDark ? theme.preview.dark : theme.preview.light;
+            return (
+              <Pressable
+                key={key}
+                style={[styles.themePickerRow, isSelected && styles.themePickerRowSelected]}
+                onPress={() => { setCalcTheme(key); setShowThemePicker(false); }}
+              >
+                <View style={[styles.themePickerDot, { backgroundColor: previewColor }]} />
+                <Text style={[styles.themePickerLabel, isSelected && styles.themePickerLabelSelected]}>
+                  {theme.label}
+                </Text>
+                {isSelected && <Icon name="check" size={18} color={themeColors.accent} />}
+              </Pressable>
+            );
+          })}
+        </View>
+      </Pressable>
+    </Modal>
 
     {/* Decoy exit overlay — panic mode with decoy exit action */}
     <DecoyExitScreen visible={showDecoyExit} onDismiss={dismissDecoyExit} />
@@ -500,6 +534,53 @@ const createStyles = (c: ColorTokens, isLandscape: boolean) => StyleSheet.create
     color: c.textPrimary,
     textAlign: 'right',
     marginTop: 4,
+  },
+  // Theme picker modal
+  themePickerBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  themePickerCard: {
+    backgroundColor: c.surfaceContainerHigh,
+    borderRadius: 20,
+    paddingVertical: 20,
+    paddingHorizontal: 24,
+    width: '80%',
+    maxWidth: 320,
+  },
+  themePickerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: c.textPrimary,
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  themePickerRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    marginBottom: 4,
+  },
+  themePickerRowSelected: {
+    backgroundColor: c.calcButtonPrimary,
+  },
+  themePickerDot: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    marginRight: 14,
+  },
+  themePickerLabel: {
+    fontSize: 16,
+    color: c.textPrimary,
+    flex: 1,
+  },
+  themePickerLabelSelected: {
+    fontWeight: '600' as const,
   },
   vaultHint: {
     position: 'absolute',

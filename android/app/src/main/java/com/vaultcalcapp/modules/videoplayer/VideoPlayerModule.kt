@@ -17,6 +17,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.session.MediaSession
 import com.facebook.react.bridge.*
 import com.facebook.react.modules.core.DeviceEventManagerModule
 import kotlinx.coroutines.*
@@ -137,6 +138,7 @@ class VideoPlayerModule(reactContext: ReactApplicationContext) :
     // ════════════════════════════════════════════════════════════
 
     private var audioPlayer: ExoPlayer? = null
+    private var audioMediaSession: MediaSession? = null
     private val mainHandler = Handler(Looper.getMainLooper())
     private var audioProgressRunnable: Runnable? = null
 
@@ -152,6 +154,8 @@ class VideoPlayerModule(reactContext: ReactApplicationContext) :
                 }
 
                 // Always create a fresh player to avoid reusing one stuck in error state
+                audioMediaSession?.release()
+                audioMediaSession = null
                 audioPlayer?.let {
                     stopAudioProgress()
                     it.stop()
@@ -212,6 +216,9 @@ class VideoPlayerModule(reactContext: ReactApplicationContext) :
                     })
                     audioPlayer = it
                 }
+
+                // Create MediaSession for Bluetooth/headset media button support
+                audioMediaSession = MediaSession.Builder(reactApplicationContext, player).build()
 
                 player.setMediaItem(MediaItem.fromUri(android.net.Uri.fromFile(file)))
                 player.prepare()
@@ -278,6 +285,8 @@ class VideoPlayerModule(reactContext: ReactApplicationContext) :
     fun audioRelease(promise: Promise) {
         mainHandler.post {
             stopAudioProgress()
+            audioMediaSession?.release()
+            audioMediaSession = null
             audioPlayer?.stop()
             audioPlayer?.release()
             audioPlayer = null
@@ -320,6 +329,8 @@ class VideoPlayerModule(reactContext: ReactApplicationContext) :
     override fun onCatalystInstanceDestroy() {
         super.onCatalystInstanceDestroy()
         stopAudioProgress()
+        audioMediaSession?.release()
+        audioMediaSession = null
         audioPlayer?.release()
         audioPlayer = null
         scope.cancel()

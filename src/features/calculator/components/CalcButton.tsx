@@ -22,7 +22,7 @@ import {
   TextStyle,
 } from 'react-native';
 import { useSettingsStore } from '@store/settingsStore';
-import { useThemeColors, type ColorTokens, typography, layout } from '@shared/theme';
+import { useCalcThemeColors, type ColorTokens, typography, layout } from '@shared/theme';
 
 export type ButtonType = 'number' | 'operator' | 'function' | 'equals' | 'clear';
 
@@ -47,7 +47,7 @@ export function CalcButton({
   accessibilityLabel,
   compact = false,
 }: CalcButtonProps): React.JSX.Element {
-  const themeColors = useThemeColors();
+  const themeColors = useCalcThemeColors();
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   const handlePressIn = useCallback(() => {

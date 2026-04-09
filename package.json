@@ -21,6 +21,7 @@
     "expo-asset": "~11.0.1",
     "expo-constants": "~17.0.8",
     "expo-sqlite": "^16.0.10",
+    "lottie-react-native": "^7.3.6",
     "lucide-react-native": "^1.7.0",
     "react": "19.2.0",
     "react-native": "0.83.1",

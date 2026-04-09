@@ -31,7 +31,6 @@ export interface AdResult<T = void> {
 
 /** Interstitial trigger points */
 export type InterstitialTrigger =
-  | 'vault_exit'
   | 'post_import'
   | 'media_close'
   | 'audio_close'
@@ -40,6 +39,7 @@ export type InterstitialTrigger =
 
 /** Screen route names classified as secure (no ads allowed) */
 export type SecureScreen =
+  | 'Calculator'
   | 'MediaViewer'
   | 'AlbumView'
   | 'NoteEditor'
@@ -52,8 +52,7 @@ export type SecureScreen =
 /** Ad-eligible screen route names */
 export type AdEligibleScreen =
   | 'Settings'
-  | 'About'
-  | 'Calculator';
+  | 'About';
 
 /** UMP consent status values from the native module */
 export type ConsentStatus =

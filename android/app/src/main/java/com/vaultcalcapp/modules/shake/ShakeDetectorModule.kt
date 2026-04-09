@@ -36,8 +36,8 @@ class ShakeDetectorModule(reactContext: ReactApplicationContext) :
     companion object {
         private const val MODULE_NAME = "ShakeDetectorModule"
         private const val EVENT_NAME = "onShakeDetected"
-        private const val SHAKE_THRESHOLD = 13.0
-        private const val COOLDOWN_MS = 1500L
+        private const val SHAKE_THRESHOLD = 20.0
+        private const val COOLDOWN_MS = 3000L
     }
 
     private val sensorManager: SensorManager =

@@ -9,9 +9,12 @@
  */
 
 import React, { useMemo } from 'react';
-import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import LottieView from 'lottie-react-native';
 import type { BackupUploadProgress } from '@services/backup';
 import { useThemeColors, type ColorTokens, typography, spacing, layout } from '@shared/theme';
+
+const vaultLoaderAnimation = require('@shared/assets/vault-loader.json');
 
 interface BackupProgressOverlayProps {
   progress: BackupUploadProgress;
@@ -34,7 +37,12 @@ export function BackupProgressOverlay({
   return (
     <View style={styles.scrim}>
       <View style={styles.card}>
-        <ActivityIndicator size="large" color={themeColors.accent} />
+        <LottieView
+          source={vaultLoaderAnimation}
+          autoPlay
+          loop
+          style={styles.lottie}
+        />
 
         <Text style={styles.title}>{title}</Text>
 
@@ -69,6 +77,10 @@ const createStyles = (c: ColorTokens) => StyleSheet.create({
     maxWidth: 320,
     alignItems: 'center',
     gap: spacing.md,
+  },
+  lottie: {
+    width: 120,
+    height: 120,
   },
   title: {
     ...typography.titleMedium,

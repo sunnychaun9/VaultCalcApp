@@ -30,6 +30,9 @@ import android.view.ScaleGestureDetector
 import android.view.animation.DecelerateInterpolator
 import android.widget.FrameLayout
 import android.widget.ImageView
+import com.facebook.react.bridge.Arguments
+import com.facebook.react.bridge.ReactContext
+import com.facebook.react.uimanager.events.RCTEventEmitter
 import java.io.File
 import kotlin.math.abs
 import kotlin.math.max
@@ -353,6 +356,12 @@ class ZoomableImageView @JvmOverloads constructor(
 
     // ── Gesture listener (double-tap) ──
 
+    private fun sendEvent(eventName: String) {
+        val reactContext = context as? ReactContext ?: return
+        reactContext.getJSModule(RCTEventEmitter::class.java)
+            .receiveEvent(id, eventName, Arguments.createMap())
+    }
+
     inner class GestureListener : GestureDetector.SimpleOnGestureListener() {
         override fun onDoubleTap(e: MotionEvent): Boolean {
             cancelAnimation()
@@ -362,6 +371,11 @@ class ZoomableImageView @JvmOverloads constructor(
                 minScale * doubleTapScale // Zoom in
             }
             animateToScale(targetScale, e.x, e.y)
+            return true
+        }
+
+        override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
+            sendEvent("onSingleTap")
             return true
         }
 

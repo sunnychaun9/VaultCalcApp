@@ -716,7 +716,7 @@ export function SettingsScreen(): React.JSX.Element {
             <SettingsRow type="toggle" icon="shield" title="Panic mode" subtitle="Shake or press buttons to instantly hide everything" value={panicButtonEnabled} onValueChange={handleTogglePanicButton} highlighted />
             {panicButtonEnabled && (
               <>
-                <SettingsRow type="toggle" icon="shield" title="Shake device" value={true} onValueChange={() => {}} disabled subtitle="Always enabled" />
+                <SettingsRow type="toggle" icon="shield" title="Shake device" value={true} onValueChange={() => {}} subtitle="Always enabled" />
                 <SettingsRow type="toggle" icon="shield" title="Triple press volume" value={panicTriggerVolume} onValueChange={handleTogglePanicVolume} />
                 <SettingsRow type="toggle" icon="shield" title="Triple press power" value={panicTriggerPower} onValueChange={handleTogglePanicPower} />
                 <SettingsRow type="toggle" icon="alert-triangle" title="Decoy exit screen" subtitle="Show an error screen instead of locking" value={panicAction === 'fakeCrash'} onValueChange={(v) => setPanicAction(v ? 'fakeCrash' : 'lock')} />

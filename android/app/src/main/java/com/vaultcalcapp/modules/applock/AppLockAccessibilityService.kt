@@ -24,6 +24,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.view.accessibility.AccessibilityEvent
 
 class AppLockAccessibilityService : AccessibilityService() {
@@ -37,6 +39,21 @@ class AppLockAccessibilityService : AccessibilityService() {
 
     /** Raw foreground package (includes system/IME for dedup). */
     private var lastRawPackage: String? = null
+
+    /** Debounce handler — prevents flickering when swiping through recents. */
+    private val lockHandler = Handler(Looper.getMainLooper())
+    private var pendingLockPackage: String? = null
+    private val lockRunnable = Runnable {
+        val pkg = pendingLockPackage ?: return@Runnable
+        pendingLockPackage = null
+        recentsCover?.showCover()
+        launchLockScreen(pkg)
+    }
+
+    companion object {
+        /** Delay before showing lock screen — cancels if user swipes away quickly. */
+        private const val LOCK_DEBOUNCE_MS = 350L
+    }
 
     /**
      * Packages that should NOT be treated as "user navigated to a different app".
@@ -81,6 +98,7 @@ class AppLockAccessibilityService : AccessibilityService() {
         screenOffReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
                 if (intent.action == Intent.ACTION_SCREEN_OFF) {
+                    cancelPendingLock()
                     lockManager?.clearAllAuth()
                     currentUserApp = null
                     lastRawPackage = null
@@ -131,6 +149,7 @@ class AppLockAccessibilityService : AccessibilityService() {
 
         // If it's a launcher, handle recents cover but don't lock
         if (isLauncher) {
+            cancelPendingLock()
             if (previousUserApp != null && manager.isAppLocked(previousUserApp)) {
                 // Auto-hide after a short delay so the user can see and interact
                 // with the recents screen. The thumbnail is captured immediately,
@@ -155,21 +174,34 @@ class AppLockAccessibilityService : AccessibilityService() {
 
         // Check if this app needs locking
         if (!manager.isAppLocked(packageName)) {
-            // Not a locked app — safe to hide the recents cover
+            // Not a locked app — cancel any pending lock and hide the cover
+            cancelPendingLock()
             recentsCover?.hideCover()
             return
         }
 
         // If user already authenticated for this app in this session, skip
         if (manager.isAuthenticated(packageName)) {
+            cancelPendingLock()
             recentsCover?.hideCover()
             return
         }
 
-        // App needs locking — keep cover visible while lock screen loads,
-        // then launch the lock screen on top
-        recentsCover?.showCover()
-        launchLockScreen(packageName)
+        // App needs locking — debounce to prevent flickering when swiping
+        // through recents. If the user swipes away within the debounce
+        // window, the lock is cancelled.
+        scheduleLock(packageName)
+    }
+
+    private fun scheduleLock(targetPackage: String) {
+        cancelPendingLock()
+        pendingLockPackage = targetPackage
+        lockHandler.postDelayed(lockRunnable, LOCK_DEBOUNCE_MS)
+    }
+
+    private fun cancelPendingLock() {
+        lockHandler.removeCallbacks(lockRunnable)
+        pendingLockPackage = null
     }
 
     private fun launchLockScreen(targetPackage: String) {
@@ -185,6 +217,7 @@ class AppLockAccessibilityService : AccessibilityService() {
     }
 
     override fun onDestroy() {
+        cancelPendingLock()
         RecentsCoverBridge.unregister()
         recentsCover?.destroy()
         screenOffReceiver?.let {

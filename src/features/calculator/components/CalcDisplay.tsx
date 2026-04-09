@@ -12,7 +12,7 @@
 
 import React, { useMemo, useRef, useEffect } from 'react';
 import { View, Text, Animated, StyleSheet } from 'react-native';
-import { useThemeColors, type ColorTokens, typography, spacing, layout, getCalcDisplayStyle } from '@shared/theme';
+import { useCalcThemeColors, type ColorTokens, typography, spacing, layout, getCalcDisplayStyle } from '@shared/theme';
 import type { HistoryEntry } from '../hooks/useCalculator';
 
 /** Warning level for display styling */
@@ -42,7 +42,7 @@ export function CalcDisplay({
   warningLevel = 'none',
   lockoutTime,
 }: CalcDisplayProps): React.JSX.Element {
-  const themeColors = useThemeColors();
+  const themeColors = useCalcThemeColors();
   const styles = useMemo(() => createStyles(themeColors), [themeColors]);
 
   // Animate result text on change

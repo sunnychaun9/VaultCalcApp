@@ -137,6 +137,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         isDecoyMode: false,
         lastActivity: null,
         sessionStartTime: null,
+        showDecoyExit: false,
       });
     },
 
