@@ -1,12 +1,9 @@
 /**
- * VaultCalc - Rename Dialog
+ * VaultCalc - Input Dialog
  *
- * Modal dialog with TextInput for renaming a single media item.
- * Pre-fills with current name (without extension), appends
- * original extension on save.
- *
- * Uses RN Modal instead of bottom sheet to avoid Android keyboard
- * issues where adjustResize collapses the bottom sheet.
+ * Modal dialog with a single TextInput. Used for create/rename flows
+ * where a bottom sheet would be dismissed by Android's adjustResize
+ * keyboard behavior.
  */
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
@@ -20,49 +17,44 @@ import {
   StyleSheet,
 } from 'react-native';
 import { useThemeColors, colors, type ColorTokens, typography, spacing } from '@shared/theme';
-import { sanitizeUserInput } from '@shared/utils/formatters';
 
-interface RenameModalProps {
+interface InputDialogProps {
   visible: boolean;
-  currentName: string;
-  onRename: (newName: string) => void;
-  onClose: () => void;
+  title: string;
+  placeholder: string;
+  initialValue?: string;
+  confirmLabel: string;
+  onConfirm: (value: string) => void;
+  onDismiss: () => void;
+  maxLength?: number;
 }
 
-/** Split "photo.jpg" → ["photo", ".jpg"]; "README" → ["README", ""] */
-function splitNameAndExtension(name: string): [string, string] {
-  const dot = name.lastIndexOf('.');
-  if (dot > 0) {
-    return [name.substring(0, dot), name.substring(dot)];
-  }
-  return [name, ''];
-}
-
-export function RenameModal({
+export function InputDialog({
   visible,
-  currentName,
-  onRename,
-  onClose,
-}: RenameModalProps): React.JSX.Element {
+  title,
+  placeholder,
+  initialValue = '',
+  confirmLabel,
+  onConfirm,
+  onDismiss,
+  maxLength = 100,
+}: InputDialogProps): React.JSX.Element {
   const themeColors = useThemeColors();
   const isDark = themeColors === colors.dark;
   const styles = useMemo(() => createStyles(themeColors, isDark), [themeColors, isDark]);
   const inputRef = useRef<TextInput>(null);
-
-  const [baseName, extension] = splitNameAndExtension(currentName);
-  const [value, setValue] = useState(baseName);
+  const [value, setValue] = useState(initialValue);
 
   useEffect(() => {
     if (visible) {
-      const [newBase] = splitNameAndExtension(currentName);
-      setValue(newBase);
+      setValue(initialValue);
     }
-  }, [visible, currentName]);
+  }, [visible, initialValue]);
 
-  const handleSubmit = () => {
-    const trimmed = sanitizeUserInput(value).trim();
+  const handleConfirm = () => {
+    const trimmed = value.trim();
     if (trimmed.length === 0) return;
-    onRename(trimmed + extension);
+    onConfirm(trimmed);
   };
 
   return (
@@ -71,40 +63,35 @@ export function RenameModal({
       transparent
       animationType="fade"
       statusBarTranslucent
-      onRequestClose={onClose}
+      onRequestClose={onDismiss}
     >
       <KeyboardAvoidingView style={styles.overlay} behavior="padding">
-        <Pressable style={styles.backdrop} onPress={onClose} />
+        <Pressable style={styles.backdrop} onPress={onDismiss} />
         <View style={styles.dialog}>
-          <Text style={styles.title}>Rename</Text>
-          <View style={styles.inputRow}>
-            <TextInput
-              ref={inputRef}
-              style={styles.input}
-              value={value}
-              onChangeText={setValue}
-              onSubmitEditing={handleSubmit}
-              returnKeyType="done"
-              maxLength={200}
-              selectTextOnFocus
-              autoFocus
-              cursorColor={themeColors.accent}
-              selectionColor={isDark ? 'rgba(59,130,246,0.3)' : 'rgba(37,99,235,0.2)'}
-              placeholderTextColor={themeColors.textSecondary}
-            />
-            {extension.length > 0 && (
-              <Text style={styles.extension}>{extension}</Text>
-            )}
-          </View>
+          <Text style={styles.title}>{title}</Text>
+          <TextInput
+            ref={inputRef}
+            style={styles.input}
+            value={value}
+            onChangeText={setValue}
+            onSubmitEditing={handleConfirm}
+            placeholder={placeholder}
+            placeholderTextColor={themeColors.textSecondary}
+            returnKeyType="done"
+            maxLength={maxLength}
+            autoFocus
+            cursorColor={themeColors.accent}
+            selectionColor={isDark ? 'rgba(59,130,246,0.3)' : 'rgba(37,99,235,0.2)'}
+          />
           <View style={styles.buttons}>
-            <Pressable style={styles.button} onPress={onClose}>
+            <Pressable style={styles.button} onPress={onDismiss}>
               <Text style={styles.buttonText}>Cancel</Text>
             </Pressable>
             <Pressable
               style={[styles.button, styles.buttonPrimary]}
-              onPress={handleSubmit}
+              onPress={handleConfirm}
             >
-              <Text style={styles.buttonPrimaryText}>Rename</Text>
+              <Text style={styles.buttonPrimaryText}>{confirmLabel}</Text>
             </Pressable>
           </View>
         </View>
@@ -131,7 +118,6 @@ const createStyles = (c: ColorTokens, isDark: boolean) => StyleSheet.create({
     padding: spacing.xl,
     borderWidth: isDark ? 1 : 0,
     borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'transparent',
-    // Elevation shadow
     elevation: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
@@ -143,11 +129,6 @@ const createStyles = (c: ColorTokens, isDark: boolean) => StyleSheet.create({
     color: c.textPrimary,
     marginBottom: spacing.lg,
   },
-  inputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.xl,
-  },
   input: {
     ...typography.bodyMedium,
     color: c.textPrimary,
@@ -157,12 +138,7 @@ const createStyles = (c: ColorTokens, isDark: boolean) => StyleSheet.create({
     borderColor: isDark ? 'rgba(255,255,255,0.15)' : c.border,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    flex: 1,
-  },
-  extension: {
-    ...typography.bodyMedium,
-    color: c.textSecondary,
-    marginLeft: spacing.xs,
+    marginBottom: spacing.xl,
   },
   buttons: {
     flexDirection: 'row',

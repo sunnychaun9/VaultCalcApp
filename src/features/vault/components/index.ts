@@ -23,6 +23,7 @@ export { NoteListItem } from './NoteListItem';
 export { PremiumUpsell } from './PremiumUpsell';
 export { SelectionOverflowMenu } from './SelectionOverflowMenu';
 export { RenameModal } from './RenameModal';
+export { InputDialog } from './InputDialog';
 export { PropertiesModal } from './PropertiesModal';
 export { ZoomableImage } from './ZoomableImage';
 export { MediaList } from './MediaList';

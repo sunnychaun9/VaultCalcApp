@@ -147,10 +147,11 @@ class ZoomableImageView @JvmOverloads constructor(
                 activePointerId = event.getPointerId(0)
                 lastTouchX = event.x
                 lastTouchY = event.y
-                // Only steal touches from parent pager when zoomed in;
-                // at min scale, let parent handle horizontal swipe navigation
-                val isZoomed = currentScale > minScale * 1.01f
-                parent?.requestDisallowInterceptTouchEvent(isZoomed)
+                // Always block parent interception on DOWN so the
+                // GestureDetector can recognize double-taps. The parent
+                // pager is re-allowed during MOVE when at min scale and
+                // the user drags horizontally.
+                parent?.requestDisallowInterceptTouchEvent(true)
             }
             MotionEvent.ACTION_POINTER_DOWN -> {
                 // When second finger goes down, update tracking to avoid jumps
@@ -162,16 +163,16 @@ class ZoomableImageView @JvmOverloads constructor(
                 }
             }
             MotionEvent.ACTION_MOVE -> {
-                if (!isScaling && currentScale > minScale * 1.01f) {
-                    val pointerIndex = event.findPointerIndex(activePointerId)
-                    if (pointerIndex >= 0) {
-                        val x = event.getX(pointerIndex)
-                        val y = event.getY(pointerIndex)
-                        val dx = x - lastTouchX
-                        val dy = y - lastTouchY
+                val pointerIndex = event.findPointerIndex(activePointerId)
+                if (pointerIndex >= 0) {
+                    val x = event.getX(pointerIndex)
+                    val y = event.getY(pointerIndex)
+                    val dx = x - lastTouchX
+                    val dy = y - lastTouchY
 
-                        // Check if the image has hit a horizontal edge;
-                        // if so, let the parent pager handle the swipe
+                    if (!isScaling && currentScale > minScale * 1.01f) {
+                        // Zoomed in — pan the image, but release to parent
+                        // pager when the image hits a horizontal edge
                         val bounds = getScaledImageBounds()
                         val transX = bounds[0]
                         val scaledW = bounds[2]
@@ -185,10 +186,18 @@ class ZoomableImageView @JvmOverloads constructor(
                         }
 
                         translateImage(dx, dy)
-
-                        lastTouchX = x
-                        lastTouchY = y
+                    } else if (!isScaling && currentScale <= minScale * 1.01f) {
+                        // At min scale — release to parent pager for horizontal
+                        // swipe navigation, but only after a meaningful drag
+                        val absDx = abs(dx)
+                        val absDy = abs(dy)
+                        if (absDx > absDy && absDx > 3f) {
+                            parent?.requestDisallowInterceptTouchEvent(false)
+                        }
                     }
+
+                    lastTouchX = x
+                    lastTouchY = y
                 }
             }
             MotionEvent.ACTION_POINTER_UP -> {

@@ -441,7 +441,41 @@ export const mediaItems = {
       [type, isDecoy ? 1 : 0]
     );
 
-    return Promise.all(rows.map(decryptMediaItemRow));
+    // Decrypt in batches to avoid flooding the native crypto bridge
+    const BATCH_SIZE = 50;
+    const results: MediaItem[] = [];
+    for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+      const batch = rows.slice(i, i + BATCH_SIZE);
+      const decrypted = await Promise.all(batch.map(decryptMediaItemRow));
+      results.push(...decrypted);
+    }
+    return results;
+  },
+
+  /**
+   * Get a page of media items by type (for infinite scroll).
+   * Returns items sorted by created_at DESC with LIMIT/OFFSET.
+   */
+  async getByTypePaginated(
+    type: MediaType,
+    isDecoy: boolean,
+    limit: number,
+    offset: number,
+  ): Promise<MediaItem[]> {
+    const database = await getDatabase();
+    const rows = await database.getAllAsync<MediaItemRow>(
+      `SELECT * FROM media_items WHERE type = ? AND is_decoy = ? ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+      [type, isDecoy ? 1 : 0, limit, offset]
+    );
+
+    const BATCH_SIZE = 50;
+    const results: MediaItem[] = [];
+    for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+      const batch = rows.slice(i, i + BATCH_SIZE);
+      const decrypted = await Promise.all(batch.map(decryptMediaItemRow));
+      results.push(...decrypted);
+    }
+    return results;
   },
 
   /**

@@ -120,8 +120,8 @@ export const AppBottomSheet = forwardRef<BottomSheet, AppBottomSheetProps>(
         backgroundStyle={styles.background}
         // Differentiated spring: fast open, clean close
         animationConfigs={SPRING_OPEN}
-        // Keyboard behavior: extend sheet above keyboard so inputs stay visible
-        android_keyboardInputMode="adjustResize"
+        // Keyboard behavior: pan keeps input above keyboard on Android
+        android_keyboardInputMode="adjustPan"
         keyboardBehavior="extend"
         keyboardBlurBehavior="restore"
       >

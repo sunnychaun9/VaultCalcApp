@@ -72,15 +72,23 @@ export function AudioPlayerScreen({ navigation, route }: Props): React.JSX.Eleme
   const [audioSiblings, setAudioSiblings] = useState<MediaItem[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
 
+  // Play mode: 'order' → sequential, 'repeat-all' → loop playlist,
+  // 'repeat-one' → repeat current, 'shuffle' → random
+  type PlayMode = 'order' | 'repeat-all' | 'repeat-one' | 'shuffle';
+  const [playMode, setPlayMode] = useState<PlayMode>('order');
+  const shuffleHistoryRef = useRef<number[]>([]);
+
   // Refs
   const tempPathRef = useRef<string | null>(null);
   const isSeekingRef = useRef(false);
   const siblingsLenRef = useRef(0);
+  const playModeRef = useRef<PlayMode>(playMode);
 
   // Keep refs in sync so event listeners always see current values
   // without needing to be torn down and recreated.
   isSeekingRef.current = isSeeking;
   siblingsLenRef.current = audioSiblings.length;
+  playModeRef.current = playMode;
 
   // Native event listeners — mounted ONCE, use refs for mutable state
   useEffect(() => {
@@ -98,11 +106,34 @@ export function AudioPlayerScreen({ navigation, route }: Props): React.JSX.Eleme
     });
 
     const endSub = emitter.addListener('onAudioEnd', () => {
+      const mode = playModeRef.current;
+      const len = siblingsLenRef.current;
+
+      if (mode === 'repeat-one') {
+        // Replay the same track — seek to start and play
+        AudioBridge.audioSeekTo(0).then(() => AudioBridge.audioPlay());
+        return;
+      }
+
       setIsPlaying(false);
-      setCurrentIndex(prev => {
-        if (prev < siblingsLenRef.current - 1) return prev + 1;
-        return prev;
-      });
+
+      if (mode === 'shuffle') {
+        if (len <= 1) return;
+        setCurrentIndex(prev => {
+          let next: number;
+          do { next = Math.floor(Math.random() * len); } while (next === prev);
+          shuffleHistoryRef.current.push(prev);
+          return next;
+        });
+      } else if (mode === 'repeat-all') {
+        setCurrentIndex(prev => (prev + 1) % len);
+      } else {
+        // 'order' — stop at the end
+        setCurrentIndex(prev => {
+          if (prev < len - 1) return prev + 1;
+          return prev;
+        });
+      }
     });
 
     const errorSub = emitter.addListener('onAudioError', (event) => {
@@ -261,19 +292,41 @@ export function AudioPlayerScreen({ navigation, route }: Props): React.JSX.Eleme
   }, [duration, currentTime]);
 
   const handlePrev = useCallback(async () => {
-    if (currentTime > 3000 || currentIndex === 0) {
+    if (currentTime > 3000) {
+      // Always restart current track if >3s in
       setCurrentTime(0);
       await AudioBridge.audioSeekTo(0);
-    } else {
-      setCurrentIndex(prev => prev - 1);
+      return;
     }
-  }, [currentTime, currentIndex]);
+    if (playMode === 'shuffle' && shuffleHistoryRef.current.length > 0) {
+      const prevIdx = shuffleHistoryRef.current.pop()!;
+      setCurrentIndex(prevIdx);
+    } else if (currentIndex > 0) {
+      setCurrentIndex(prev => prev - 1);
+    } else if (playMode === 'repeat-all') {
+      setCurrentIndex(audioSiblings.length - 1);
+    } else {
+      setCurrentTime(0);
+      await AudioBridge.audioSeekTo(0);
+    }
+  }, [currentTime, currentIndex, playMode, audioSiblings.length]);
 
   const handleNext = useCallback(() => {
-    if (currentIndex < audioSiblings.length - 1) {
-      setCurrentIndex(prev => prev + 1);
+    const len = audioSiblings.length;
+    if (playMode === 'shuffle') {
+      if (len <= 1) return;
+      shuffleHistoryRef.current.push(currentIndex);
+      let next: number;
+      do { next = Math.floor(Math.random() * len); } while (next === currentIndex);
+      setCurrentIndex(next);
+    } else if (playMode === 'repeat-all') {
+      setCurrentIndex(prev => (prev + 1) % len);
+    } else {
+      if (currentIndex < len - 1) {
+        setCurrentIndex(prev => prev + 1);
+      }
     }
-  }, [currentIndex, audioSiblings.length]);
+  }, [currentIndex, audioSiblings.length, playMode]);
 
   const handleSpeedSelect = useCallback(async (s: number) => {
     setSpeed(s);
@@ -281,12 +334,23 @@ export function AudioPlayerScreen({ navigation, route }: Props): React.JSX.Eleme
     await AudioBridge.audioSetSpeed(s);
   }, []);
 
+  const cyclePlayMode = useCallback(() => {
+    setPlayMode(prev => {
+      const modes: PlayMode[] = ['order', 'repeat-all', 'repeat-one', 'shuffle'];
+      const nextIdx = (modes.indexOf(prev) + 1) % modes.length;
+      if (modes[nextIdx] === 'shuffle') {
+        shuffleHistoryRef.current = [];
+      }
+      return modes[nextIdx];
+    });
+  }, []);
+
   const handleBack = useCallback(async () => {
     await AudioBridge.audioRelease().catch(() => {});
     // Natural transition — try interstitial when returning to vault
     try {
       const { tryShowInterstitial } = require('@services/ads');
-      tryShowInterstitial('VaultHome', 'audio_close').catch(() => {});
+      await tryShowInterstitial('VaultHome', 'audio_close');
     } catch { /* non-critical */ }
     navigation.goBack();
   }, [navigation]);
@@ -383,7 +447,13 @@ export function AudioPlayerScreen({ navigation, route }: Props): React.JSX.Eleme
 
           {/* Playback controls */}
           <View style={styles.playbackRow}>
-            <IconButton name="shuffle" size={20} onPress={() => {}} color="rgba(255,255,255,0.5)" accessibilityLabel="Shuffle" />
+            <IconButton
+              name={playMode === 'shuffle' ? 'shuffle' : playMode === 'repeat-one' ? 'repeat-1' : 'repeat'}
+              size={20}
+              onPress={cyclePlayMode}
+              color={playMode === 'order' ? 'rgba(255,255,255,0.5)' : ACCENT}
+              accessibilityLabel={`Play mode: ${playMode}`}
+            />
 
             <IconButton name="skip-back" size={28} onPress={handlePrev} color="#FFFFFF" accessibilityLabel="Previous" />
 

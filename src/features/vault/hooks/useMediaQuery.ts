@@ -2,14 +2,14 @@
  * VaultCalc - Media Query Hook
  *
  * React Query hook for fetching media items by tab type.
- * Maps UI tab types to database MediaType and sorts results
- * client-side using vault store preferences.
+ * Uses useInfiniteQuery for paginated loading — fetches PAGE_SIZE
+ * items at a time and appends more as the user scrolls.
  *
  * @see FEATURE_INDEX.md VAULT-003
  */
 
-import { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMemo, useCallback } from 'react';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import { mediaItems, type MediaType } from '@services/storage/database';
 import { useVaultStore } from '@store/vaultStore';
 import { useAuthStore } from '@store/authStore';
@@ -27,8 +27,10 @@ const TAB_TO_MEDIA_TYPE: Record<TabType, MediaType | null> = {
   notes: null,
 };
 
+const PAGE_SIZE = 100;
+
 /**
- * Fetch and sort media items for a given tab.
+ * Fetch and sort media items for a given tab with infinite scroll.
  *
  * - Audio tab returns empty array (no DB MediaType yet)
  * - Sorting applied client-side from vaultStore preferences
@@ -40,14 +42,26 @@ export function useMediaQuery(tab: TabType, showFavoritesOnly = false) {
   const isDecoyMode = useAuthStore(s => s.isDecoyMode);
   const mediaType = TAB_TO_MEDIA_TYPE[tab];
 
-  const query = useQuery({
+  const query = useInfiniteQuery({
     queryKey: ['media', mediaType, isDecoyMode],
-    queryFn: () => mediaItems.getByType(mediaType!, isDecoyMode),
+    queryFn: ({ pageParam = 0 }) =>
+      mediaItems.getByTypePaginated(mediaType!, isDecoyMode, PAGE_SIZE, pageParam),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      // If the last page returned fewer than PAGE_SIZE, we've reached the end
+      if (lastPage.length < PAGE_SIZE) return undefined;
+      return allPages.reduce((total, page) => total + page.length, 0);
+    },
     enabled: mediaType !== null,
   });
 
+  // Flatten all pages into a single sorted array
   const sortedData = useMemo(() => {
-    let items = query.data ?? [];
+    const pages = query.data?.pages;
+    if (!pages || pages.length === 0) return [];
+
+    let items: typeof pages[0] = pages.flat();
+
     if (items.length === 0) return items;
 
     if (showFavoritesOnly) {
@@ -72,9 +86,18 @@ export function useMediaQuery(tab: TabType, showFavoritesOnly = false) {
     });
   }, [query.data, sortBy, sortOrder, showFavoritesOnly]);
 
+  const fetchNextPage = useCallback(() => {
+    if (query.hasNextPage && !query.isFetchingNextPage) {
+      query.fetchNextPage();
+    }
+  }, [query]);
+
   return {
     data: sortedData,
     isLoading: query.isLoading,
     refetch: query.refetch,
+    fetchNextPage,
+    hasNextPage: query.hasNextPage ?? false,
+    isFetchingNextPage: query.isFetchingNextPage,
   };
 }

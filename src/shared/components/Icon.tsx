@@ -61,6 +61,8 @@ import {
   RotateCcw,
   RotateCw,
   Shuffle,
+  Repeat,
+  Repeat1,
   ListMusic,
   MapPin,
   Scan,
@@ -134,6 +136,8 @@ const ICON_MAP = {
   'rotate-ccw': RotateCcw,
   'rotate-cw': RotateCw,
   'shuffle': Shuffle,
+  'repeat': Repeat,
+  'repeat-1': Repeat1,
   'list-music': ListMusic,
   'volume': Volume2,
 } as const;

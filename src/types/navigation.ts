@@ -44,6 +44,9 @@ export type VaultStackParamList = {
     mediaIds?: string[];
     /** Origin rect for hero transition (from grid thumbnail) */
     originRect?: { x: number; y: number; width: number; height: number };
+    /** Preserve shuffle/repeat state across video navigations */
+    shuffle?: boolean;
+    repeat?: boolean;
   };
   /** Audio player screen */
   AudioPlayer: { mediaId: string; mediaIds?: string[] };

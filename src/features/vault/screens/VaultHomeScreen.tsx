@@ -14,11 +14,9 @@ import {
   Text,
   Pressable,
   ScrollView as RNScrollView,
-  TextInput,
   StyleSheet,
 } from 'react-native';
 import type BottomSheetType from '@gorhom/bottom-sheet';
-import { BottomSheetTextInput } from '@gorhom/bottom-sheet';
 import { AppBottomSheet } from '@shared/components/AppBottomSheet';
 import PagerView from 'react-native-pager-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -26,7 +24,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { VaultStackParamList } from '@typedefs/navigation';
-import { VaultHeader, EmptyState, FloatingAddButton, MediaGrid, MediaList, DocumentList, AudioList, SelectionBar, ImportProgressOverlay, AlbumList, AddToAlbumModal, NoteList, SelectionOverflowMenu, RenameModal, PropertiesModal, SearchBar, SoftPremiumCard } from '../components';
+import { VaultHeader, EmptyState, FloatingAddButton, MediaGrid, MediaList, DocumentList, AudioList, SelectionBar, ImportProgressOverlay, AlbumList, AddToAlbumModal, NoteList, SelectionOverflowMenu, RenameModal, InputDialog, PropertiesModal, SearchBar, SoftPremiumCard } from '../components';
 import { FeatureDiscoveryCard } from '../components/FeatureDiscoveryCard';
 import { ImportSuccessToast } from '../components/ImportSuccessToast';
 import { useMediaQuery, useAlbumsQuery, useNotesQuery, type TabType } from '../hooks';
@@ -34,7 +32,7 @@ import { useActivityTracker } from '@features/auth';
 import { useVaultStore } from '@store/vaultStore';
 import { useAuthStore } from '@store/authStore';
 import { useSettingsStore } from '@store/settingsStore';
-import { useThemeColors, type ColorTokens, typography, spacing, layout } from '@shared/theme';
+import { useThemeColors, colors, type ColorTokens, typography, spacing, layout } from '@shared/theme';
 import { useOrientation } from '@shared/hooks';
 import { Icon } from '@shared/components/Icon';
 import { mediaItems as mediaItemsDb, albums as albumsDb, albumMedia as albumMediaDb, notes as notesDb, type MediaItem, type MediaType, type Album, type Note } from '@services/storage/database';
@@ -79,7 +77,8 @@ const TAB_TO_MEDIA_TYPE: Record<TabType, MediaType | null> = {
  */
 export function VaultHomeScreen(): React.JSX.Element {
   const themeColors = useThemeColors();
-  const styles = useMemo(() => createStyles(themeColors), [themeColors]);
+  const isDark = themeColors === colors.dark;
+  const styles = useMemo(() => createStyles(themeColors, isDark), [themeColors, isDark]);
   const navigation = useNavigation<NativeStackNavigationProp<VaultStackParamList>>();
   const { isLandscape } = useOrientation();
   const gridColumns = isLandscape ? 5 : layout.vaultGridColumns;
@@ -87,9 +86,6 @@ export function VaultHomeScreen(): React.JSX.Element {
   const tabScrollRef = useRef<RNScrollView>(null);
   const pagerRef = useRef<PagerView>(null);
   const sortSheetRef = useRef<BottomSheetType>(null);
-  const createAlbumSheetRef = useRef<BottomSheetType>(null);
-  const renameAlbumSheetRef = useRef<BottomSheetType>(null);
-  const createNoteSheetRef = useRef<BottomSheetType>(null);
   const [activeTab, setActiveTab] = useState<TabType>('images');
   const [isImporting, setIsImporting] = useState(false);
   const [importProgress, setImportProgress] = useState<ImportProgress | null>(null);
@@ -227,7 +223,7 @@ export function VaultHomeScreen(): React.JSX.Element {
   const { onActivity } = useActivityTracker();
 
   // Media query for active tab (VAULT-003)
-  const { data: items, isLoading } = useMediaQuery(activeTab, showFavoritesOnly);
+  const { data: items, isLoading, fetchNextPage } = useMediaQuery(activeTab, showFavoritesOnly);
   const toggleSelection = useVaultStore(s => s.toggleSelection);
   const isSelectionMode = useVaultStore(s => s.isSelectionMode);
   const selectedIds = useVaultStore(s => s.selectedIds);
@@ -252,15 +248,11 @@ export function VaultHomeScreen(): React.JSX.Element {
 
   // Albums state (ALBUM-001)
   const [showCreateAlbum, setShowCreateAlbum] = useState(false);
-  const [newAlbumName, setNewAlbumName] = useState('');
-  const albumNameInputRef = useRef<TextInput>(null);
   const { data: albumsData = [], isLoading: albumsLoading } = useAlbumsQuery();
 
   // Notes state (NOTES-001)
   const { data: notesData = [], isLoading: notesLoading } = useNotesQuery();
   const [showCreateNote, setShowCreateNote] = useState(false);
-  const [newNoteTitle, setNewNoteTitle] = useState('');
-  const noteNameInputRef = useRef<TextInput>(null);
 
   // Add to Album state (ALBUM-003)
   const [showAddToAlbum, setShowAddToAlbum] = useState(false);
@@ -271,7 +263,6 @@ export function VaultHomeScreen(): React.JSX.Element {
   const [showRenameAlbum, setShowRenameAlbum] = useState(false);
   const [renameAlbumTarget, setRenameAlbumTarget] = useState<Album | null>(null);
   const [renameAlbumName, setRenameAlbumName] = useState('');
-  const renameInputRef = useRef<TextInput>(null);
 
   // Album media counts (ALBUM-002)
   const { data: mediaCounts } = useQuery({
@@ -287,24 +278,7 @@ export function VaultHomeScreen(): React.JSX.Element {
     enabled: albumsData.length > 0,
   });
 
-  // Expand sheet after conditional mount
-  useEffect(() => {
-    if (showCreateAlbum) {
-      setTimeout(() => createAlbumSheetRef.current?.expand(), 50);
-    }
-  }, [showCreateAlbum]);
 
-  useEffect(() => {
-    if (showRenameAlbum) {
-      setTimeout(() => renameAlbumSheetRef.current?.expand(), 50);
-    }
-  }, [showRenameAlbum]);
-
-  useEffect(() => {
-    if (showCreateNote) {
-      setTimeout(() => createNoteSheetRef.current?.expand(), 50);
-    }
-  }, [showCreateNote]);
 
   useEffect(() => {
     if (showSortSheet) {
@@ -339,8 +313,8 @@ export function VaultHomeScreen(): React.JSX.Element {
   /**
    * Handle confirm create album
    */
-  const handleConfirmCreateAlbum = useCallback(async () => {
-    const trimmed = sanitizeUserInput(newAlbumName).trim();
+  const handleConfirmCreateAlbum = useCallback(async (name: string) => {
+    const trimmed = sanitizeUserInput(name).trim();
     if (trimmed.length === 0) return;
 
     const newAlbum = await albumsDb.create(trimmed, isDecoyMode);
@@ -356,13 +330,11 @@ export function VaultHomeScreen(): React.JSX.Element {
       pendingAddMediaIdsRef.current = null;
       clearSelection();
       setShowCreateAlbum(false);
-      setNewAlbumName('');
       alert('Album created', `"${newAlbum.name}" is ready with ${added} ${added === 1 ? 'item' : 'items'} inside.`);
     } else {
       setShowCreateAlbum(false);
-      setNewAlbumName('');
     }
-  }, [newAlbumName, isDecoyMode, queryClient, clearSelection]);
+  }, [isDecoyMode, queryClient, clearSelection]);
 
   /**
    * Handle album press — navigate to AlbumView
@@ -417,8 +389,8 @@ export function VaultHomeScreen(): React.JSX.Element {
   /**
    * Handle confirm rename album (ALBUM-005)
    */
-  const handleConfirmRenameAlbum = useCallback(async () => {
-    const trimmed = sanitizeUserInput(renameAlbumName).trim();
+  const handleConfirmRenameAlbum = useCallback(async (name: string) => {
+    const trimmed = sanitizeUserInput(name).trim();
     if (trimmed.length === 0 || renameAlbumTarget === null) return;
 
     await albumsDb.rename(renameAlbumTarget.id, trimmed);
@@ -426,7 +398,7 @@ export function VaultHomeScreen(): React.JSX.Element {
     setShowRenameAlbum(false);
     setRenameAlbumTarget(null);
     setRenameAlbumName('');
-  }, [renameAlbumName, renameAlbumTarget, queryClient]);
+  }, [renameAlbumTarget, queryClient]);
 
   /**
    * Handle create note modal open (NOTES-001)
@@ -439,8 +411,8 @@ export function VaultHomeScreen(): React.JSX.Element {
   /**
    * Handle confirm create note (NOTES-001, NOTES-002)
    */
-  const handleConfirmCreateNote = useCallback(async () => {
-    const trimmed = sanitizeUserInput(newNoteTitle).trim();
+  const handleConfirmCreateNote = useCallback(async (title: string) => {
+    const trimmed = sanitizeUserInput(title).trim();
     if (trimmed.length === 0) return;
 
     const keyResult = await generateKey(16);
@@ -455,9 +427,8 @@ export function VaultHomeScreen(): React.JSX.Element {
     });
     await queryClient.invalidateQueries({ queryKey: ['notes'] });
     setShowCreateNote(false);
-    setNewNoteTitle('');
     navigation.navigate('NoteEditor', { noteId: id });
-  }, [newNoteTitle, isDecoyMode, queryClient, navigation]);
+  }, [isDecoyMode, queryClient, navigation]);
 
   /**
    * Handle note press — open editor (NOTES-002)
@@ -750,11 +721,11 @@ export function VaultHomeScreen(): React.JSX.Element {
       });
       await queryClient.invalidateQueries({ queryKey: ['media', mediaType, isDecoyMode] });
 
-      // Try to show ad after import (non-blocking)
+      // Try to show ad after import — await so dismissing ad doesn't pop navigation
       if (result.imported > 0) {
         try {
           const { tryShowInterstitial } = require('@services/ads');
-          tryShowInterstitial('VaultHome', 'post_import').catch(() => {});
+          await tryShowInterstitial('VaultHome', 'post_import');
         } catch { /* ad service may not be ready */ }
 
         // Track imports — paywall only after substantial engagement (10+ files)
@@ -1150,6 +1121,7 @@ export function VaultHomeScreen(): React.JSX.Element {
                   onItemPress={handleItemPress}
                   onItemLongPress={handleItemLongPress}
                   numColumns={gridColumns}
+                  onEndReached={fetchNextPage}
                 />
               )
             ) : searchQuery.trim() ? (
@@ -1180,6 +1152,7 @@ export function VaultHomeScreen(): React.JSX.Element {
                   onItemPress={handleItemPress}
                   onItemLongPress={handleItemLongPress}
                   numColumns={gridColumns}
+                  onEndReached={fetchNextPage}
                 />
               )
             ) : searchQuery.trim() ? (
@@ -1300,48 +1273,18 @@ export function VaultHomeScreen(): React.JSX.Element {
         onDismiss={() => setShowImportSuccess(false)}
       />
 
-      {/* Create Album Sheet (ALBUM-001) */}
-      {showCreateAlbum && (
-        <AppBottomSheet
-          ref={createAlbumSheetRef}
-          snapPoints={[240]}
-          title="New Album"
-          onDismiss={() => {
-            pendingAddMediaIdsRef.current = null;
-            setShowCreateAlbum(false);
-            setNewAlbumName('');
-          }}
-        >
-          <View style={styles.sheetContent}>
-            <BottomSheetTextInput
-              ref={albumNameInputRef}
-              style={styles.sheetInput}
-              placeholder="Album name"
-              placeholderTextColor={themeColors.textSecondary}
-              value={newAlbumName}
-              onChangeText={setNewAlbumName}
-              onSubmitEditing={handleConfirmCreateAlbum}
-              returnKeyType="done"
-              maxLength={100}
-              autoFocus
-            />
-            <View style={styles.sheetButtons}>
-              <Pressable
-                style={styles.sheetButton}
-                onPress={() => createAlbumSheetRef.current?.close()}
-              >
-                <Text style={styles.sheetButtonText}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.sheetButton, styles.sheetButtonPrimary]}
-                onPress={handleConfirmCreateAlbum}
-              >
-                <Text style={styles.sheetButtonPrimaryText}>Create</Text>
-              </Pressable>
-            </View>
-          </View>
-        </AppBottomSheet>
-      )}
+      {/* Create Album Dialog (ALBUM-001) */}
+      <InputDialog
+        visible={showCreateAlbum}
+        title="New Album"
+        placeholder="Album name"
+        confirmLabel="Create"
+        onConfirm={handleConfirmCreateAlbum}
+        onDismiss={() => {
+          pendingAddMediaIdsRef.current = null;
+          setShowCreateAlbum(false);
+            }}
+      />
 
       {/* Add to Album Modal (ALBUM-003) */}
       <AddToAlbumModal
@@ -1353,48 +1296,20 @@ export function VaultHomeScreen(): React.JSX.Element {
         onClose={() => setShowAddToAlbum(false)}
       />
 
-      {/* Rename Album Sheet (ALBUM-005) */}
-      {showRenameAlbum && (
-        <AppBottomSheet
-          ref={renameAlbumSheetRef}
-          snapPoints={[240]}
-          title="Rename Album"
-          onDismiss={() => {
-            setShowRenameAlbum(false);
-            setRenameAlbumTarget(null);
-            setRenameAlbumName('');
-          }}
-        >
-          <View style={styles.sheetContent}>
-            <BottomSheetTextInput
-              ref={renameInputRef}
-              style={styles.sheetInput}
-              placeholder="Album name"
-              placeholderTextColor={themeColors.textSecondary}
-              value={renameAlbumName}
-              onChangeText={setRenameAlbumName}
-              onSubmitEditing={handleConfirmRenameAlbum}
-              returnKeyType="done"
-              maxLength={100}
-              autoFocus
-            />
-            <View style={styles.sheetButtons}>
-              <Pressable
-                style={styles.sheetButton}
-                onPress={() => renameAlbumSheetRef.current?.close()}
-              >
-                <Text style={styles.sheetButtonText}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.sheetButton, styles.sheetButtonPrimary]}
-                onPress={handleConfirmRenameAlbum}
-              >
-                <Text style={styles.sheetButtonPrimaryText}>Rename</Text>
-              </Pressable>
-            </View>
-          </View>
-        </AppBottomSheet>
-      )}
+      {/* Rename Album Dialog (ALBUM-005) */}
+      <InputDialog
+        visible={showRenameAlbum}
+        title="Rename Album"
+        placeholder="Album name"
+        initialValue={renameAlbumName}
+        confirmLabel="Rename"
+        onConfirm={handleConfirmRenameAlbum}
+        onDismiss={() => {
+          setShowRenameAlbum(false);
+          setRenameAlbumTarget(null);
+          setRenameAlbumName('');
+        }}
+      />
 
       {/* Sort Options Sheet (ENH-003) */}
       {showSortSheet && (
@@ -1442,47 +1357,17 @@ export function VaultHomeScreen(): React.JSX.Element {
       </AppBottomSheet>
       )}
 
-      {/* Create Note Sheet (NOTES-001) */}
-      {showCreateNote && (
-        <AppBottomSheet
-          ref={createNoteSheetRef}
-          snapPoints={[240]}
-          title="New Note"
-          onDismiss={() => {
-            setShowCreateNote(false);
-            setNewNoteTitle('');
-          }}
-        >
-          <View style={styles.sheetContent}>
-            <BottomSheetTextInput
-              ref={noteNameInputRef}
-              style={styles.sheetInput}
-              placeholder="Note title"
-              placeholderTextColor={themeColors.textSecondary}
-              value={newNoteTitle}
-              onChangeText={setNewNoteTitle}
-              onSubmitEditing={handleConfirmCreateNote}
-              returnKeyType="done"
-              maxLength={100}
-              autoFocus
-            />
-            <View style={styles.sheetButtons}>
-              <Pressable
-                style={styles.sheetButton}
-                onPress={() => createNoteSheetRef.current?.close()}
-              >
-                <Text style={styles.sheetButtonText}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.sheetButton, styles.sheetButtonPrimary]}
-                onPress={handleConfirmCreateNote}
-              >
-                <Text style={styles.sheetButtonPrimaryText}>Create</Text>
-              </Pressable>
-            </View>
-          </View>
-        </AppBottomSheet>
-      )}
+      {/* Create Note Dialog (NOTES-001) */}
+      <InputDialog
+        visible={showCreateNote}
+        title="New Note"
+        placeholder="Note title"
+        confirmLabel="Create"
+        onConfirm={handleConfirmCreateNote}
+        onDismiss={() => {
+          setShowCreateNote(false);
+              }}
+      />
 
       {/* Selection Overflow Menu */}
       <SelectionOverflowMenu
@@ -1517,7 +1402,7 @@ export function VaultHomeScreen(): React.JSX.Element {
   );
 }
 
-const createStyles = (c: ColorTokens) => StyleSheet.create({
+const createStyles = (c: ColorTokens, isDark: boolean) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: c.vaultBackground,
@@ -1537,13 +1422,20 @@ const createStyles = (c: ColorTokens) => StyleSheet.create({
   tab: {
     alignItems: 'center',
     justifyContent: 'center',
-    height: 32,
-    paddingHorizontal: spacing.md,
-    borderRadius: 16,
-    backgroundColor: c.surfaceContainerHigh,
+    height: 34,
+    paddingHorizontal: spacing.base,
+    borderRadius: 17,
+    backgroundColor: isDark
+      ? 'rgba(255, 255, 255, 0.08)'
+      : 'rgba(0, 0, 0, 0.04)',
+    borderWidth: 1,
+    borderColor: isDark
+      ? 'rgba(255, 255, 255, 0.12)'
+      : 'rgba(0, 0, 0, 0.08)',
   },
   tabActive: {
     backgroundColor: c.accent,
+    borderColor: c.accent,
   },
   tabText: {
     ...typography.labelLarge,
@@ -1599,36 +1491,6 @@ const createStyles = (c: ColorTokens) => StyleSheet.create({
   // ── Bottom sheet styles ──
   sheetContent: {
     paddingHorizontal: spacing.lg,
-  },
-  sheetInput: {
-    ...typography.bodyMedium,
-    color: c.textPrimary,
-    backgroundColor: c.surfaceContainerHigh,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    marginBottom: spacing.lg,
-  },
-  sheetButtons: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 12,
-  },
-  sheetButton: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 12,
-  },
-  sheetButtonText: {
-    ...typography.labelLarge,
-    color: c.textSecondary,
-  },
-  sheetButtonPrimary: {
-    backgroundColor: c.accent,
-  },
-  sheetButtonPrimaryText: {
-    ...typography.labelLarge,
-    color: c.textOnAccent,
   },
   sortOption: {
     flexDirection: 'row',

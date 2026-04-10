@@ -24,7 +24,6 @@ import {
   Animated,
   StatusBar,
   KeyboardAvoidingView,
-  Platform,
   Easing,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -332,7 +331,7 @@ export function PinSetupScreen(): React.JSX.Element {
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <KeyboardAvoidingView
           style={styles.keyboardAvoid}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior="padding"
         >
         <ScrollView
           ref={scrollRef}
@@ -675,7 +674,7 @@ const styles = StyleSheet.create({
   trustText: { ...typography.labelSmall, color: TEXT_MUTED },
 
   // Recovery
-  cardWrapper: { flexGrow: 1, flexShrink: 0, justifyContent: 'center', paddingHorizontal: spacing.lg },
+  cardWrapper: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg },
   card: {
     backgroundColor: CARD_BG, borderRadius: 24,
     borderWidth: 1, borderColor: CARD_BORDER,

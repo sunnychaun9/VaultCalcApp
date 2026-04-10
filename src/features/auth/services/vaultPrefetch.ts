@@ -38,10 +38,11 @@ function getQueryClient(): QueryClient {
 export function prefetchVaultData(isDecoyMode: boolean): void {
   const qc = getQueryClient();
 
-  // These query keys match exactly what useMediaQuery/useAlbumsQuery/useNotesQuery use
-  qc.prefetchQuery({
+  // Prefetch first page of images — matches useInfiniteQuery in useMediaQuery
+  qc.prefetchInfiniteQuery({
     queryKey: ['media', 'photo', isDecoyMode],
-    queryFn: () => mediaItems.getByType('photo', isDecoyMode),
+    queryFn: () => mediaItems.getByTypePaginated('photo', isDecoyMode, 100, 0),
+    initialPageParam: 0,
     staleTime: 5000,
   });
 

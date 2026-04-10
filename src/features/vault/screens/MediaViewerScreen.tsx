@@ -31,6 +31,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import type { VaultStackScreenProps } from '@typedefs/navigation';
 import { mediaItems, albums, albumMedia, type MediaItem, type Album } from '@services/storage/database';
 import { useAuthStore } from '@store/authStore';
+import { useActivityTracker } from '@features/auth';
 import { decryptFile, decryptFileStreaming, getVaultDirectory } from '@services/crypto';
 import { deleteFile } from '@services/media';
 import { shareMediaItems } from '@services/share';
@@ -47,6 +48,8 @@ import {
   exitFullscreen,
   releasePlayer,
   setPlaylist,
+  setShuffle,
+  setRepeat,
   getVideoDetails,
   type VideoDetails,
 } from '@services/videoPlayer/nativeVideoPlayer';
@@ -136,13 +139,21 @@ function ImagePagerItem({ itemId, width, onSingleTap }: { itemId: string; width:
 }
 
 export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Element {
-  const { mediaId, mediaIds, originRect } = route.params;
+  const { mediaId, mediaIds, originRect, shuffle: initShuffle, repeat: initRepeat } = route.params;
   const themeColors = useThemeColors();
   const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = useWindowDimensions();
   const styles = useMemo(() => createStyles(themeColors, SCREEN_WIDTH, SCREEN_HEIGHT), [themeColors, SCREEN_WIDTH, SCREEN_HEIGHT]);
   const queryClient = useQueryClient();
   const isDecoyMode = useAuthStore(s => s.isDecoyMode);
   const setSuppressAutoLock = useAuthStore(s => s.setSuppressAutoLock);
+  const { onActivity } = useActivityTracker();
+
+  // Keep session alive while viewing media — touch activity on mount + periodically during playback
+  useEffect(() => {
+    onActivity();
+    const interval = setInterval(onActivity, 30000); // refresh every 30s
+    return () => clearInterval(interval);
+  }, [onActivity]);
 
   // Allow landscape rotation in media viewer
   useEffect(() => {
@@ -223,6 +234,9 @@ export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Eleme
 
   // Video playlist (all videos in same query)
   const { data: allVideos } = useMediaQuery('videos');
+  // Shuffle/repeat state — persisted across video navigations via route params
+  const [isShuffleOn, setIsShuffleOn] = useState(initShuffle ?? false);
+  const [isRepeatOn, setIsRepeatOn] = useState(initRepeat ?? false);
   // ── Menu state ──
   const [showMenu, setShowMenu] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
@@ -352,14 +366,18 @@ export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Eleme
   }, [decryptedUri, item?.type]);
 
   // Set playlist on native player so prev/next buttons are enabled
+  // Runs when decryptedUri is set (meaning native player is mounted and video is loaded)
   useEffect(() => {
-    if (!allVideos || allVideos.length === 0 || item?.type !== 'video' || !videoPlayerRef.current) return;
+    if (!allVideos || allVideos.length === 0 || item?.type !== 'video' || !decryptedUri || !videoPlayerRef.current) return;
     const currentIdx = allVideos.findIndex(v => v.id === mediaId);
     if (currentIdx < 0) return;
     // Native side only needs paths for count/index — navigation is handled via onNavigate in JS
     const placeholderPaths = allVideos.map(v => v.id);
     setPlaylist(videoPlayerRef, placeholderPaths, currentIdx);
-  }, [allVideos, mediaId, item?.type]);
+    // Restore shuffle/repeat state that was carried over from the previous screen
+    if (isShuffleOn) setShuffle(videoPlayerRef, true);
+    if (isRepeatOn) setRepeat(videoPlayerRef, true);
+  }, [allVideos, mediaId, item?.type, decryptedUri]);
 
   // Load video into native player once decrypted — check for saved position
   useEffect(() => {
@@ -431,15 +449,24 @@ export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Eleme
     }
   }, [item?.id]);
 
-  // Clear position when video completes
+  // When video ends, clear saved position and auto-play next video
   const handleVideoEnd = useCallback(() => {
     if (item?.id) {
       mediaItems.savePlaybackPosition(item.id, null).catch(() => {});
       lastSavedPositionRef.current = 0;
     }
-  }, [item?.id]);
+    // Auto-advance to next video in playlist
+    if (allVideos && allVideos.length > 0) {
+      const currentIdx = allVideos.findIndex(v => v.id === item?.id);
+      const nextIdx = currentIdx + 1;
+      if (nextIdx < allVideos.length) {
+        const nextVideo = allVideos[nextIdx];
+        navigation.replace('MediaViewer', { mediaId: nextVideo.id, mediaIds, shuffle: isShuffleOn, repeat: isRepeatOn });
+      }
+    }
+  }, [item?.id, allVideos, navigation, mediaIds, isShuffleOn, isRepeatOn]);
 
-  const handleBack = useCallback(() => {
+  const handleBack = useCallback(async () => {
     if (videoPlayerRef.current) {
       exitFullscreen(videoPlayerRef);
       releasePlayer(videoPlayerRef);
@@ -447,7 +474,7 @@ export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Eleme
     // Natural transition — try interstitial when returning to vault
     try {
       const { tryShowInterstitial } = require('@services/ads');
-      tryShowInterstitial('VaultHome', 'media_close').catch(() => {});
+      await tryShowInterstitial('VaultHome', 'media_close');
     } catch { /* non-critical */ }
     navigation.goBack();
   }, [navigation]);
@@ -482,12 +509,21 @@ export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Eleme
     const { index } = event.nativeEvent;
     if (!allVideos || index < 0 || index >= allVideos.length) return;
     const nextVideo = allVideos[index];
-    // Navigate to the next/previous video, preserving sibling IDs for pager
-    navigation.replace('MediaViewer', { mediaId: nextVideo.id, mediaIds });
-  }, [allVideos, navigation, mediaIds]);
+    // Navigate to the next/previous video, preserving shuffle/repeat and sibling IDs
+    navigation.replace('MediaViewer', { mediaId: nextVideo.id, mediaIds, shuffle: isShuffleOn, repeat: isRepeatOn });
+  }, [allVideos, navigation, mediaIds, isShuffleOn, isRepeatOn]);
 
   const handleVideoError = useCallback((event: { nativeEvent: { error: string; errorCode: number } }) => {
     setError(event.nativeEvent.error);
+  }, []);
+
+  // Track shuffle/repeat changes from native player so we can preserve across navigations
+  const handleShuffleChange = useCallback((event: { nativeEvent: { enabled: boolean } }) => {
+    setIsShuffleOn(event.nativeEvent.enabled);
+  }, []);
+
+  const handleRepeatChange = useCallback((event: { nativeEvent: { enabled: boolean } }) => {
+    setIsRepeatOn(event.nativeEvent.enabled);
   }, []);
 
   // ── Menu actions ──
@@ -608,6 +644,8 @@ export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Eleme
           onPlaybackStateChange={handlePlaybackStateChange}
           onProgress={handleVideoProgress}
           onEnd={handleVideoEnd}
+          onShuffleChange={handleShuffleChange}
+          onRepeatChange={handleRepeatChange}
         />
 
         {/* Resume prompt overlay */}

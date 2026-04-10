@@ -22,6 +22,7 @@ interface MediaGridProps {
   onItemPress: (item: MediaItem, originRect?: ThumbnailOriginRect) => void;
   onItemLongPress: (item: MediaItem) => void;
   numColumns?: number;
+  onEndReached?: () => void;
 }
 
 const GAP = layout.vaultGridGap;
@@ -38,6 +39,7 @@ export function MediaGrid({
   onItemPress,
   onItemLongPress,
   numColumns = layout.vaultGridColumns,
+  onEndReached,
 }: MediaGridProps): React.JSX.Element {
   const showSkeleton = useDelayedLoading(isLoading && items.length === 0);
   const [containerWidth, setContainerWidth] = useState(0);
@@ -89,6 +91,9 @@ export function MediaGrid({
           keyExtractor={keyExtractor}
           numColumns={numColumns}
           overrideItemLayout={overrideItemLayout}
+          drawDistance={itemSize * 2}
+          onEndReached={onEndReached}
+          onEndReachedThreshold={0.5}
           contentContainerStyle={{ padding: GAP }}
           ItemSeparatorComponent={ItemSeparator}
         />

@@ -20,7 +20,7 @@ const CACHE_SUBDIR = 'thumbcache';
  * Capped at MAX_ENTRIES to prevent unbounded memory growth for large vaults.
  * Least-recently-accessed entries are evicted first.
  */
-const MAX_ENTRIES = 500;
+const MAX_ENTRIES = 1000;
 const cache = new Map<string, string | null>();
 
 /** Touch an entry to mark it as recently used (move to end of Map insertion order). */
@@ -50,6 +50,32 @@ function cacheSet(key: string, value: string | null): void {
  * Ensures only one decrypt runs per item at a time.
  */
 const pending = new Map<string, Promise<string | null>>();
+
+/**
+ * Concurrency limiter for thumbnail decryption.
+ * Prevents flooding the native crypto bridge with hundreds of
+ * simultaneous decrypt calls when a large vault first loads.
+ */
+const MAX_CONCURRENT_DECRYPTS = 6;
+let activeDecrypts = 0;
+const decryptQueue: Array<() => void> = [];
+
+function acquireDecryptSlot(): Promise<void> {
+  if (activeDecrypts < MAX_CONCURRENT_DECRYPTS) {
+    activeDecrypts++;
+    return Promise.resolve();
+  }
+  return new Promise<void>(resolve => decryptQueue.push(resolve));
+}
+
+function releaseDecryptSlot(): void {
+  const next = decryptQueue.shift();
+  if (next) {
+    next(); // hand the slot to the next waiter
+  } else {
+    activeDecrypts--;
+  }
+}
 
 /**
  * Resolve the cache directory path (lazily).
@@ -92,8 +118,9 @@ export async function getDecryptedThumbnail(
   const inflight = pending.get(id);
   if (inflight) return inflight;
 
-  // 3. Kick off decryption
+  // 3. Kick off decryption (throttled to MAX_CONCURRENT_DECRYPTS)
   const promise = (async (): Promise<string | null> => {
+    await acquireDecryptSlot();
     try {
       const dir = await getCacheDir();
       const destPath = `${dir}/${id}.jpg`;
@@ -105,6 +132,7 @@ export async function getDecryptedThumbnail(
       cacheSet(id, null);
       return null;
     } finally {
+      releaseDecryptSlot();
       pending.delete(id);
     }
   })();
@@ -137,6 +165,8 @@ export async function clearThumbnailCache(): Promise<void> {
   cache.clear();
   pending.clear();
   cachedDir = null;
+  activeDecrypts = 0;
+  decryptQueue.length = 0;
 
   // Best-effort directory sweep via native secure delete
   if (dir) {

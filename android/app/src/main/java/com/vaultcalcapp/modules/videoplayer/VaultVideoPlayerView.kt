@@ -168,6 +168,7 @@ class VaultVideoPlayerView @JvmOverloads constructor(
     private val bufferingOverlay: FrameLayout
     private val centerPlayBtn: ImageView
     private val lockOverlay: FrameLayout
+    private val lockContent: LinearLayout
     private val leftRipple: DoubleTapRippleView
     private val rightRipple: DoubleTapRippleView
 
@@ -650,11 +651,15 @@ class VaultVideoPlayerView @JvmOverloads constructor(
         }
         seekBuffered = View(context).apply {
             background = createPillBg(0x55FFFFFF, dp(3).toFloat())
-            layoutParams = FrameLayout.LayoutParams(0, dp(6), Gravity.CENTER_VERTICAL)
+            layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, dp(6), Gravity.CENTER_VERTICAL)
+            pivotX = 0f
+            scaleX = 0f
         }
         seekFill = View(context).apply {
             background = createPillBg(0xFF3B82F6.toInt(), dp(3).toFloat())
-            layoutParams = FrameLayout.LayoutParams(0, dp(6), Gravity.CENTER_VERTICAL)
+            layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, dp(6), Gravity.CENTER_VERTICAL)
+            pivotX = 0f
+            scaleX = 0f
         }
         seekThumb = View(context).apply {
             background = GradientDrawable().apply {
@@ -680,6 +685,8 @@ class VaultVideoPlayerView @JvmOverloads constructor(
             val ratio = (event.x / v.width).coerceIn(0f, 1f)
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
+                    // Prevent parent from intercepting drag gestures on the seek bar
+                    v.parent?.requestDisallowInterceptTouchEvent(true)
                     isScrubbing = true
                     // Expand thumb on touch
                     seekThumb.animate().scaleX(1.4f).scaleY(1.4f).setDuration(120).start()
@@ -692,13 +699,14 @@ class VaultVideoPlayerView @JvmOverloads constructor(
                     showScrubPreview(ratio, v)
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    v.parent?.requestDisallowInterceptTouchEvent(false)
                     isScrubbing = false
                     // Shrink thumb back
                     seekThumb.animate().scaleX(1f).scaleY(1f).setDuration(150)
                         .setInterpolator(OvershootInterpolator(2f)).start()
                     // Commit seek on release
                     player?.let { p -> p.seekTo((ratio * p.duration).toLong()) }
-                    updateSeekBarVisuals(v, ratio)
+                    updateSeekBar()
                     hideScrubPreview()
                     resetHideTimer()
                 }
@@ -808,7 +816,7 @@ class VaultVideoPlayerView @JvmOverloads constructor(
             visibility = GONE
             layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
         }
-        val lockContent = LinearLayout(context).apply {
+        lockContent = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             background = GradientDrawable().apply {
@@ -834,13 +842,13 @@ class VaultVideoPlayerView @JvmOverloads constructor(
             setPadding(0, dp(4), 0, dp(2))
         })
         lockContent.addView(TextView(context).apply {
-            text = "Double-tap to unlock"
+            text = "Tap to unlock"
             setTextColor(0x99FFFFFF.toInt())
             textSize = 12f
             gravity = Gravity.CENTER
         })
+        // No click listeners — all tap logic handled in dispatchTouchEvent
         lockOverlay.addView(lockContent)
-        lockOverlay.setOnClickListener { handleLockOverlayTap() }
         addView(lockOverlay)
 
         // ── MX-style Volume slider (RIGHT side) — added last for top z-order ──
@@ -1015,7 +1023,9 @@ class VaultVideoPlayerView @JvmOverloads constructor(
                 release()
             }
         }
-        (context as? androidx.lifecycle.LifecycleOwner)?.lifecycle?.addObserver(lifecycleObserver)
+        val lifecycleOwner = (context as? androidx.lifecycle.LifecycleOwner)
+            ?: (getActivity() as? androidx.lifecycle.LifecycleOwner)
+        lifecycleOwner?.lifecycle?.addObserver(lifecycleObserver)
     }
 
     // ════════════════════════════════════════════════════════════
@@ -1118,6 +1128,7 @@ class VaultVideoPlayerView @JvmOverloads constructor(
     fun release() {
         handler.removeCallbacks(progressRunnable)
         handler.removeCallbacks(hideControlsRunnable)
+        handler.removeCallbacks(lockAutoHideRunnable)
         playerView.keepScreenOn = false
         thumbnailScrubber.release()
         player?.removeListener(this)
@@ -1150,20 +1161,19 @@ class VaultVideoPlayerView @JvmOverloads constructor(
     // ════════════════════════════════════════════════════════════
 
     fun lockScreen() {
-        isScreenLocked = true
+        // Hide controls BEFORE setting locked flag (hideControls guards on isScreenLocked)
         hideControls()
-        lockOverlay.alpha = 0f
-        lockOverlay.visibility = VISIBLE
-        lockOverlay.animate().alpha(1f).setDuration(200).start()
-        handler.postDelayed({
-            if (isScreenLocked) lockOverlay.animate().alpha(0.4f).setDuration(400).start()
-        }, 2000)
+        isScreenLocked = true
+        controlsVisible = false
+        // Hide everything — just the video plays, no UI
+        lockOverlay.visibility = GONE
         sendSimpleEvent("onLockStateChange")
     }
 
     fun unlockScreen() {
         isScreenLocked = false
-        lockOverlay.animate().alpha(0f).setDuration(200).withEndAction {
+        lockOverlay.animate().cancel()
+        lockOverlay.animate().alpha(0f).setDuration(150).withEndAction {
             lockOverlay.visibility = GONE
         }.start()
         showControls()
@@ -1171,26 +1181,6 @@ class VaultVideoPlayerView @JvmOverloads constructor(
         sendSimpleEvent("onLockStateChange")
     }
 
-    private var lockTapTime = 0L
-    private fun handleLockOverlayTap() {
-        if (!isScreenLocked) return
-        val now = System.currentTimeMillis()
-        lockOverlay.animate().cancel()
-        lockOverlay.animate().alpha(1f).setDuration(100).start()
-        if (now - lockTapTime < 500) {
-            // Double tap detected — unlock
-            lockTapTime = 0
-            unlockScreen()
-        } else {
-            // First tap — show hint and fade back
-            lockTapTime = now
-            handler.postDelayed({
-                if (isScreenLocked) {
-                    lockOverlay.animate().alpha(0.4f).setDuration(400).start()
-                }
-            }, 1500)
-        }
-    }
 
     // ════════════════════════════════════════════════════════════
     // Rotation
@@ -1249,6 +1239,8 @@ class VaultVideoPlayerView @JvmOverloads constructor(
                 resetHideTimer()
             }
             Player.STATE_ENDED -> {
+                // Unlock screen if locked so user isn't stuck
+                if (isScreenLocked) unlockScreen()
                 sendSimpleEvent("onEnd")
                 val hasNext = isShuffleEnabled || isRepeatEnabled || currentIndex < playlist.size - 1
                 if (autoPlayNext && hasNext) {
@@ -1294,8 +1286,49 @@ class VaultVideoPlayerView @JvmOverloads constructor(
      * This allows seekbar drags and button taps to work normally while
      * still capturing swipe gestures on the video surface.
      */
+    private val lockAutoHideRunnable = Runnable {
+        if (isScreenLocked && lockOverlay.visibility == VISIBLE) {
+            lockOverlay.animate().alpha(0f).setDuration(200)
+                .withEndAction { lockOverlay.visibility = GONE }.start()
+        }
+    }
+
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        if (isScreenLocked) {
+            if (ev.action == MotionEvent.ACTION_DOWN) {
+                if (lockOverlay.visibility == VISIBLE) {
+                    // Overlay is showing — check if tap landed on lock card
+                    if (isTouchInsideLockContent(ev)) {
+                        // Tap on lock card → unlock
+                        unlockScreen()
+                    } else {
+                        // Tap outside card → hide overlay
+                        lockOverlay.animate().alpha(0f).setDuration(150)
+                            .withEndAction { lockOverlay.visibility = GONE }.start()
+                    }
+                } else {
+                    // Overlay hidden → show lock icon
+                    handler.removeCallbacks(lockAutoHideRunnable)
+                    lockOverlay.alpha = 0f
+                    lockOverlay.visibility = VISIBLE
+                    lockOverlay.animate().alpha(1f).setDuration(150).start()
+                    handler.postDelayed(lockAutoHideRunnable, 3000)
+                }
+            }
+            return true // Consume all events — gestures/children disabled while locked
+        }
+        return super.dispatchTouchEvent(ev)
+    }
+
+    private fun isTouchInsideLockContent(ev: MotionEvent): Boolean {
+        val loc = IntArray(2)
+        lockContent.getLocationOnScreen(loc)
+        return ev.rawX >= loc[0] && ev.rawX <= loc[0] + lockContent.width &&
+               ev.rawY >= loc[1] && ev.rawY <= loc[1] + lockContent.height
+    }
+
     override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
-        if (isScreenLocked) return false
+        if (isScreenLocked) return true
         // Don't intercept if touch is on controls or active sliders
         if (controlsVisible) {
             if (isTouchInsideView(ev, bottomContainer)) return false
@@ -1318,7 +1351,7 @@ class VaultVideoPlayerView @JvmOverloads constructor(
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        if (isScreenLocked) return false
+        if (isScreenLocked) return true
 
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
@@ -1753,6 +1786,8 @@ class VaultVideoPlayerView @JvmOverloads constructor(
         bottomContainer.translationY = dp(12).toFloat()
         bottomContainer.animate().alpha(1f).translationY(0f)
             .setStartDelay(30).setDuration(250).setInterpolator(DecelerateInterpolator(1.5f)).start()
+        // Sync seek bar to current position after layout so it's correct when controls appear
+        seekBarContainer.post { updateSeekBar() }
     }
 
     private fun hideControls() {
@@ -1908,31 +1943,16 @@ class VaultVideoPlayerView @JvmOverloads constructor(
     private fun updateSeekBar() {
         player?.let { p ->
             if (p.duration <= 0) return
-            val ratio = p.currentPosition.toFloat() / p.duration.toFloat()
-            val barWidth = seekBarContainer.width
-            if (barWidth <= 0) {
-                seekBarContainer.post { updateSeekBar() }
-                return
-            }
-            val fillW = (barWidth * ratio).toInt()
-            val fillLp = seekFill.layoutParams as FrameLayout.LayoutParams
-            if (fillLp.width != fillW) {
-                fillLp.width = fillW
-                seekFill.layoutParams = fillLp
-            }
+            val ratio = (p.currentPosition.toFloat() / p.duration.toFloat()).coerceIn(0f, 1f)
+            // Use scaleX (render transform) — bypasses React Native's Yoga layout engine
+            seekFill.scaleX = ratio
             // Buffered progress
-            val bufferedRatio = p.bufferedPosition.toFloat() / p.duration.toFloat()
-            val buffW = (barWidth * bufferedRatio).toInt()
-            val buffLp = seekBuffered.layoutParams as FrameLayout.LayoutParams
-            if (buffLp.width != buffW) {
-                buffLp.width = buffW
-                seekBuffered.layoutParams = buffLp
-            }
-            val thumbLp = seekThumb.layoutParams as FrameLayout.LayoutParams
-            val newMargin = (fillW - thumbHalfPx).coerceAtLeast(0)
-            if (thumbLp.marginStart != newMargin) {
-                thumbLp.marginStart = newMargin
-                seekThumb.layoutParams = thumbLp
+            val bufferedRatio = (p.bufferedPosition.toFloat() / p.duration.toFloat()).coerceIn(0f, 1f)
+            seekBuffered.scaleX = bufferedRatio
+            // Thumb position via translationX — needs container width
+            val barWidth = seekBarContainer.width
+            if (barWidth > 0) {
+                seekThumb.translationX = (ratio * barWidth - thumbHalfPx).coerceAtLeast(0f)
             }
             // Only update text when the displayed second changes
             val posSec = (p.currentPosition / 1000).toInt()
@@ -1960,14 +1980,13 @@ class VaultVideoPlayerView @JvmOverloads constructor(
     private fun updateSeekBarVisuals(seekView: View, ratio: Float) {
         player?.let { p ->
             val pos = (ratio * p.duration).toLong()
+            val clampedRatio = ratio.coerceIn(0f, 1f)
+            // Use scaleX — bypasses React Native's layout engine
+            seekFill.scaleX = clampedRatio
             val barWidth = seekView.width
-            val fillW = (barWidth * ratio).toInt()
-            val fillLp = seekFill.layoutParams as FrameLayout.LayoutParams
-            fillLp.width = fillW
-            seekFill.layoutParams = fillLp
-            val thumbLp = seekThumb.layoutParams as FrameLayout.LayoutParams
-            thumbLp.marginStart = (fillW - thumbHalfPx).coerceAtLeast(0)
-            seekThumb.layoutParams = thumbLp
+            if (barWidth > 0) {
+                seekThumb.translationX = (clampedRatio * barWidth - thumbHalfPx).coerceAtLeast(0f)
+            }
             timeStartText.text = formatTime(pos)
             timeEndText.text = "-${formatTime(p.duration - pos)}"
         }
@@ -2170,7 +2189,9 @@ class VaultVideoPlayerView @JvmOverloads constructor(
 
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
-        (context as? androidx.lifecycle.LifecycleOwner)?.lifecycle?.removeObserver(lifecycleObserver)
+        val lifecycleOwner = (context as? androidx.lifecycle.LifecycleOwner)
+            ?: (getActivity() as? androidx.lifecycle.LifecycleOwner)
+        lifecycleOwner?.lifecycle?.removeObserver(lifecycleObserver)
         thumbnailScrubber.destroy()
         release()
     }

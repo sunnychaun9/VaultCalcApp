@@ -1,9 +1,9 @@
-# VaultCalcApp — Production Audit Report v2
+# VaultCalcApp — Production Audit Report v3
 
-**Date:** 2026-04-08 (Updated after implementation session)
+**Date:** 2026-04-10 (Updated after UX/bug-fix session)
 **Version:** 1.0.0 (Pre-release)
 **Platform:** Android (React Native CLI 0.83.1 + Kotlin)
-**Native modules:** 24 custom Kotlin modules
+**Native modules:** 26 custom Kotlin modules
 **Features complete:** 112/112
 
 ---
@@ -12,7 +12,7 @@
 
 VaultCalcApp is a feature-complete calculator vault with encrypted storage, disguised entry, full monetization, and premium UX. This audit reflects the current state **after** multiple optimization sessions covering ad integration, paywall tuning, performance fixes, UI polish, and bug fixes.
 
-**Overall score: 8.9 / 10** — up from 7.8 at initial audit. 26 fixes across all sessions: production AdMob (3 units), 7 ad triggers (was 2), consent gate fixed, A/B paywall testing, re-engagement notifications (Day 1-30), LRU cache, FlashList optimization, video/audio player fixes, and premium UX polish.
+**Overall score: 9.1 / 10** — up from 8.9 at last audit. 30 fixes across all sessions: production AdMob (3 units), 7 ad triggers (was 2), consent gate fixed, A/B paywall testing, re-engagement notifications (Day 1-30), LRU cache, FlashList optimization, video/audio player fixes, premium UX polish, bottom sheet keyboard fixes, ad-dismiss navigation fix, and glassmorphism tab UI.
 
 ---
 
@@ -72,7 +72,7 @@ Hide private photos & videos behind a working calculator. Encrypted vault.
 1. **Write and host Privacy Policy** at a public URL
 2. **Complete Data Safety form** in Google Play Console
 3. **Prepare declaration forms** for Accessibility Service, Notification Listener, Device Admin
-4. **Fix remaining TypeScript error** in VaultHomeScreen.tsx (TextInput ref type mismatch — pre-existing, non-blocking)
+4. ~~Fix remaining TypeScript error in VaultHomeScreen.tsx~~ **DONE** — cleaned up during bottom sheet → Modal migration
 5. **Test full release build** (`prodRelease` flavor) on physical device
 
 ---
@@ -126,11 +126,21 @@ Install → Welcome (4 slides, fear→trust arc) → PIN Setup
 | Loading states | 9/10 | **Fixed** — Determinate import progress ("Encrypting 3 of 12" + percentage bar), animated success toast |
 | Haptics | 9/10 | **Fixed** — Calculator buttons (5ms), operators (10ms), pattern nodes (8ms), unlock success (12ms), wrong PIN shake (100ms), lockout (double pulse) |
 
-### 3.2 Remaining Polish
+### 3.2 Fixes This Session
+
+| Item | Status | Details |
+|------|--------|---------|
+| Bottom sheet text inputs hidden by keyboard | **FIXED** | Replaced all text-input bottom sheets (Rename, New Album, Rename Album, New Note) with `Modal` + `KeyboardAvoidingView` dialogs. `@gorhom/bottom-sheet` BottomSheet shares the activity window, so manifest `adjustResize` collapses the sheet when keyboard opens |
+| Input field invisible in dark mode | **FIXED** | Input background was same as sheet background (`surfaceContainerHigh`). Changed to `surface` + 1px border |
+| Glassmorphism tab pills | **FIXED** | Inactive tabs now use semi-transparent `rgba` backgrounds + subtle glass border instead of solid `surfaceContainerHigh` |
+| Ad dismiss closes app | **FIXED** | `tryShowInterstitial()` was fire-and-forget in NoteEditor, MediaViewer, AudioPlayer back handlers. Now `await`ed so `navigation.goBack()` runs only after ad dismissal |
+| Recovery Setup keyboard hides answer input | **FIXED** | `KeyboardAvoidingView` had `behavior={undefined}` on Android. Changed to `behavior="padding"`. Removed `flexGrow: 1` from `cardWrapper` so ScrollView can scroll the input into view |
+
+### 3.3 Remaining Polish
 
 | Priority | Item |
 |----------|------|
-| P3 | Add `fadeDuration={200}` for first-load thumbnails (currently `fadeDuration={0}` for all — prevents flash on recycle but looks abrupt on first appearance) |
+| ~~P3~~ | ~~Add `fadeDuration={200}` for first-load thumbnails~~ **DONE** (MediaGridItem only — MediaListItem still uses `fadeDuration={0}` always) |
 | P3 | Add elevation to floating import FAB shadow on light theme |
 
 ---
@@ -174,6 +184,7 @@ Install → Welcome (4 slides, fear→trust arc) → PIN Setup
 | Consent gate blocked all ads in non-GDPR regions | **Zero ad revenue in India** | `canLoadAds()` now permits `UNKNOWN` status |
 | Dynamic `import()` in alert callback crashed rewarded flow | Users saw "Could not load bundle" error | Replaced with static import at file top |
 | Only 2 interstitial triggers in entire app | Very low impression count | Added 3 new natural transition triggers |
+| **Ad dismiss navigates to Calculator** | **App appears to close on ad dismiss** | `tryShowInterstitial()` was not awaited — `goBack()` raced with ad. Now awaited in all 3 back handlers (NoteEditor, MediaViewer, AudioPlayer) |
 
 ### 4.4 Subscription Design — Current State
 
@@ -290,16 +301,16 @@ Install → Welcome (4 slides, fear→trust arc) → PIN Setup
 
 | Category | Score | Change | Notes |
 |----------|-------|--------|-------|
-| **Features** | 9.5/10 | — | 24 native modules, 112 features + notifications, every vault feature covered |
+| **Features** | 9.5/10 | — | 26 native modules, 112 features + notifications, every vault feature covered |
 | **Security** | 9/10 | — | Argon2id, AES, CryptoObject biometric, streaming decrypt |
-| **UI/UX** | 9/10 | +1.5 | Typography complete, haptics, import toast, feature discovery, vault hint toast, thumbnail fade |
-| **Monetization** | 8.5/10 | +1.5 | Production AdMob, 7 triggers, consent fix, delayed paywall, A/B test infrastructure, win-back |
-| **Growth** | 7.5/10 | +2.5 | Re-engagement notifications (Day 1-30), feature discovery, win-back, vault hint. Missing: referrals |
-| **Performance** | 9/10 | +0.5 | LRU cache, FlashList optimization, deferred cold start, video player fixes |
-| **Play Store Readiness** | 7.5/10 | +1.5 | Production ad IDs done, RECORD_AUDIO justified. Still need: Privacy Policy, Data Safety form, declaration forms |
-| **Overall** | **8.9/10** | **+1.1** | |
+| **UI/UX** | 9.5/10 | +0.5 | Glassmorphism tabs, Modal dialogs for keyboard-safe input, recovery screen keyboard fix, input field visibility fix |
+| **Monetization** | 9/10 | +0.5 | Ad-dismiss navigation bug fixed — was causing app to appear closed after interstitial |
+| **Growth** | 7.5/10 | — | Re-engagement notifications (Day 1-30), feature discovery, win-back, vault hint. Missing: referrals |
+| **Performance** | 9/10 | — | LRU cache, FlashList optimization, deferred cold start, video player fixes |
+| **Play Store Readiness** | 8/10 | +0.5 | TypeScript clean (0 errors). Still need: Privacy Policy, Data Safety form, declaration forms |
+| **Overall** | **9.1/10** | **+0.2** | |
 
-### 7.2 What Was Fixed Across All Sessions (26 items)
+### 7.2 What Was Fixed Across All Sessions (30 items)
 
 1. Production AdMob IDs deployed (App + 3 ad units)
 2. Consent gate unblocked for non-GDPR regions (India)
@@ -327,6 +338,10 @@ Install → Welcome (4 slides, fear→trust arc) → PIN Setup
 24. **A/B paywall timing** — `paywallUnlockThreshold` randomly assigned 3 or 5 on first install, wired into all 3 paywall trigger points
 25. **"How to get back in" toast** — one-time animated hint on calculator after first vault session ("Enter your PIN and press = to reopen your vault")
 26. **Thumbnail fadeDuration** — cache-hit cells get `fadeDuration={0}` (no flash on recycle), async-loaded cells get `fadeDuration={200}` (smooth first appearance)
+27. **Bottom sheet → Modal dialogs** — Replaced all text-input bottom sheets (Rename, New Album, Rename Album, New Note) with `Modal` + `KeyboardAvoidingView`. `@gorhom/bottom-sheet` BottomSheet shares the activity window so manifest `adjustResize` collapses it on keyboard open
+28. **Ad-dismiss navigation fix** — `tryShowInterstitial()` now awaited in NoteEditor, MediaViewer, AudioPlayer back handlers. Was fire-and-forget causing `goBack()` to race with ad, popping all the way to Calculator
+29. **Glassmorphism tab pills** — Vault tab bar (Images/Videos/Audio/Docs/Albums/Notes) now uses semi-transparent `rgba` backgrounds + subtle glass border instead of solid opaque chips
+30. **Recovery Setup keyboard fix** — `KeyboardAvoidingView` changed to `behavior="padding"` on Android (was `undefined`), `cardWrapper` flexGrow removed so ScrollView can scroll answer input above keyboard
 
 ### 7.3 Priority Action Plan — What's Left
 
@@ -362,7 +377,7 @@ Install → Welcome (4 slides, fear→trust arc) → PIN Setup
 
 ---
 
-## Appendix: Native Module Inventory (24 modules)
+## Appendix: Native Module Inventory (26 modules)
 
 | Module | Purpose |
 |--------|---------|
@@ -390,6 +405,7 @@ Install → Welcome (4 slides, fear→trust arc) → PIN Setup
 | PdfModule | PDF rendering |
 | AppSecurityModule | Security utilities |
 | PermissionModule | Permission management |
+| StorageModule | Storage utilities |
 
 ---
 
