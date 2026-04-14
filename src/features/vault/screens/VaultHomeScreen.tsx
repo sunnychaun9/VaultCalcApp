@@ -46,6 +46,12 @@ import { unhideMediaItems } from '@services/unhide';
 import { requestGalleryPermissions, hasGalleryPermissions, type GalleryMediaType } from '@services/gallery';
 import { alert } from '@store/alertStore';
 import { sanitizeUserInput } from '@shared/utils/formatters';
+import { trackEvent, type MediaTypeParam } from '@services/analytics';
+
+/** Map DB media type → analytics param (photo → image). */
+function mediaTypeToAnalytics(t: MediaType): MediaTypeParam {
+  return t === 'photo' ? 'image' : t;
+}
 
 /** Tab configuration */
 const TABS: { key: TabType; label: string }[] = [
@@ -742,6 +748,10 @@ export function VaultHomeScreen(): React.JSX.Element {
 
       // Try to show ad after import — await so dismissing ad doesn't pop navigation
       if (result.imported > 0) {
+        trackEvent('media_imported', {
+          count: result.imported,
+          type: mediaTypeToAnalytics(mediaType),
+        });
         try {
           const { tryShowInterstitial } = require('@services/ads');
           await tryShowInterstitial('VaultHome', 'post_import');

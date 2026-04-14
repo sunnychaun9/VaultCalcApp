@@ -47,6 +47,11 @@ Thumbs.db
 android/sentry.properties
 sentry.properties
 
+# Firebase - contains API keys, should be per-developer
+android/app/google-services.json
+android/app/src/dev/google-services.json
+android/app/src/prod/google-services.json
+
 # Logs
 *.log
 

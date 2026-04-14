@@ -33,6 +33,7 @@ import Svg, { Defs, LinearGradient, Stop, Rect, RadialGradient } from 'react-nat
 import { setupPin, getPinRules } from '../services/authService';
 import { SECURITY_QUESTIONS, setupRecovery } from '../services/recoveryService';
 import { typography, spacing } from '@shared/theme';
+import { trackEvent } from '@services/analytics';
 import { Icon } from '@shared/components/Icon';
 import {
   useShakeAnimation,
@@ -270,6 +271,10 @@ export function PinSetupScreen(): React.JSX.Element {
       try {
         const result = await setupPin(pin);
         if (result.success) {
+          // Only count initial setup — not PIN changes — as funnel completion.
+          if (isInitialSetup) {
+            trackEvent('pin_setup_completed', { method: 'pin' });
+          }
           setMode('recovery');
           setError(null);
         } else {

@@ -18,6 +18,7 @@ import Animated, {
 import { useThemeColors, type ColorTokens, typography, spacing } from '@shared/theme';
 import { Icon, type IconName } from '@shared/components/Icon';
 import { useSettingsStore } from '@store/settingsStore';
+import { trackEvent } from '@services/analytics';
 
 interface FeatureTip {
   id: string;
@@ -97,6 +98,7 @@ export function FeatureDiscoveryCard(): React.JSX.Element | null {
       const pick = undiscovered[Math.floor(Math.random() * undiscovered.length)];
       setTip(pick);
       sessionTipShown = true;
+      trackEvent('feature_discovery_shown', { feature: pick.id });
     }, 2000);
 
     return () => clearTimeout(timer);

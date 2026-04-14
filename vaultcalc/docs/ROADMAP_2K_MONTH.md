@@ -44,9 +44,54 @@ Key insight: 1 US user = 10-15x ad revenue of 1 Indian user. Don't abandon India
 Goal: Get live on Play Store with analytics so every decision from here is data-driven.
 
 ### Task 1.1: Analytics Integration (PostHog or Firebase Analytics)
-- [ ] **Status: NOT STARTED**
+- [x] **Status: CODE COMPLETE — awaiting Firebase project setup + `google-services.json`**
 - **Why first:** Every optimization after this depends on real data. Without funnel metrics, you're guessing.
 - **Effort:** 1-2 days
+- **Date completed (code):** 2026-04-14
+- **What shipped:**
+  - Added `@react-native-firebase/app` + `@react-native-firebase/analytics` to package.json (`^21.6.1`)
+  - Added `com.google.gms:google-services:4.4.2` Gradle classpath in `android/build.gradle`
+  - Applied `com.google.gms.google-services` plugin in `android/app/build.gradle`
+  - `android/app/google-services.json` added to `.gitignore`
+  - `AndroidManifest.xml` meta-data disables Firebase Analytics auto-collection + ADID + SSAID for privacy; JS enables collection via `setAnalyticsCollectionEnabled(true)` after `initAnalytics()`
+  - Created `src/services/analytics/events.ts` — type-safe event catalog with param types and bucket helpers
+  - Created `src/services/analytics/analyticsService.ts` — wrapper with `initAnalytics`, `trackEvent`, `trackScreen`, `setUserProperty`, `setUserProperties`, `disableAnalytics`. Sanitizes params (drops path-like strings, caps at 100 chars), fire-and-forget, swallows errors
+  - `src/app/App.tsx`: initAnalytics + seedUserProperties in InteractionManager.runAfterInteractions; NavigationContainer onReady + onStateChange wired to `trackScreen`; settingsStore subscription updates `premium_status` user property on tier changes; `resolvePremiumTier()` maps `premiumStatus + premiumProductId` → analytics tier
+  - Events instrumented:
+    - `onboarding_started` — WelcomeScreen mount
+    - `onboarding_completed` — WelcomeScreen "Secure My Files" tap
+    - `pin_setup_completed` — PinSetupScreen initial-setup success
+    - `tutorial_completed` — HowItWorksScreen "Got It" tap
+    - `first_import` — FirstImportScreen success
+    - `vault_unlocked` — usePinAuth success (non-decoy only)
+    - `media_imported` — VaultHomeScreen import success
+    - `media_viewed` — MediaViewerScreen per unique item id (pager-aware)
+    - `feature_discovery_shown` — FeatureDiscoveryCard mount
+    - `intruder_alert_triggered` — intruderLogService.ts after log insert
+    - `paywall_shown` / `paywall_plan_selected` / `paywall_purchased` / `paywall_dismissed` — SubscriptionScreen
+    - `ad_shown` — adService.ts for interstitial/app_open/rewarded
+    - `rewarded_ad_completed` — adService.ts after `result.rewarded` is true
+  - User properties: `premium_status`, `app_language` (from `Intl.DateTimeFormat`), `vault_item_bucket`, `install_age_bucket`
+- **Remaining manual step:**
+  1. Create Firebase project at https://console.firebase.google.com/
+  2. Add Android app with package `com.vaultcalcapp`
+  3. Download `google-services.json` and place in `android/app/google-services.json`
+  4. Run `npm install` to pull the new Firebase packages
+  5. Rebuild: `cd android && ./gradlew clean && cd .. && npm run android`
+  6. Verify events in DebugView: `adb shell setprop debug.firebase.analytics.app com.vaultcalcapp`
+- **Events NOT yet instrumented (deferred — require new features first):**
+  - `referral_sent` — needs Task 2.1 (referral system)
+  - `ad_clicked` — requires click callback from native AdMob layer (not currently exposed)
+- **Files touched:**
+  - NEW: `src/services/analytics/events.ts`
+  - NEW: `src/services/analytics/analyticsService.ts`
+  - NEW: `src/services/analytics/index.ts`
+  - MODIFIED: `package.json`, `.gitignore`, `android/build.gradle`, `android/app/build.gradle`, `android/app/src/main/AndroidManifest.xml`
+  - MODIFIED: `src/app/App.tsx`, `src/features/onboarding/screens/WelcomeScreen.tsx`, `HowItWorksScreen.tsx`, `FirstImportScreen.tsx`
+  - MODIFIED: `src/features/auth/hooks/usePinAuth.ts`, `src/features/auth/screens/PinSetupScreen.tsx`
+  - MODIFIED: `src/features/vault/screens/VaultHomeScreen.tsx`, `MediaViewerScreen.tsx`, `src/features/vault/components/FeatureDiscoveryCard.tsx`
+  - MODIFIED: `src/features/settings/screens/SubscriptionScreen.tsx`
+  - MODIFIED: `src/services/ads/adService.ts`, `src/services/intruderCamera/intruderLogService.ts`
 
 #### What to implement:
 1. Install analytics SDK
@@ -803,8 +848,9 @@ Record key decisions here so future sessions have context:
 | Date | Decision | Reason |
 |------|----------|--------|
 | 2026-04-14 | Created roadmap | Target $2K/month revenue |
-| | | |
-| | | |
+| 2026-04-14 | Chose Firebase Analytics over PostHog | Free unlimited events, integrates with AdMob for ROAS tracking, consistent with existing Google stack (AdMob, Play Billing, Google Drive) |
+| 2026-04-14 | Privacy-hardened Firebase Analytics | Manifest disables auto-collection + ADID + SSAID; JS opts in after init. Matches Sentry privacy posture (vault app = no PII leaving device without explicit consent). |
+| 2026-04-14 | Task 1.1 code complete | All funnel events wired. User must create Firebase project + drop google-services.json into android/app/ to activate. |
 
 ---
 

@@ -16,7 +16,7 @@
  * @see FEATURE_INDEX.md PREMIUM-001, PREMIUM-002
  */
 
-import React, { useMemo, useCallback, useState, useEffect } from 'react';
+import React, { useMemo, useCallback, useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -50,6 +50,7 @@ import {
 } from '@services/billing';
 import { alert } from '@store/alertStore';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
+import { trackEvent, type PlanParam } from '@services/analytics';
 
 // ── Types & Constants ─────────────────────────────────────────
 
@@ -186,6 +187,25 @@ export function SubscriptionScreen(): React.JSX.Element {
   const navigation = useNavigation<NativeStackNavigationProp<VaultStackParamList>>();
   const { onActivity } = useActivityTracker();
   const [selectedPlan, setSelectedPlan] = useState<PlanType>('yearly');
+  // Track whether the user converted so we only fire paywall_dismissed on non-conversion unmount
+  const convertedRef = useRef(false);
+
+  // Fire paywall_shown on mount. The `trigger` param is best-effort: we
+  // can't cleanly know why the screen was opened from here, so we bucket
+  // the common cases (settings tap vs auto-prompt) by checking whether
+  // a paywall was pending when we opened.
+  useEffect(() => {
+    const pending = useSettingsStore.getState().paywallPending;
+    trackEvent('paywall_shown', {
+      trigger: pending ? 'post_import_threshold' : 'settings_tap',
+    });
+    return () => {
+      if (!convertedRef.current) {
+        trackEvent('paywall_dismissed', { plan_viewed: selectedPlan as PlanParam });
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [products, setProducts] = useState<BillingProductInfo[]>([]);
   const [isPurchasing, setIsPurchasing] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
@@ -261,6 +281,7 @@ export function SubscriptionScreen(): React.JSX.Element {
   const handleSelectPlan = useCallback((plan: PlanType) => {
     onActivity();
     setSelectedPlan(plan);
+    trackEvent('paywall_plan_selected', { plan: plan as PlanParam });
   }, [onActivity]);
 
   const handleStartTrial = useCallback(async () => {
@@ -276,6 +297,8 @@ export function SubscriptionScreen(): React.JSX.Element {
     setIsPurchasing(false);
 
     if (result.success && result.purchase) {
+      convertedRef.current = true;
+      trackEvent('paywall_purchased', { plan: selectedPlan as PlanParam });
       setPremiumStatus('premium');
       setPremiumPurchase(result.purchase.productId, result.purchase.purchaseToken);
       alert('Welcome to Premium!', 'Your purchase was successful. Enjoy all premium features!', [

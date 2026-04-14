@@ -14,6 +14,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '@typedefs/navigation';
 import { useThemeColors, type ColorTokens, typography, spacing, layout } from '@shared/theme';
+import { trackEvent } from '@services/analytics';
 
 const STEPS = [
   {
@@ -45,6 +46,7 @@ export function HowItWorksScreen(): React.JSX.Element {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
   const handleGotIt = useCallback(() => {
+    trackEvent('tutorial_completed');
     navigation.navigate('FirstImport');
   }, [navigation]);
 

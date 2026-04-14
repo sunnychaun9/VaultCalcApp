@@ -28,6 +28,13 @@ import { clearThumbnailCache } from '@services/thumbnail';
 import { excludeFromRecents } from '@services/security';
 import { tryAutoBackup } from '@services/backup';
 import { checkPremiumStatus } from '@services/billing';
+import {
+  initAnalytics,
+  trackScreen,
+  setUserProperties,
+  bucketVaultSize,
+  bucketInstallAge,
+} from '@services/analytics';
 
 // ─────────────────────────────────────────────────────────────
 // Sentry — initialized before React renders so native crashes
@@ -38,6 +45,43 @@ const navigationIntegration = Sentry.reactNavigationIntegration({
   enableTimeToInitialDisplay: true,
   ignoreEmptyBackNavigationTransactions: true,
 });
+
+// ─────────────────────────────────────────────────────────────
+// User property helpers — seed + subscribe so Firebase Analytics
+// always reflects the user's current premium tier, language, and
+// vault size. All properties are low-cardinality (bucketed).
+// ─────────────────────────────────────────────────────────────
+function resolvePremiumTier(): 'free' | 'trial' | 'monthly' | 'yearly' | 'lifetime' {
+  const { premiumStatus, premiumProductId } = useSettingsStore.getState();
+  if (premiumStatus === 'trial') return 'trial';
+  if (premiumStatus === 'free') return 'free';
+  // Premium — narrow further by product id
+  if (premiumProductId?.includes('monthly')) return 'monthly';
+  if (premiumProductId?.includes('yearly')) return 'yearly';
+  if (premiumProductId?.includes('lifetime')) return 'lifetime';
+  return 'monthly';
+}
+
+function getAppLanguage(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().locale || 'en';
+  } catch {
+    return 'en';
+  }
+}
+
+function seedUserProperties(): void {
+  const { firstLaunchTimestamp, totalImportCount } = useSettingsStore.getState();
+  const daysSinceInstall = firstLaunchTimestamp
+    ? Math.floor((Date.now() - firstLaunchTimestamp) / 86_400_000)
+    : 0;
+  setUserProperties({
+    premium_status: resolvePremiumTier(),
+    app_language: getAppLanguage(),
+    vault_item_bucket: bucketVaultSize(totalImportCount ?? 0),
+    install_age_bucket: bucketInstallAge(daysSinceInstall),
+  });
+}
 
 Sentry.init({
   dsn: 'https://5b80b97be7b78c4c2d17cd91c63864dd@o4511200339492864.ingest.de.sentry.io/4511200729235536',
@@ -79,6 +123,23 @@ function App(): React.JSX.Element {
   const [dbReady, setDbReady] = useState(false);
   const [showSplash, setShowSplash] = useState(true);
   const navigationRef = useNavigationContainerRef();
+  const currentScreenRef = useRef<string | undefined>(undefined);
+
+  // Keep analytics user properties fresh when premium tier changes.
+  // settingsStore doesn't use subscribeWithSelector middleware, so we
+  // poll the computed tier on every settings change and only push the
+  // user property when it actually differs.
+  useEffect(() => {
+    let lastTier = resolvePremiumTier();
+    const unsub = useSettingsStore.subscribe(() => {
+      const nextTier = resolvePremiumTier();
+      if (nextTier !== lastTier) {
+        lastTier = nextTier;
+        setUserProperties({ premium_status: nextTier });
+      }
+    });
+    return unsub;
+  }, []);
 
   // Global lock cleanup: when isAuthenticated transitions true → false,
   // clear all decrypted data from disk. This fires for every lock path
@@ -143,6 +204,12 @@ function App(): React.JSX.Element {
       // Defer all non-critical startup work until after the first frame renders.
       // This keeps the calculator screen interactive as fast as possible.
       InteractionManager.runAfterInteractions(() => {
+        // Analytics — enable collection + seed user properties.
+        // Firebase auto-init is disabled in AndroidManifest; this call
+        // is what actually turns collection on.
+        initAnalytics().then(() => {
+          seedUserProperties();
+        });
         checkPremiumStatus();
         tryAutoBackup();
         // Validate rewarded ad-free mode (drift detection, anti-tamper)
@@ -165,6 +232,18 @@ function App(): React.JSX.Element {
             ref={navigationRef}
             onReady={() => {
               navigationIntegration.registerNavigationContainer(navigationRef);
+              const route = navigationRef.getCurrentRoute();
+              if (route?.name) {
+                currentScreenRef.current = route.name;
+                trackScreen(route.name);
+              }
+            }}
+            onStateChange={() => {
+              const route = navigationRef.getCurrentRoute();
+              if (route?.name && route.name !== currentScreenRef.current) {
+                currentScreenRef.current = route.name;
+                trackScreen(route.name);
+              }
             }}
           >
             <StatusBar

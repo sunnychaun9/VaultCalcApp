@@ -39,6 +39,7 @@ import { shareMediaItems } from '@services/share';
 import { getPageCount, renderPage, type PdfPageResult } from '@services/pdf';
 import { ZoomableImage } from '../components/ZoomableImage';
 import { useThemeColors, type ColorTokens, typography, spacing } from '@shared/theme';
+import { trackEvent, type MediaTypeParam } from '@services/analytics';
 import { Icon, IconButton } from '@shared/components/Icon';
 import { HeroTransition } from '@shared/components/HeroTransition';
 import {
@@ -177,8 +178,22 @@ export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Eleme
     return () => { setSuppressAutoLock(false); };
   }, [setSuppressAutoLock]);
 
+  // Fire media_viewed once per unique item opened (viewer supports pager swiping)
+  const lastTrackedItemId = useRef<string | null>(null);
+
   // Media loading state
   const [item, setItem] = useState<MediaItem | null>(null);
+  // Fire a media_viewed event per unique item loaded in the pager.
+  useEffect(() => {
+    if (!item || lastTrackedItemId.current === item.id) return;
+    lastTrackedItemId.current = item.id;
+    const type: MediaTypeParam =
+      item.type === 'photo' ? 'image' :
+      item.type === 'video' ? 'video' :
+      item.type === 'audio' ? 'audio' :
+      'document';
+    trackEvent('media_viewed', { type });
+  }, [item]);
   const [isFavorite, setIsFavorite] = useState(false);
   const [decryptedUri, setDecryptedUri] = useState<string | null>(null);
   const [decryptedPath, setDecryptedPath] = useState<string | null>(null);

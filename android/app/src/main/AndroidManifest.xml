@@ -35,6 +35,20 @@
       <meta-data
           android:name="io.sentry.auto-init"
           android:value="false" />
+      <!-- Firebase Analytics: disable automatic data collection until
+           JS explicitly enables it via setAnalyticsCollectionEnabled(true)
+           after consent has been established. Keeps the vault app's
+           privacy posture consistent: no events leave the device until
+           we opt in. -->
+      <meta-data
+          android:name="firebase_analytics_collection_enabled"
+          android:value="false" />
+      <meta-data
+          android:name="google_analytics_adid_collection_enabled"
+          android:value="false" />
+      <meta-data
+          android:name="google_analytics_ssaid_collection_enabled"
+          android:value="false" />
       <!-- AdMob App ID (ADS-001) — production -->
       <meta-data
           android:name="com.google.android.gms.ads.APPLICATION_ID"

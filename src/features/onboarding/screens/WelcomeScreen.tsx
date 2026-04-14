@@ -29,6 +29,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
 import type { RootStackParamList } from '@typedefs/navigation';
 import { useSettingsStore } from '@store/settingsStore';
+import { trackEvent } from '@services/analytics';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -173,6 +174,7 @@ export function WelcomeScreen(): React.JSX.Element {
   useEffect(() => {
     contentOpacity.value = withDelay(200, withTiming(1, { duration: 600 }));
     contentTranslateY.value = withDelay(200, withSpring(0, { damping: 15, stiffness: 100 }));
+    trackEvent('onboarding_started');
   }, [contentOpacity, contentTranslateY]);
 
   // Hardware back button: go to previous slide, or do nothing on first slide
@@ -232,6 +234,7 @@ export function WelcomeScreen(): React.JSX.Element {
   }, [currentPage]);
 
   const handleGetStarted = useCallback(() => {
+    trackEvent('onboarding_completed');
     completeFirstLaunch();
     // Record install timestamp for engagement triggers
     useSettingsStore.getState().recordFirstLaunchTimestamp();

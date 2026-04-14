@@ -19,6 +19,7 @@ import { pickFilesForTab } from '@services/filePicker';
 import { importFiles } from '@services/import';
 import { useSettingsStore } from '@store/settingsStore';
 import { alert } from '@store/alertStore';
+import { trackEvent } from '@services/analytics';
 
 /**
  * First Import Screen Component
@@ -44,6 +45,10 @@ export function FirstImportScreen(): React.JSX.Element {
     setIsImporting(true);
     try {
       const result = await importFiles(files, 'photo', { deleteOriginals });
+
+      if (result.imported > 0) {
+        trackEvent('first_import', { count: result.imported, type: 'image' });
+      }
 
       if (result.failed.length === 0) {
         alert(

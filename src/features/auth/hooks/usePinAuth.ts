@@ -21,6 +21,7 @@ import {
 } from '../services/authService';
 import { isPinConfigured } from '../services/pinStorage';
 import { prefetchVaultData } from '../services/vaultPrefetch';
+import { trackEvent } from '@services/analytics';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -92,6 +93,11 @@ export function usePinAuth() {
           // CRITICAL PATH: authenticate + navigate immediately.
           // Everything else is deferred to after the transition.
           authenticate(result.isDecoy);
+
+          // Track only real-vault unlocks (decoy entries would skew the funnel)
+          if (!result.isDecoy) {
+            trackEvent('vault_unlocked', { method: 'pin' });
+          }
 
           // Satisfying haptic "success" tap on unlock
           try {

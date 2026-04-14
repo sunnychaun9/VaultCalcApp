@@ -481,11 +481,13 @@ class VaultVideoPlayerView @JvmOverloads constructor(
         setBackgroundColor(Color.BLACK)
 
         // ── PlayerView ──
-        playerView = PlayerView(context).apply {
+        // Inflated from XML so surface_type="texture_view" takes effect.
+        // Programmatic PlayerView(context) defaults to SurfaceView, which
+        // punches through the compositor and hides gesture overlays.
+        playerView = android.view.LayoutInflater.from(context)
+            .inflate(R.layout.vault_player_view, this, false) as PlayerView
+        playerView.apply {
             useController = false
-            setBackgroundColor(Color.BLACK)
-            layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
-            setShowBuffering(PlayerView.SHOW_BUFFERING_NEVER)
             // Disable touch on PlayerView — gestures handled by parent
             setOnTouchListener { _, _ -> false }
         }
@@ -637,13 +639,20 @@ class VaultVideoPlayerView @JvmOverloads constructor(
                     0x00000000,           // transparent
                 )
             )
-            setPadding(dp(16), dp(40), dp(16), dp(10))
+            // Reduced horizontal padding so button row fits on narrow portrait screens
+            setPadding(dp(8), dp(40), dp(8), dp(10))
+            clipChildren = false
+            clipToPadding = false
             layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT, Gravity.BOTTOM)
         }
 
         // ── Seekbar (6dp thick, rounded, with buffered progress) ──
         seekBarContainer = FrameLayout(context).apply {
             layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(32))
+            // Allow seek thumb to overflow container bounds at ratio=1 (right edge)
+            // without being clipped — the thumb is half outside the container width.
+            clipChildren = false
+            clipToPadding = false
         }
         seekTrack = View(context).apply {
             background = createPillBg(0x33FFFFFF, dp(3).toFloat())
@@ -751,7 +760,8 @@ class VaultVideoPlayerView @JvmOverloads constructor(
                 cornerRadius = dp(16).toFloat()
                 setStroke(dp(1), 0x15FFFFFF) // glass edge
             }
-            setPadding(dp(6), dp(4), dp(6), dp(4))
+            // Tight horizontal padding so speed + rotate buttons don't get clipped on narrow screens
+            setPadding(dp(2), dp(4), dp(2), dp(4))
             layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
                 topMargin = dp(2)
             }
@@ -770,14 +780,15 @@ class VaultVideoPlayerView @JvmOverloads constructor(
         speedBtn = TextView(context).apply {
             text = "1.0x"
             setTextColor(0xDDFFFFFF.toInt())
-            textSize = 13f
+            textSize = 12f
             typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
             background = GradientDrawable().apply {
                 setColor(0x22FFFFFF)
-                cornerRadius = dp(14).toFloat()
+                cornerRadius = dp(12).toFloat()
                 setStroke(dp(1), 0x18FFFFFF)
             }
-            setPadding(dp(14), dp(7), dp(14), dp(7))
+            // Reduced padding so the full "1.0x" is visible on narrow portrait screens
+            setPadding(dp(8), dp(6), dp(8), dp(6))
             gravity = Gravity.CENTER
             setOnClickListener { showSpeedMenu() }
         }
@@ -789,21 +800,16 @@ class VaultVideoPlayerView @JvmOverloads constructor(
         val bSpacer = View(context).apply { layoutParams = LinearLayout.LayoutParams(0, 1, 1f) }
 
         btnRow.addView(lockBtn)
-        btnRow.addView(createGap(dp(4)))
         btnRow.addView(shuffleBtn)
-        btnRow.addView(createGap(dp(4)))
         btnRow.addView(prevBtn)
-        btnRow.addView(createGap(dp(2)))
         btnRow.addView(playPauseBtn)
-        btnRow.addView(createGap(dp(2)))
         btnRow.addView(nextBtn)
-        btnRow.addView(createGap(dp(4)))
         btnRow.addView(repeatBtn)
         btnRow.addView(bSpacer)
         btnRow.addView(subtitleBtn)
-        btnRow.addView(createGap(dp(6)))
+        btnRow.addView(createGap(dp(2)))
         btnRow.addView(speedBtn)
-        btnRow.addView(createGap(dp(6)))
+        btnRow.addView(createGap(dp(2)))
         btnRow.addView(rotateBtn)
 
         bottomContainer.addView(btnRow)

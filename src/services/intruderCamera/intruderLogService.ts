@@ -19,6 +19,7 @@ import { captureIntruderPhoto } from './intruderCameraService';
 import { encryptFile, generateKey, getVaultDirectory } from '@services/crypto';
 import { deleteFile } from '@services/media';
 import { intruderLogs, type IntruderLog, type RiskLevel } from '@services/storage';
+import { trackEvent } from '@services/analytics';
 
 const { IntruderLocationModule, IntruderNotificationModule } = NativeModules;
 
@@ -186,6 +187,10 @@ export async function recordIntruderAttempt(
 
     // 7. Fire notification (fire-and-forget)
     showNotification(riskLevel, failedAttempts);
+
+    trackEvent('intruder_alert_triggered', {
+      risk_level: riskLevel.toLowerCase() as 'low' | 'medium' | 'high',
+    });
 
     return { success: true };
   } catch {

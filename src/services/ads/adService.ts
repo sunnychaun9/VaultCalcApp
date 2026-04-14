@@ -28,6 +28,7 @@ import { canLoadAds, runConsentFlow, resetConsentSession } from './consentServic
 import { areAdsEnabled, isRewardEnabled } from './adFeatureFlags';
 import { isAdFreeActive } from './rewardedAdFreeService';
 import type { AdResult, InterstitialTrigger, RewardedAdResult } from './types';
+import { trackEvent } from '@services/analytics';
 
 // ---------------------------------------------------------------------------
 // SDK state
@@ -217,6 +218,7 @@ export async function tryShowInterstitial(
 
     await withAutoLockSuppressed(() => NativeAds.showInterstitial());
     recordInterstitialShown();
+    trackEvent('ad_shown', { format: 'interstitial', trigger });
 
     // Preload next interstitial (not on a secure screen since we just left one)
     preloadInterstitial();
@@ -288,6 +290,7 @@ export async function tryShowAppOpen(): Promise<AdResult<boolean>> {
 
     await withAutoLockSuppressed(() => NativeAds.showAppOpen());
     appOpenShownThisSession = true;
+    trackEvent('ad_shown', { format: 'app_open', trigger: 'foreground' });
 
     // Preload next (for subsequent sessions if app stays alive)
     preloadAppOpen();
@@ -329,6 +332,11 @@ export async function showRewardedAd(): Promise<AdResult<RewardedAdResult>> {
     }
 
     const result = await withAutoLockSuppressed(() => NativeAds.showRewarded());
+
+    trackEvent('ad_shown', { format: 'rewarded', trigger: 'user_initiated' });
+    if (result.rewarded) {
+      trackEvent('rewarded_ad_completed', { trigger: 'watch_ad' });
+    }
 
     // Record ad dismissal for premium card delay logic
     recordAdDismissed();
