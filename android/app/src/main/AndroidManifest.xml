@@ -1,4 +1,5 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Package visibility: allow querying all launchable apps (App Lock scanner) -->
     <queries>
@@ -42,13 +43,16 @@
            we opt in. -->
       <meta-data
           android:name="firebase_analytics_collection_enabled"
-          android:value="false" />
+          android:value="false"
+          tools:replace="android:value" />
       <meta-data
           android:name="google_analytics_adid_collection_enabled"
-          android:value="false" />
+          android:value="false"
+          tools:replace="android:value" />
       <meta-data
           android:name="google_analytics_ssaid_collection_enabled"
-          android:value="false" />
+          android:value="false"
+          tools:replace="android:value" />
       <!-- AdMob App ID (ADS-001) — production -->
       <meta-data
           android:name="com.google.android.gms.ads.APPLICATION_ID"
