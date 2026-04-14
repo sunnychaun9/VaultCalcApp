@@ -27,6 +27,7 @@ import {
   type AppStateStatus,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as Sentry from '@sentry/react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import type { VaultStackScreenProps } from '@typedefs/navigation';
 import { mediaItems, albums, albumMedia, type MediaItem, type Album } from '@services/storage/database';
@@ -116,6 +117,11 @@ function ImagePagerItem({ itemId, width, onSingleTap }: { itemId: string; width:
         if (result.success) {
           setUri(`file://${tempPath}`);
         }
+      } catch (e) {
+        // Decryption failure in the pager produces a silent black screen —
+        // the user just sees a loading spinner disappear with no content.
+        // This is the exact failure mode that looks "sketchy" to users.
+        Sentry.captureException(e, { tags: { area: 'decrypt_image' } });
       } finally {
         if (!cancelled) setLoading(false);
       }

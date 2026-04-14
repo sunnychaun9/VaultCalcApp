@@ -308,9 +308,14 @@ export function AlbumViewScreen(): React.JSX.Element {
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
-        <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Icon name="arrow-left" size={20} color={themeColors.textPrimary} />
-          <Text style={styles.backText}> Back</Text>
+        <Pressable
+          onPress={() => navigation.goBack()}
+          style={styles.backButton}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+        >
+          <Icon name="arrow-left" size={22} color={themeColors.textPrimary} />
         </Pressable>
         <Text style={styles.title} numberOfLines={1}>
           {isSelectionMode ? `${selectedIds.size} selected` : (album?.name ?? 'Album')}
@@ -411,11 +416,10 @@ const createStyles = (c: ColorTokens) => StyleSheet.create({
     borderBottomColor: c.border,
   },
   backButton: {
-    width: 60,
-  },
-  backText: {
-    ...typography.bodyMedium,
-    color: c.accent,
+    width: 44,
+    height: 44,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
   },
   title: {
     ...typography.titleLarge,

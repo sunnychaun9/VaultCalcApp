@@ -1439,10 +1439,12 @@ class VaultVideoPlayerView @JvmOverloads constructor(
         val maxVol = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
         val newVolume = (gestureStartVolume + dy * VOLUME_SENSITIVITY).coerceIn(0f, 1f)
         audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, (newVolume * maxVol).toInt(), 0)
-        // Edge slider
+        // Edge slider — bringToFront() forces it above Media3's SurfaceView,
+        // whose compositing would otherwise obscure our overlay despite elevation.
         volumeSlider.progress = newVolume
         volumeSlider.alpha = 1f
         volumeSlider.visibility = VISIBLE
+        volumeSlider.bringToFront()
         brightnessSlider.visibility = GONE
         // Center card indicator
         showCenterIndicator(R.drawable.ic_player_volume, newVolume)
@@ -1456,10 +1458,12 @@ class VaultVideoPlayerView @JvmOverloads constructor(
         val lp = activity.window.attributes
         lp.screenBrightness = newBrightness
         activity.window.attributes = lp
-        // Edge slider
+        // Edge slider — bringToFront() forces it above Media3's SurfaceView,
+        // whose compositing would otherwise obscure our overlay despite elevation.
         brightnessSlider.progress = newBrightness
         brightnessSlider.alpha = 1f
         brightnessSlider.visibility = VISIBLE
+        brightnessSlider.bringToFront()
         volumeSlider.visibility = GONE
         // Center card indicator
         showCenterIndicator(R.drawable.ic_player_brightness, newBrightness)
@@ -1699,6 +1703,8 @@ class VaultVideoPlayerView @JvmOverloads constructor(
             centerIndicator.scaleX = 0.85f
             centerIndicator.scaleY = 0.85f
             centerIndicator.visibility = VISIBLE
+            // bringToFront() so it renders above Media3's SurfaceView
+            centerIndicator.bringToFront()
             centerIndicator.animate()
                 .alpha(1f).scaleX(1f).scaleY(1f)
                 .setDuration(150).setInterpolator(DecelerateInterpolator(1.5f))

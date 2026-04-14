@@ -21,6 +21,7 @@ import { AppBottomSheet } from '@shared/components/AppBottomSheet';
 import PagerView from 'react-native-pager-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import * as Sentry from '@sentry/react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { VaultStackParamList } from '@typedefs/navigation';
@@ -629,23 +630,41 @@ export function VaultHomeScreen(): React.JSX.Element {
 
     const mediaType = TAB_TO_MEDIA_TYPE[activeTab];
 
-    // Optimistic cache update
+    // Optimistic cache update — useInfiniteQuery stores { pages, pageParams }
     if (mediaType !== null) {
-      queryClient.setQueryData<MediaItem[]>(
+      queryClient.setQueryData<{ pages: MediaItem[][]; pageParams: unknown[] }>(
         ['media', mediaType, isDecoyMode],
-        (old) => old?.map(i => i.id === id ? { ...i, name: newName } : i),
+        (old) => old && {
+          ...old,
+          pages: old.pages.map(page =>
+            page.map(i => i.id === id ? { ...i, name: newName, originalName: newName } : i)
+          ),
+        },
       );
     }
 
-    await mediaItemsDb.rename(id, newName);
+    try {
+      await mediaItemsDb.rename(id, newName);
 
-    if (mediaType !== null) {
-      await queryClient.invalidateQueries({ queryKey: ['media', mediaType, isDecoyMode] });
+      if (mediaType !== null) {
+        await queryClient.invalidateQueries({ queryKey: ['media', mediaType, isDecoyMode] });
+      }
+      await queryClient.invalidateQueries({ queryKey: ['albumMedia'] });
+
+      setShowRenameModal(false);
+      clearSelection();
+    } catch (e) {
+      // Rename touches the crypto layer (encryptField on original_name).
+      // A silent failure here leaves the user seeing the old name with no
+      // feedback about why. This was exactly the class of bug found in the
+      // previous session's audit — capture it.
+      Sentry.captureException(e, { tags: { area: 'rename' } });
+      // Roll back the optimistic update by invalidating — forces a refetch.
+      if (mediaType !== null) {
+        queryClient.invalidateQueries({ queryKey: ['media', mediaType, isDecoyMode] });
+      }
+      alert('Rename failed', 'Please try again.');
     }
-    await queryClient.invalidateQueries({ queryKey: ['albumMedia'] });
-
-    setShowRenameModal(false);
-    clearSelection();
   }, [selectedIds, activeTab, queryClient, isDecoyMode, clearSelection]);
 
   /**
@@ -781,6 +800,11 @@ export function VaultHomeScreen(): React.JSX.Element {
         );
       }
     } catch (e) {
+      // Import is the highest-volume write path in the app. Failures here
+      // are the single most valuable production signal — catch ratio of
+      // failed imports per device tells us whether the native pickFiles →
+      // encrypt → store pipeline is healthy.
+      Sentry.captureException(e, { tags: { area: 'import', tab: activeTab } });
       alert('Something went wrong', e instanceof Error ? e.message : 'Import failed. Please try again.');
     } finally {
       setSuppressAutoLock(false);

@@ -9,6 +9,7 @@
 
 import { useCallback, useRef } from 'react';
 import { InteractionManager, Vibration } from 'react-native';
+import * as Sentry from '@sentry/react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '@typedefs/navigation';
@@ -142,7 +143,10 @@ export function usePinAuth() {
           recordFailedAttempt();
           return { wasAuthAttempt: true, authenticated: false };
         }
-      } catch {
+      } catch (e) {
+        // Unlock flow is the most critical path in the app. A silent failure
+        // here means a real user cannot enter their vault — we must see it.
+        Sentry.captureException(e, { tags: { area: 'pin_auth' } });
         return { wasAuthAttempt: true, authenticated: false };
       } finally {
         isProcessing.current = false;

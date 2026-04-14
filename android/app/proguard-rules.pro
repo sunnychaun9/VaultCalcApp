@@ -66,6 +66,12 @@
 
 -keep class expo.modules.** { *; }
 
+# ===== SENTRY =====
+
+# Sentry Gradle plugin auto-instruments SQLite via sentry-android-sqlite,
+# which references IMainThreadChecker — not bundled by the RN SDK.
+-dontwarn io.sentry.util.thread.IMainThreadChecker
+
 # ===== DEBUGGING =====
 
 # Keep line numbers for crash reporting

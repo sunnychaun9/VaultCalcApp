@@ -45,9 +45,6 @@ export function useAuthSession() {
   const updateActivity = useAuthStore((state) => state.updateActivity);
   const hasSessionTimedOut = useAuthStore((state) => state.hasSessionTimedOut);
 
-  // Lock suppression (e.g. during file picker / import)
-  const suppressAutoLock = useAuthStore((state) => state.suppressAutoLock);
-
   // Settings
   const lockTimeout = useSettingsStore((state) => state.lockTimeout);
   const lockOnBackground = useSettingsStore((state) => state.lockOnBackground);
@@ -82,12 +79,15 @@ export function useAuthSession() {
           backgroundSince.current = Date.now();
         }
       } else if (nextAppState === 'active') {
-        // App came back to foreground — check how long it was away
+        // App came back to foreground — check how long it was away.
+        // Read suppressAutoLock via getState() (not closure) so imperative
+        // toggles made just before a full-screen ad are always observed.
+        const suppressed = useAuthStore.getState().suppressAutoLock;
         if (
           backgroundSince.current !== null &&
           isAuthenticated &&
           lockOnBackground &&
-          !suppressAutoLock
+          !suppressed
         ) {
           const awayMs = Date.now() - backgroundSince.current;
           if (awayMs >= BACKGROUND_LOCK_GRACE_MS) {
@@ -101,17 +101,18 @@ export function useAuthSession() {
       // 'inactive' is ignored — it fires for transient overlays
       // (permission dialogs, notification shade, etc.)
     },
-    [isAuthenticated, lockOnBackground, suppressAutoLock, lockVault]
+    [isAuthenticated, lockOnBackground, lockVault]
   );
 
   /**
    * Check if session has timed out and lock if necessary
    */
   const checkSessionTimeout = useCallback(() => {
-    if (isAuthenticated && !suppressAutoLock && hasSessionTimedOut(lockTimeout)) {
+    const suppressed = useAuthStore.getState().suppressAutoLock;
+    if (isAuthenticated && !suppressed && hasSessionTimedOut(lockTimeout)) {
       lockVault();
     }
-  }, [isAuthenticated, suppressAutoLock, hasSessionTimedOut, lockTimeout, lockVault]);
+  }, [isAuthenticated, hasSessionTimedOut, lockTimeout, lockVault]);
 
   /**
    * Touch session to indicate user activity.

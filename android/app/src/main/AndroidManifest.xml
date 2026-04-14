@@ -27,6 +27,14 @@
       android:theme="@style/AppTheme"
       android:networkSecurityConfig="@xml/network_security_config"
       android:supportsRtl="true">
+      <!-- Sentry: disable native auto-init. The JS side owns all Sentry
+           configuration via Sentry.init() in src/app/App.tsx so that the
+           privacy filters (beforeBreadcrumb, beforeSend) and DSN stay in
+           one place. Without this flag, SentryInitProvider runs before
+           the JS bundle loads and crashes with "DSN is required". -->
+      <meta-data
+          android:name="io.sentry.auto-init"
+          android:value="false" />
       <!-- AdMob App ID (ADS-001) — production -->
       <meta-data
           android:name="com.google.android.gms.ads.APPLICATION_ID"

@@ -1,6 +1,26 @@
 apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
+apply plugin: "io.sentry.android.gradle"
+
+sentry {
+    // Upload ProGuard/R8 mapping files so production stack traces are readable
+    autoUploadProguardMapping = true
+    // Native (NDK) symbols disabled — we don't have C/C++ crashes to debug,
+    // and the upload fails on URL mismatch with EU-hosted org tokens.
+    uploadNativeSymbols = false
+    // Only run on release builds — debug does not need mapping upload
+    ignoredBuildTypes = ["debug"]
+    // Source context disabled — requires separate CLI setup not worth the complexity
+    includeSourceContext = false
+    // Disable bytecode auto-instrumentation (SQLite, OkHttp, etc.).
+    // We only need crash reporting + mapping upload, not auto-tracing.
+    // The auto-instrumentation pulls in sentry-android-sqlite which has a
+    // cross-version reference to IMainThreadChecker that breaks R8.
+    tracingInstrumentation {
+        enabled = false
+    }
+}
 
 /**
  * Derive versionName and versionCode from package.json so there is a single

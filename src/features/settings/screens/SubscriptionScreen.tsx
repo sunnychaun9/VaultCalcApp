@@ -466,17 +466,17 @@ export function SubscriptionScreen(): React.JSX.Element {
                     accessibilityLabel={`Select lifetime plan, ${lifetimePrice} one-time`}
                   >
                     <View style={styles.lifetimeRow}>
-                      <View>
+                      <View style={styles.lifetimeTextCol}>
                         <Text style={styles.planTitle}>Lifetime</Text>
                         <Text style={styles.lifetimeSub}>Pay once, own forever</Text>
                       </View>
+                      {selectedPlan === 'lifetime' && (
+                        <View style={styles.inlineCheckBadge}>
+                          <Icon name="check" size={12} color="#FFFFFF" strokeWidth={3} />
+                        </View>
+                      )}
                       <Text style={styles.lifetimePrice}>{lifetimePrice}</Text>
                     </View>
-                    {selectedPlan === 'lifetime' && (
-                      <View style={[styles.checkBadge, { top: 14, right: 14 }]}>
-                        <Icon name="check" size={12} color="#FFFFFF" strokeWidth={3} />
-                      </View>
-                    )}
                   </Pressable>
 
                   {/* Remove Ads */}
@@ -490,17 +490,17 @@ export function SubscriptionScreen(): React.JSX.Element {
                     accessibilityLabel={`Remove ads for ${removeAdsPrice}`}
                   >
                     <View style={styles.lifetimeRow}>
-                      <View>
+                      <View style={styles.lifetimeTextCol}>
                         <Text style={styles.planTitle}>Remove Ads Only</Text>
                         <Text style={styles.lifetimeSub}>One-time purchase</Text>
                       </View>
+                      {selectedPlan === 'remove_ads' && (
+                        <View style={styles.inlineCheckBadge}>
+                          <Icon name="check" size={12} color="#FFFFFF" strokeWidth={3} />
+                        </View>
+                      )}
                       <Text style={styles.lifetimePrice}>{removeAdsPrice}</Text>
                     </View>
-                    {selectedPlan === 'remove_ads' && (
-                      <View style={[styles.checkBadge, { top: 14, right: 14 }]}>
-                        <Icon name="check" size={12} color="#FFFFFF" strokeWidth={3} />
-                      </View>
-                    )}
                   </Pressable>
                 </>
               )}
@@ -739,6 +739,19 @@ const createStyles = (_c: ColorTokens, _isDark: boolean) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  lifetimeTextCol: {
+    flex: 1,
+    minWidth: 0,
+  },
+  inlineCheckBadge: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: ACCENT,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
   },
   lifetimeSub: {
     fontSize: 12,

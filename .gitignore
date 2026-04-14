@@ -43,6 +43,10 @@ Thumbs.db
 .env.development
 .env.production
 
+# Sentry - auth token for release mapping upload
+android/sentry.properties
+sentry.properties
+
 # Logs
 *.log
 

@@ -4,6 +4,11 @@
  * Schedules re-engagement notifications via AlarmManager.
  * Notifications are local-only (no server, no FCM).
  * Uses inexact alarms for battery efficiency.
+ *
+ * Smart features:
+ * - recordAppOpen() tracks when user last opened the app
+ * - Receiver suppresses notifications if app was opened within 24h
+ * - Max 1 notification per day enforced at receiver level
  */
 
 package com.vaultcalcapp.modules.localnotif
@@ -43,6 +48,44 @@ class LocalNotifModule(reactContext: ReactApplicationContext) :
                 }
                 nm.createNotificationChannel(channel)
             }
+        }
+    }
+
+    /**
+     * Record that the user opened the app. Called from JS on foreground.
+     * The receiver checks this timestamp to suppress notifications if
+     * the user was recently active.
+     */
+    @ReactMethod
+    fun recordAppOpen(promise: Promise) {
+        try {
+            val prefs = reactApplicationContext.getSharedPreferences(
+                LocalNotifReceiver.ACTIVITY_PREFS, Context.MODE_PRIVATE
+            )
+            prefs.edit().putLong(LocalNotifReceiver.KEY_LAST_APP_OPEN, System.currentTimeMillis()).apply()
+            promise.resolve(true)
+        } catch (e: Exception) {
+            promise.reject("RECORD_ERROR", e.message)
+        }
+    }
+
+    /**
+     * Get activity timestamps for smart scheduling decisions in JS.
+     * Returns { lastAppOpen, lastNotifShown } as epoch ms (0 if never).
+     */
+    @ReactMethod
+    fun getActivityStats(promise: Promise) {
+        try {
+            val prefs = reactApplicationContext.getSharedPreferences(
+                LocalNotifReceiver.ACTIVITY_PREFS, Context.MODE_PRIVATE
+            )
+            val result = Arguments.createMap().apply {
+                putDouble("lastAppOpen", prefs.getLong(LocalNotifReceiver.KEY_LAST_APP_OPEN, 0).toDouble())
+                putDouble("lastNotifShown", prefs.getLong(LocalNotifReceiver.KEY_LAST_NOTIF_SHOWN, 0).toDouble())
+            }
+            promise.resolve(result)
+        } catch (e: Exception) {
+            promise.reject("STATS_ERROR", e.message)
         }
     }
 

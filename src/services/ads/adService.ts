@@ -15,6 +15,7 @@
  */
 
 import { useSettingsStore } from '@store/settingsStore';
+import { useAuthStore } from '@store/authStore';
 import { NativeAds } from './nativeAds';
 import { AD_UNIT_IDS, SECURE_SCREENS } from './adConfig';
 import {
@@ -38,6 +39,27 @@ let interstitialPreloading = false;
 let rewardedPreloading = false;
 let appOpenPreloading = false;
 let appOpenShownThisSession = false;
+
+/**
+ * Suppress the vault's auto-lock-on-background while a full-screen ad is
+ * presenting. Without this, the ad's foreign Activity trips `AppState`
+ * into 'background' → grace period elapses during the ad → lockVault()
+ * fires on dismiss and the user is yanked to the Calculator.
+ */
+function withAutoLockSuppressed<T>(fn: () => Promise<T>): Promise<T> {
+  const { setSuppressAutoLock } = useAuthStore.getState();
+  setSuppressAutoLock(true);
+  return fn().finally(() => {
+    // Delay clearing the flag: on Android, the ad's onDismissFullScreenContent
+    // callback fires BEFORE AppState transitions back to 'active'. If we clear
+    // immediately, the background-lock handler in useAuthSession reads
+    // suppressAutoLock=false and locks the vault. The 2s delay ensures the
+    // AppState handler fires first (typically within 100-500ms).
+    setTimeout(() => {
+      useAuthStore.getState().setSuppressAutoLock(false);
+    }, 2000);
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Core: is the user ad-free?
@@ -193,7 +215,7 @@ export async function tryShowInterstitial(
       return { success: true, data: false };
     }
 
-    await NativeAds.showInterstitial();
+    await withAutoLockSuppressed(() => NativeAds.showInterstitial());
     recordInterstitialShown();
 
     // Preload next interstitial (not on a secure screen since we just left one)
@@ -264,7 +286,7 @@ export async function tryShowAppOpen(): Promise<AdResult<boolean>> {
       return { success: true, data: false };
     }
 
-    await NativeAds.showAppOpen();
+    await withAutoLockSuppressed(() => NativeAds.showAppOpen());
     appOpenShownThisSession = true;
 
     // Preload next (for subsequent sessions if app stays alive)
@@ -306,7 +328,7 @@ export async function showRewardedAd(): Promise<AdResult<RewardedAdResult>> {
       await NativeAds.loadRewarded(AD_UNIT_IDS.rewarded);
     }
 
-    const result = await NativeAds.showRewarded();
+    const result = await withAutoLockSuppressed(() => NativeAds.showRewarded());
 
     // Record ad dismissal for premium card delay logic
     recordAdDismissed();

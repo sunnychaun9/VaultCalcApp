@@ -10,8 +10,9 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { AppState, InteractionManager, StatusBar, StyleSheet, type AppStateStatus } from 'react-native';
+import * as Sentry from '@sentry/react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { RootNavigator } from './navigation';
@@ -27,6 +28,39 @@ import { clearThumbnailCache } from '@services/thumbnail';
 import { excludeFromRecents } from '@services/security';
 import { tryAutoBackup } from '@services/backup';
 import { checkPremiumStatus } from '@services/billing';
+
+// ─────────────────────────────────────────────────────────────
+// Sentry — initialized before React renders so native crashes
+// and early JS errors are captured. Privacy-hardened because
+// this is a vault app: no PII, no UI breadcrumbs, no user IDs.
+// ─────────────────────────────────────────────────────────────
+const navigationIntegration = Sentry.reactNavigationIntegration({
+  enableTimeToInitialDisplay: true,
+  ignoreEmptyBackNavigationTransactions: true,
+});
+
+Sentry.init({
+  dsn: 'https://5b80b97be7b78c4c2d17cd91c63864dd@o4511200339492864.ingest.de.sentry.io/4511200729235536',
+  release: `com.vaultcalcapp@${require('../../package.json').version}`,
+  environment: __DEV__ ? 'development' : 'production',
+  tracesSampleRate: 1.0,
+  enableAutoSessionTracking: true,
+  enableAutoPerformanceTracing: true,
+  sendDefaultPii: false,
+  integrations: [navigationIntegration],
+  // Drop UI breadcrumbs — they can contain file names, PIN digits, album titles.
+  beforeBreadcrumb: (breadcrumb) => {
+    if (breadcrumb.category === 'ui.click' || breadcrumb.category === 'ui.input') {
+      return null;
+    }
+    return breadcrumb;
+  },
+  // Strip any incidental user identifiers before the event leaves the device.
+  beforeSend: (event) => {
+    if (event.user) event.user = undefined;
+    return event;
+  },
+});
 
 /**
  * Root application component
@@ -44,6 +78,7 @@ function App(): React.JSX.Element {
   const isDark = themeColors === colors.dark;
   const [dbReady, setDbReady] = useState(false);
   const [showSplash, setShowSplash] = useState(true);
+  const navigationRef = useNavigationContainerRef();
 
   // Global lock cleanup: when isAuthenticated transitions true → false,
   // clear all decrypted data from disk. This fires for every lock path
@@ -58,6 +93,10 @@ function App(): React.JSX.Element {
           clearThumbnailCache();
           queryClient.clear();
           excludeFromRecents(true);
+          // Reschedule smart notification based on what the user did this session
+          import('@services/notifications/reengagementService').then(({ scheduleSmartNotification }) => {
+            scheduleSmartNotification();
+          }).catch(() => {});
         } else if (!wasAuth && isAuth) {
           // Authenticated: allow app to appear in recents again
           // (shows calculator since that's the initial route)
@@ -70,6 +109,7 @@ function App(): React.JSX.Element {
 
   // App Open Ad: show once per session when app returns to foreground.
   // Only fires when user is authenticated (vault unlocked) and not on first launch.
+  // Also records app open for smart notification suppression.
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
 
   useEffect(() => {
@@ -80,6 +120,12 @@ function App(): React.JSX.Element {
       if (wasBackground && nextState === 'active') {
         const { isAuthenticated } = useAuthStore.getState();
         const { isFirstLaunch } = useSettingsStore.getState();
+
+        // Record app open so pending notifications are suppressed for active users
+        import('@services/notifications/reengagementService').then(({ recordAppOpen }) => {
+          recordAppOpen();
+        }).catch(() => {});
+
         if (isAuthenticated && !isFirstLaunch) {
           import('@services/ads').then(({ tryShowAppOpen }) => {
             tryShowAppOpen().catch(() => {});
@@ -115,7 +161,12 @@ function App(): React.JSX.Element {
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <SafeAreaProvider>
-          <NavigationContainer>
+          <NavigationContainer
+            ref={navigationRef}
+            onReady={() => {
+              navigationIntegration.registerNavigationContainer(navigationRef);
+            }}
+          >
             <StatusBar
               barStyle={isDark ? 'light-content' : 'dark-content'}
               backgroundColor={themeColors.surface}
@@ -138,4 +189,4 @@ function App(): React.JSX.Element {
 
 const gestureRootStyle = StyleSheet.create({ flex: { flex: 1 } });
 
-export default App;
+export default Sentry.wrap(App);

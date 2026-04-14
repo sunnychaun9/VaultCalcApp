@@ -10,6 +10,7 @@
  */
 
 import * as SQLite from 'expo-sqlite';
+import * as Sentry from '@sentry/react-native';
 import { encryptString, decryptString } from '@services/crypto';
 
 /**
@@ -384,11 +385,30 @@ type MediaItemRow = {
 /**
  * Encrypt a field value before writing to the database.
  * Returns the encrypted string, or the original value if encryption fails.
+ *
+ * Silent-fallback failure mode: if encryption fails, we write PLAINTEXT to
+ * disk instead of ciphertext. That is unrecoverable after the fact — we
+ * have no way to audit which rows were stored unencrypted. Capture to
+ * Sentry so we see this happening in production the moment it starts.
+ * The `aad` category is logged but not the specific row id, to avoid
+ * sending user-identifying data to Sentry.
  */
 async function encryptField(value: string, aad: string): Promise<string> {
   if (value.length === 0) return value;
-  const result = await encryptString(value, aad);
-  return result.success && result.data !== undefined ? result.data : value;
+  try {
+    const result = await encryptString(value, aad);
+    if (result.success && result.data !== undefined) return result.data;
+    Sentry.captureMessage('encryptField silent fallback to plaintext', {
+      level: 'error',
+      tags: { area: 'crypto', op: 'encrypt', aadCategory: aad.split(':')[0] ?? 'unknown' },
+    });
+    return value;
+  } catch (e) {
+    Sentry.captureException(e, {
+      tags: { area: 'crypto', op: 'encrypt', aadCategory: aad.split(':')[0] ?? 'unknown' },
+    });
+    return value;
+  }
 }
 
 /**
@@ -605,13 +625,16 @@ export const mediaItems = {
   },
 
   /**
-   * Rename a media item's display name
+   * Rename a media item's display name.
+   * Updates both `name` (plaintext) and `original_name` (encrypted),
+   * since the UI displays `originalName` everywhere.
    */
   async rename(id: string, newName: string): Promise<void> {
     const database = await getDatabase();
+    const encryptedOriginalName = await encryptField(newName, `media_name:${id}`);
     await database.runAsync(
-      'UPDATE media_items SET name = ? WHERE id = ?',
-      [newName, id]
+      'UPDATE media_items SET name = ?, original_name = ? WHERE id = ?',
+      [newName, encryptedOriginalName, id]
     );
   },
 
