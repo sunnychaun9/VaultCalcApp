@@ -30,6 +30,7 @@ import com.vaultcalcapp.modules.fakecrash.FakeCrashPackage
 import com.vaultcalcapp.modules.review.InAppReviewPackage
 import com.vaultcalcapp.modules.localnotif.LocalNotifPackage
 import com.vaultcalcapp.modules.permission.PermissionPackage
+import com.vaultcalcapp.modules.referral.InstallReferrerPackage
 import expo.modules.ApplicationLifecycleDispatcher
 
 class MainApplication : Application(), ReactApplication {
@@ -64,6 +65,7 @@ class MainApplication : Application(), ReactApplication {
           add(InAppReviewPackage())
           add(LocalNotifPackage())
           add(PermissionPackage())
+          add(InstallReferrerPackage())
         },
     )
   }

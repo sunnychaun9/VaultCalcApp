@@ -18,6 +18,11 @@ import { Icon, IconButton } from '@shared/components/Icon';
 import { shareApp } from '@services/share';
 import { useSettingsStore } from '@store/settingsStore';
 import { alert } from '@store/alertStore';
+import {
+  checkAndGrantShareMilestones,
+  getShareRewardProgress,
+} from '@services/referral';
+import { trackEvent } from '@services/analytics';
 
 /**
  * About Screen Component
@@ -34,6 +39,13 @@ export function AboutScreen(): React.JSX.Element {
   const navigation = useNavigation();
   const { onActivity } = useActivityTracker();
   const appShareCount = useSettingsStore(s => s.appShareCount);
+  const referralRewardTier = useSettingsStore(s => s.referralRewardTier);
+  const progress = useMemo(
+    () => getShareRewardProgress(),
+    // Recompute when either field changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [appShareCount, referralRewardTier],
+  );
 
   const handleBack = useCallback(() => {
     onActivity();
@@ -45,12 +57,20 @@ export function AboutScreen(): React.JSX.Element {
     try {
       await shareApp();
       useSettingsStore.getState().incrementAppShareCount();
+      trackEvent('referral_sent', {});
 
-      // Reward feedback on first share
-      if (appShareCount === 0) {
+      // If this share crossed a reward tier, grant + announce it. Otherwise
+      // show a light "thanks" on the very first share.
+      const granted = checkAndGrantShareMilestones();
+      if (granted) {
+        alert(
+          'Reward unlocked!',
+          `You earned ${granted.label} for sharing VaultCalc. Enjoy!`,
+        );
+      } else if (appShareCount === 0) {
         alert(
           'Thanks for sharing!',
-          'You\'re helping others protect their privacy. We appreciate it.',
+          'Share with a few more friends to unlock ad-free time as a reward.',
         );
       }
     } catch {
@@ -92,7 +112,7 @@ export function AboutScreen(): React.JSX.Element {
           </View>
         </View>
 
-        {/* Share CTA */}
+        {/* Share CTA + referral reward progress */}
         <Pressable
           onPress={handleShareApp}
           style={({ pressed }) => [styles.shareButton, pressed && styles.shareButtonPressed]}
@@ -102,7 +122,20 @@ export function AboutScreen(): React.JSX.Element {
           <Icon name="share" size={18} color={themeColors.accent} />
           <Text style={styles.shareButtonText}>Share with friends</Text>
         </Pressable>
-        <Text style={styles.shareSubtext}>Help others protect their privacy too</Text>
+        {progress.nextTier ? (
+          <Text style={styles.shareSubtext}>
+            Share {progress.sharesRemaining} more{' '}
+            {progress.sharesRemaining === 1 ? 'time' : 'times'} to unlock{' '}
+            {progress.nextTier.label}
+          </Text>
+        ) : (
+          <Text style={styles.shareSubtext}>
+            You've unlocked every share reward. Thanks for spreading the word!
+          </Text>
+        )}
+        <Text style={styles.shareCountText}>
+          Shared {appShareCount} {appShareCount === 1 ? 'time' : 'times'}
+        </Text>
       </View>
 
       {/* Footer */}
@@ -209,6 +242,14 @@ const createStyles = (c: ColorTokens) => StyleSheet.create({
     ...typography.bodySmall,
     color: c.textTertiary,
     marginTop: spacing.sm,
+    textAlign: 'center',
+    paddingHorizontal: spacing.md,
+  },
+  shareCountText: {
+    ...typography.bodySmall,
+    color: c.textTertiary,
+    marginTop: spacing.xs,
+    opacity: 0.7,
   },
   footer: {
     ...typography.bodySmall,

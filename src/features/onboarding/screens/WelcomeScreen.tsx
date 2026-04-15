@@ -11,7 +11,7 @@
  * @see FEATURE_INDEX.md ONBOARD-001
  */
 
-import React, { useRef, useState, useCallback, useEffect } from 'react';
+import React, { useRef, useState, useCallback, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -30,6 +30,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { RootStackParamList } from '@typedefs/navigation';
 import { useSettingsStore } from '@store/settingsStore';
 import { trackEvent } from '@services/analytics';
+import { useTranslation } from '@shared/i18n';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -64,27 +65,11 @@ interface SlideData {
   illustration: React.JSX.Element;
 }
 
-const SLIDES: SlideData[] = [
-  {
-    title: 'Your privacy\nis not safe',
-    subtitle: 'Anyone who picks up your phone can see your private photos, videos, and files.',
-    illustration: <ExposedPhoneIllustration size={220} />,
-  },
-  {
-    title: 'Hide everything\nbehind a calculator',
-    subtitle: 'VaultCalc looks and works like a real calculator. Enter your secret PIN and press = to unlock your vault.',
-    illustration: <CalculatorDisguiseIllustration size={220} />,
-  },
-  {
-    title: 'Intruder alert\nprotects you',
-    subtitle: 'Wrong PIN? The front camera silently captures a photo. You will know exactly who tried to break in.',
-    illustration: <IntruderCameraIllustration size={220} />,
-  },
-  {
-    title: 'Your files deserve\nreal protection',
-    subtitle: 'Military-grade encryption. No cloud. No tracking. Everything stays on your device.',
-    illustration: <ShieldCTAIllustration size={220} />,
-  },
+const SLIDE_ILLUSTRATIONS: React.JSX.Element[] = [
+  <ExposedPhoneIllustration size={220} />,
+  <CalculatorDisguiseIllustration size={220} />,
+  <IntruderCameraIllustration size={220} />,
+  <ShieldCTAIllustration size={220} />,
 ];
 
 // ── Animated Slide ────────────────────────────────────────────
@@ -163,8 +148,15 @@ export function WelcomeScreen(): React.JSX.Element {
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList, 'Onboarding'>>();
   const completeFirstLaunch = useSettingsStore(s => s.completeFirstLaunch);
+  const { t } = useTranslation();
   const scrollViewRef = useRef<ScrollView>(null);
   const [currentPage, setCurrentPage] = useState(0);
+  const slides = useMemo<SlideData[]>(() => [
+    { title: t('onboarding.slide1_title'), subtitle: t('onboarding.slide1_subtitle'), illustration: SLIDE_ILLUSTRATIONS[0] },
+    { title: t('onboarding.slide2_title'), subtitle: t('onboarding.slide2_subtitle'), illustration: SLIDE_ILLUSTRATIONS[1] },
+    { title: t('onboarding.slide3_title'), subtitle: t('onboarding.slide3_subtitle'), illustration: SLIDE_ILLUSTRATIONS[2] },
+    { title: t('onboarding.slide4_title'), subtitle: t('onboarding.slide4_subtitle'), illustration: SLIDE_ILLUSTRATIONS[3] },
+  ], [t]);
   const scrollX = useSharedValue(0);
 
   // Entrance animations
@@ -272,7 +264,7 @@ export function WelcomeScreen(): React.JSX.Element {
           {!isLastSlide && (
             <Animated.View style={[styles.skipContainer, nextStyle]}>
               <Pressable onPress={handleSkip} style={styles.skipButton} accessibilityRole="button" accessibilityLabel="Skip onboarding">
-                <Text style={styles.skipText}>Skip</Text>
+                <Text style={styles.skipText}>{t('onboarding.cta_skip')}</Text>
               </Pressable>
             </Animated.View>
           )}
@@ -289,7 +281,7 @@ export function WelcomeScreen(): React.JSX.Element {
             decelerationRate="fast"
             style={styles.fullFlex}
           >
-            {SLIDES.map((slide, index) => (
+            {slides.map((slide, index) => (
               <Slide key={index} data={slide} index={index} scrollX={scrollX} />
             ))}
           </ScrollView>
@@ -298,7 +290,7 @@ export function WelcomeScreen(): React.JSX.Element {
           <View style={styles.bottomSection}>
             {/* Page indicators */}
             <View style={styles.pagination}>
-              {SLIDES.map((_, index) => (
+              {slides.map((_, index) => (
                 <Dot key={index} index={index} scrollX={scrollX} />
               ))}
             </View>
@@ -316,7 +308,7 @@ export function WelcomeScreen(): React.JSX.Element {
                   accessibilityRole="button"
                   accessibilityLabel="Secure my files"
                 >
-                  <Text style={styles.ctaText}>Secure My Files</Text>
+                  <Text style={styles.ctaText}>{t('onboarding.cta_get_started')}</Text>
                 </Pressable>
               </Animated.View>
 
@@ -331,7 +323,7 @@ export function WelcomeScreen(): React.JSX.Element {
                   accessibilityRole="button"
                   accessibilityLabel="Next slide"
                 >
-                  <Text style={styles.nextText}>Next</Text>
+                  <Text style={styles.nextText}>{t('common.next')}</Text>
                 </Pressable>
               </Animated.View>
             </View>

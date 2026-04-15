@@ -5,4 +5,4 @@
  */
 
 // Screens
-export { SettingsScreen, AboutScreen, IntruderLogsScreen, IntruderDetailScreen, SubscriptionScreen, NotificationPrivacyScreen, UninstallProtectionScreen, PrivacyPolicyScreen } from './screens';
+export { SettingsScreen, AboutScreen, IntruderLogsScreen, IntruderDetailScreen, SubscriptionScreen, NotificationPrivacyScreen, UninstallProtectionScreen, PrivacyPolicyScreen, LanguageScreen } from './screens';

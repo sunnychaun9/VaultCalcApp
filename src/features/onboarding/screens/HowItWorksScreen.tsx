@@ -15,24 +15,10 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '@typedefs/navigation';
 import { useThemeColors, type ColorTokens, typography, spacing, layout } from '@shared/theme';
 import { trackEvent } from '@services/analytics';
+import { useTranslation } from '@shared/i18n';
 
-const STEPS = [
-  {
-    number: '1',
-    title: 'Use as a regular calculator',
-    subtitle: 'It works just like any other calculator app.',
-  },
-  {
-    number: '2',
-    title: 'Enter your PIN and press =',
-    subtitle: 'Type your secret PIN into the calculator display.',
-  },
-  {
-    number: '3',
-    title: 'Access your encrypted vault',
-    subtitle: 'Your private files, hidden in plain sight.',
-  },
-] as const;
+// Step numbers are fixed — titles/subtitles pulled from i18n inside the component.
+const STEP_NUMBERS = ['1', '2', '3'] as const;
 
 /**
  * How It Works Screen Component
@@ -44,6 +30,13 @@ export function HowItWorksScreen(): React.JSX.Element {
   const themeColors = useThemeColors();
   const styles = useMemo(() => createStyles(themeColors), [themeColors]);
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const { t } = useTranslation();
+
+  const steps = useMemo(() => [
+    { number: STEP_NUMBERS[0], title: t('onboarding.step1_title'), subtitle: t('onboarding.step1_subtitle') },
+    { number: STEP_NUMBERS[1], title: t('onboarding.step2_title'), subtitle: t('onboarding.step2_subtitle') },
+    { number: STEP_NUMBERS[2], title: t('onboarding.step3_title'), subtitle: t('onboarding.step3_subtitle') },
+  ], [t]);
 
   const handleGotIt = useCallback(() => {
     trackEvent('tutorial_completed');
@@ -53,10 +46,10 @@ export function HowItWorksScreen(): React.JSX.Element {
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.content}>
-        <Text style={styles.title}>How It Works</Text>
+        <Text style={styles.title}>{t('onboarding.how_it_works_title')}</Text>
 
         <View style={styles.steps}>
-          {STEPS.map(step => (
+          {steps.map(step => (
             <View key={step.number} style={styles.step}>
               <View style={styles.stepNumber}>
                 <Text style={styles.stepNumberText}>{step.number}</Text>
@@ -79,9 +72,9 @@ export function HowItWorksScreen(): React.JSX.Element {
           onPress={handleGotIt}
           style={styles.button}
           accessibilityRole="button"
-          accessibilityLabel="Got It"
+          accessibilityLabel={t('common.got_it')}
         >
-          <Text style={styles.buttonText}>Got It</Text>
+          <Text style={styles.buttonText}>{t('common.got_it')}</Text>
         </Pressable>
       </View>
     </SafeAreaView>

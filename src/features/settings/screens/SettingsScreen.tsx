@@ -31,6 +31,7 @@ import { BackupProgressOverlay } from '../components/BackupProgressOverlay';
 import { RestoreProgressOverlay } from '../components/RestoreProgressOverlay';
 import { useThemeColors, colors, type ColorTokens, typography, spacing, layout } from '@shared/theme';
 import { alert } from '@store/alertStore';
+import { SUPPORTED_LANGUAGES } from '@shared/i18n';
 import { IconButton } from '@shared/components/Icon';
 import { SettingsSection } from '../components/SettingsSection';
 import { SettingsRow } from '../components/SettingsRow';
@@ -278,12 +279,32 @@ export function SettingsScreen(): React.JSX.Element {
     navigation.navigate('PrivacyPolicy');
   }, [onActivity, navigation]);
 
+  const handleLanguage = useCallback(() => {
+    onActivity();
+    navigation.navigate('Language');
+  }, [onActivity, navigation]);
+
+  // Human-readable label for the current language (shown as subtitle on the row)
+  const language = useSettingsStore(s => s.language);
+  const currentLanguageLabel = useMemo(() => {
+    const entry = SUPPORTED_LANGUAGES.find(l => l.code === language);
+    return entry?.nativeName ?? 'System default';
+  }, [language]);
+
   const handleShareApp = useCallback(async () => {
     onActivity();
     try {
       const { shareApp: doShare } = await import('@services/share');
       await doShare();
       useSettingsStore.getState().incrementAppShareCount();
+      const { checkAndGrantShareMilestones } = await import('@services/referral');
+      const { trackEvent } = await import('@services/analytics');
+      trackEvent('referral_sent', {});
+      const granted = checkAndGrantShareMilestones();
+      if (granted) {
+        const { alert } = await import('@store/alertStore');
+        alert('Reward unlocked!', `You earned ${granted.label} for sharing VaultCalc. Enjoy!`);
+      }
     } catch {
       // Share cancelled or failed — silent
     }
@@ -811,6 +832,7 @@ export function SettingsScreen(): React.JSX.Element {
             <SettingsRow type="value" icon="play" title="Ad-free mode" value={`${adFreeRemainingHours}h left`} onPress={() => {}} />
           )}
           <SettingsRow type="navigation" icon="share" title="Tell a friend" subtitle="Help others discover private file protection" onPress={handleShareApp} />
+          <SettingsRow type="navigation" icon="globe" title="Language" subtitle={currentLanguageLabel} onPress={handleLanguage} />
           <SettingsRow type="navigation" icon="shield" title="Privacy Policy" subtitle="How your data is handled" onPress={handlePrivacyPolicy} />
           <SettingsRow type="navigation" icon="settings" title="About VaultCalc" onPress={handleAbout} showDivider={false} />
         </SettingsSection>

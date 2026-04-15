@@ -9,7 +9,7 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { AppState, InteractionManager, StatusBar, StyleSheet, type AppStateStatus } from 'react-native';
+import { AppState, I18nManager, InteractionManager, StatusBar, StyleSheet, type AppStateStatus } from 'react-native';
 import * as Sentry from '@sentry/react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
@@ -35,6 +35,7 @@ import {
   bucketVaultSize,
   bucketInstallAge,
 } from '@services/analytics';
+import { initI18n, RTL_LANGUAGES, resolveDeviceLanguage } from '@shared/i18n';
 
 // ─────────────────────────────────────────────────────────────
 // Sentry — initialized before React renders so native crashes
@@ -67,6 +68,29 @@ function getAppLanguage(): string {
     return Intl.DateTimeFormat().resolvedOptions().locale || 'en';
   } catch {
     return 'en';
+  }
+}
+
+/**
+ * Apply the user's language preference to native layout direction.
+ *
+ * `forceRTL` is latched by React Native — it only takes full effect after a
+ * process restart. We still call it synchronously before i18n loads so the
+ * next cold start picks up the correct direction. The settings screen
+ * prompts for a restart when this value changes.
+ */
+function applyRtlFromLanguage(): void {
+  const { language, rtlApplied, setRtlApplied } = useSettingsStore.getState();
+  const effective = language === 'system' ? resolveDeviceLanguage() : language;
+  const shouldBeRtl = (RTL_LANGUAGES as ReadonlyArray<string>).includes(effective);
+  if (shouldBeRtl !== I18nManager.isRTL) {
+    try {
+      I18nManager.allowRTL(shouldBeRtl);
+      I18nManager.forceRTL(shouldBeRtl);
+    } catch { /* native call may fail on old Android — non-fatal */ }
+  }
+  if (shouldBeRtl !== rtlApplied) {
+    setRtlApplied(shouldBeRtl);
   }
 }
 
@@ -198,6 +222,14 @@ function App(): React.JSX.Element {
     return () => subscription.remove();
   }, []);
 
+  // i18n + RTL — initialize before dbReady so the first render is translated.
+  const [i18nReady, setI18nReady] = useState(false);
+  useEffect(() => {
+    applyRtlFromLanguage();
+    const { language } = useSettingsStore.getState();
+    initI18n(language).finally(() => setI18nReady(true));
+  }, []);
+
   useEffect(() => {
     initializeDatabase().then(() => {
       setDbReady(true);
@@ -210,6 +242,15 @@ function App(): React.JSX.Element {
         initAnalytics().then(() => {
           seedUserProperties();
         });
+        // Referral attribution — read Play Install Referrer exactly once per
+        // install and grant 7 days ad-free if this install came from a share.
+        // Runs after analytics so the `referral_sent` event is tracked by the
+        // attribution of any subsequent share from this user.
+        import('@services/referral').then(({ checkIncomingReferral, getOrCreateReferralCode }) => {
+          // Ensure we have a referral code for this install (stable across sessions)
+          getOrCreateReferralCode();
+          checkIncomingReferral();
+        }).catch(() => {});
         checkPremiumStatus();
         tryAutoBackup();
         // Validate rewarded ad-free mode (drift detection, anti-tamper)
@@ -250,7 +291,7 @@ function App(): React.JSX.Element {
               barStyle={isDark ? 'light-content' : 'dark-content'}
               backgroundColor={themeColors.surface}
             />
-            {dbReady && <RootNavigator />}
+            {dbReady && i18nReady && <RootNavigator />}
             <AlertModal />
           </NavigationContainer>
           {showSplash && (

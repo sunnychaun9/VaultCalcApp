@@ -66,6 +66,7 @@ import {
   ListMusic,
   MapPin,
   Scan,
+  Globe,
 } from 'lucide-react-native';
 import type { LucideProps } from 'lucide-react-native';
 
@@ -127,6 +128,9 @@ const ICON_MAP = {
 
   // Calculator
   'calculator': Calculator,
+
+  // i18n
+  'globe': Globe,
 
   // Audio player
   'play': Play,

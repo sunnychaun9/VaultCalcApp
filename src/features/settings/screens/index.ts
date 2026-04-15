@@ -6,3 +6,4 @@ export { SubscriptionScreen } from './SubscriptionScreen';
 export { NotificationPrivacyScreen } from './NotificationPrivacyScreen';
 export { UninstallProtectionScreen } from './UninstallProtectionScreen';
 export { PrivacyPolicyScreen } from './PrivacyPolicyScreen';
+export { LanguageScreen } from './LanguageScreen';

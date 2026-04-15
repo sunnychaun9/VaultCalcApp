@@ -20,6 +20,7 @@ import { importFiles } from '@services/import';
 import { useSettingsStore } from '@store/settingsStore';
 import { alert } from '@store/alertStore';
 import { trackEvent } from '@services/analytics';
+import { useTranslation } from '@shared/i18n';
 
 /**
  * First Import Screen Component
@@ -33,6 +34,7 @@ export function FirstImportScreen(): React.JSX.Element {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [isImporting, setIsImporting] = useState(false);
   const deleteOriginals = useSettingsStore(s => s.deleteOriginalsAfterImport);
+  const { t } = useTranslation();
 
   const goToCalculator = useCallback(() => {
     navigation.reset({ index: 0, routes: [{ name: 'Calculator' }] });
@@ -52,44 +54,42 @@ export function FirstImportScreen(): React.JSX.Element {
 
       if (result.failed.length === 0) {
         alert(
-          'Safe and sound',
-          `${result.imported} ${result.imported === 1 ? 'photo' : 'photos'} encrypted and hidden.`,
-          [{ text: 'OK', onPress: goToCalculator }],
+          t('onboarding.first_import_success_title'),
+          t('onboarding.first_import_success', { count: result.imported }) as string,
+          [{ text: t('common.ok'), onPress: goToCalculator }],
         );
       } else if (result.imported > 0) {
         alert(
-          'Almost there',
-          `${result.imported} imported, but ${result.failed.length} couldn't be added.`,
-          [{ text: 'OK', onPress: goToCalculator }],
+          t('onboarding.first_import_partial_title'),
+          t('onboarding.first_import_partial_body', { imported: result.imported, failed: result.failed.length }) as string,
+          [{ text: t('common.ok'), onPress: goToCalculator }],
         );
       } else {
         alert(
-          'Couldn\'t import',
-          `Something went wrong. Please try again.\n\n${result.failed[0]?.error ?? ''}`,
+          t('onboarding.first_import_error_title'),
+          `${t('onboarding.first_import_error_body')}\n\n${result.failed[0]?.error ?? ''}`,
         );
         setIsImporting(false);
       }
     } catch {
-      alert('Something went wrong', 'Import didn\'t work this time. Please try again.');
+      alert(t('onboarding.first_import_error_title'), t('onboarding.first_import_error_body') as string);
       setIsImporting(false);
     }
-  }, [goToCalculator, deleteOriginals]);
+  }, [goToCalculator, deleteOriginals, t]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.content}>
         <Icon name="shield" size={ICON_SIZE.xl} color={themeColors.accent} style={styles.icon} />
-        <Text style={styles.title}>Add Your First Photos</Text>
-        <Text style={styles.subtitle}>
-          Your photos will be encrypted and hidden inside the calculator app.
-        </Text>
+        <Text style={styles.title}>{t('onboarding.first_import_title')}</Text>
+        <Text style={styles.subtitle}>{t('onboarding.first_import_subtitle')}</Text>
       </View>
 
       <View style={styles.bottom}>
         {isImporting ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={themeColors.accent} />
-            <Text style={styles.loadingText}>Encrypting your photos...</Text>
+            <Text style={styles.loadingText}>{t('onboarding.first_import_encrypting')}</Text>
           </View>
         ) : (
           <>
@@ -97,17 +97,17 @@ export function FirstImportScreen(): React.JSX.Element {
               onPress={handleImport}
               style={styles.button}
               accessibilityRole="button"
-              accessibilityLabel="Import Photos"
+              accessibilityLabel={t('onboarding.first_import_cta')}
             >
-              <Text style={styles.buttonText}>Import Photos</Text>
+              <Text style={styles.buttonText}>{t('onboarding.first_import_cta')}</Text>
             </Pressable>
             <Pressable
               onPress={goToCalculator}
               style={styles.skipButton}
               accessibilityRole="button"
-              accessibilityLabel="Skip for Now"
+              accessibilityLabel={t('onboarding.first_import_skip')}
             >
-              <Text style={styles.skipText}>Skip for Now</Text>
+              <Text style={styles.skipText}>{t('onboarding.first_import_skip')}</Text>
             </Pressable>
           </>
         )}

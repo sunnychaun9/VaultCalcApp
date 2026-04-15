@@ -160,6 +160,19 @@ interface SettingsState {
   /** How many times the user has shared the app (for referral reward) */
   appShareCount: number;
 
+  // ── Referral system (GROWTH-001) ─────────────────────────────
+  /** Stable per-install referral code used as UTM content when sharing */
+  referralCode: string | null;
+
+  /** Referral code of the user who invited us (from Play Install Referrer). Null = organic install. */
+  referredBy: string | null;
+
+  /** Whether we've already attempted to read the Play Install Referrer (single-shot) */
+  referralCheckCompleted: boolean;
+
+  /** Highest share milestone already rewarded (3, 5, 10 — 0 means none yet) */
+  referralRewardTier: 0 | 3 | 5 | 10;
+
   /** Timestamp when premium lapsed (for win-back offer after 30 days) */
   premiumLapsedAt: number | null;
 
@@ -171,6 +184,12 @@ interface SettingsState {
 
   /** Whether to show pattern path while drawing (AUTH-009) */
   showPatternPath: boolean;
+
+  /** UI language. 'system' follows device locale. (LOCALE-001) */
+  language: 'system' | 'en' | 'es' | 'pt-BR' | 'hi' | 'fr' | 'de' | 'tr' | 'id' | 'ru' | 'ar' | 'vi';
+
+  /** Last `forceRTL` value written to native — used to detect when we need to prompt for a restart. */
+  rtlApplied: boolean;
 }
 
 /**
@@ -276,6 +295,24 @@ interface SettingsActions {
   /** Increment app share count */
   incrementAppShareCount: () => void;
 
+  /** Persist the generated per-install referral code (GROWTH-001) */
+  setReferralCode: (code: string) => void;
+
+  /** Persist the inviter's referral code after reading Play Install Referrer */
+  setReferredBy: (code: string | null) => void;
+
+  /** Mark the one-shot install-referrer read as done */
+  markReferralCheckCompleted: () => void;
+
+  /** Bump the highest rewarded share milestone */
+  setReferralRewardTier: (tier: 0 | 3 | 5 | 10) => void;
+
+  /** Set UI language preference (LOCALE-001) */
+  setLanguage: (language: SettingsState['language']) => void;
+
+  /** Record that we've applied forceRTL to the native layout */
+  setRtlApplied: (applied: boolean) => void;
+
   /** Record when premium subscription lapsed (for win-back) */
   recordPremiumLapsed: () => void;
 
@@ -335,12 +372,18 @@ const defaultSettings: SettingsState = {
   lastReviewPromptAt: null,
   reviewPromptCount: 0,
   appShareCount: 0,
+  referralCode: null,
+  referredBy: null,
+  referralCheckCompleted: false,
+  referralRewardTier: 0,
   premiumLapsedAt: null,
   winBackShown: false,
   paywallUnlockThreshold: (Math.random() < 0.5 ? 3 : 5) as 3 | 5,
   quickUnlockEnabled: false,
   unlockMethod: 'pin' as UnlockMethod,
   showPatternPath: true,
+  language: 'system',
+  rtlApplied: false,
 };
 
 /**
@@ -506,6 +549,18 @@ export const useSettingsStore = create<SettingsState & SettingsActions>()(
       incrementAppShareCount: () => {
         set((state) => ({ appShareCount: state.appShareCount + 1 }));
       },
+      setReferralCode: (code: string) => {
+        set({ referralCode: code });
+      },
+      setReferredBy: (code: string | null) => {
+        set({ referredBy: code });
+      },
+      markReferralCheckCompleted: () => {
+        set({ referralCheckCompleted: true });
+      },
+      setReferralRewardTier: (tier: 0 | 3 | 5 | 10) => {
+        set({ referralRewardTier: tier });
+      },
       recordPremiumLapsed: () => {
         set((state) => ({
           premiumLapsedAt: state.premiumLapsedAt ?? Date.now(),
@@ -528,6 +583,14 @@ export const useSettingsStore = create<SettingsState & SettingsActions>()(
 
       setShowPatternPath: (show) => {
         set({ showPatternPath: show });
+      },
+
+      setLanguage: (language: SettingsState['language']) => {
+        set({ language });
+      },
+
+      setRtlApplied: (applied: boolean) => {
+        set({ rtlApplied: applied });
       },
 
       resetToDefaults: () => {
@@ -573,10 +636,16 @@ export const useSettingsStore = create<SettingsState & SettingsActions>()(
         lastReviewPromptAt: state.lastReviewPromptAt,
         reviewPromptCount: state.reviewPromptCount,
         appShareCount: state.appShareCount,
+        referralCode: state.referralCode,
+        referredBy: state.referredBy,
+        referralCheckCompleted: state.referralCheckCompleted,
+        referralRewardTier: state.referralRewardTier,
         consentStatus: state.consentStatus,
         quickUnlockEnabled: state.quickUnlockEnabled,
         unlockMethod: state.unlockMethod,
         showPatternPath: state.showPatternPath,
+        language: state.language,
+        rtlApplied: state.rtlApplied,
       }),
     },
   ),

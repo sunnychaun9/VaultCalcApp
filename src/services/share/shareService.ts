@@ -138,9 +138,13 @@ export async function shareNoteAsText(title: string, content: string): Promise<v
 
 /**
  * Share the app via the native share sheet.
- * Uses a compelling message with the Play Store link.
+ * Uses a compelling message + a referral-coded Play Store link so incoming
+ * installs can be attributed back to the sharer (GROWTH-001).
  */
 export async function shareApp(): Promise<void> {
-  const message = 'I hide my private files inside a calculator app. Nobody knows it\'s a vault. Try it:\nhttps://play.google.com/store/apps/details?id=com.vaultcalcapp';
+  // Lazy require to avoid a circular dep between share ↔ referral ↔ settingsStore
+  const { getReferralLink } = require('@services/referral');
+  const link = getReferralLink();
+  const message = `I hide my private files inside a calculator app. Nobody knows it's a vault. Try it:\n${link}`;
   await NativeShare.shareText(message, 'Check out VaultCalc');
 }

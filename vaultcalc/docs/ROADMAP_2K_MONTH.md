@@ -321,10 +321,51 @@ Goal: Get live on Play Store with analytics so every decision from here is data-
 Goal: Build the two features that unlock organic growth — referrals and localization.
 
 ### Task 2.1: Referral System
-- [ ] **Status: NOT STARTED**
+- [x] **Status: CODE COMPLETE (Option C — zero backend)**
 - **Why:** Vault apps spread by word of mouth. A referral incentive turns every user into a $0 CAC acquisition channel. This is your single highest-ROI feature.
 - **Effort:** 3-5 days
-- **Existing scaffolding:** `settingsStore.appShareCount` (field exists, unused), `shareApp()` in `shareService.ts` (basic share sheet, no tracking)
+- **Date completed (code):** 2026-04-14
+- **Approach chosen:** Option C — Play Install Referrer API + share-milestone rewards (no backend). This ships fast; upgrade to Branch.io when we have revenue.
+- **Reward model:**
+  - Incoming install via referral link → 7 days ad-free
+  - Share milestone 3 → 7 days ad-free
+  - Share milestone 5 → 14 days ad-free
+  - Share milestone 10 → 30 days ad-free
+  - Rewards stack on top of existing `adFreeUntil` (never truncate a longer window)
+- **What shipped:**
+  - Native Kotlin module `InstallReferrerModule` using `com.android.installreferrer:installreferrer:2.2`
+  - Dependency added to `android/app/build.gradle`; package registered in `MainApplication.kt`
+  - settingsStore fields: `referralCode`, `referredBy`, `referralCheckCompleted`, `referralRewardTier` — all persisted
+  - `src/services/referral/referralService.ts` — `getOrCreateReferralCode`, `getReferralLink`, `checkIncomingReferral`, `checkAndGrantShareMilestones`, `getShareRewardProgress`, `extractCodeFromReferrer`, `SHARE_REWARD_TIERS`
+  - `shareApp()` in `shareService.ts` now uses the referral-coded Play Store URL
+  - `App.tsx` calls `getOrCreateReferralCode()` + `checkIncomingReferral()` once per install inside `InteractionManager.runAfterInteractions`
+  - `AboutScreen` shows share count + next-tier progress ("Share 2 more times to unlock 7 days ad-free") + reward alert on milestone hit
+  - `SettingsScreen` share handler also checks milestones
+  - Analytics `referral_sent` fires on each share
+  - Self-referral guard: clicking your own link on the same device never grants a reward
+  - Format guard: `utm_content` must match `^[a-z0-9]{4,16}$` — prevents stray UTM campaigns from granting rewards
+- **Files touched:**
+  - NEW: `android/app/src/main/java/com/vaultcalcapp/modules/referral/InstallReferrerModule.kt`
+  - NEW: `android/app/src/main/java/com/vaultcalcapp/modules/referral/InstallReferrerPackage.kt`
+  - NEW: `src/services/referral/referralService.ts`
+  - NEW: `src/services/referral/index.ts`
+  - MODIFIED: `android/app/build.gradle`, `android/app/src/main/java/com/vaultcalcapp/MainApplication.kt`
+  - MODIFIED: `src/store/settingsStore.ts` (fields + actions + persist partialize)
+  - MODIFIED: `src/services/share/shareService.ts`
+  - MODIFIED: `src/app/App.tsx`
+  - MODIFIED: `src/features/settings/screens/AboutScreen.tsx`, `SettingsScreen.tsx`
+- **Manual step required:** rebuild Android (`cd android && ./gradlew clean && cd .. && npm run android`) to pick up the new native dependency.
+- **Verification on device:**
+  1. Fresh install → check settings have no `referredBy` (organic)
+  2. Tap Share in About — system share sheet opens with URL containing `?referrer=utm_source%3Dvaultcalc%26utm_content%3D<CODE>`
+  3. Uninstall, install via the share link → `referredBy` field set, `adFreeUntil` extended by 7 days
+  4. Share 3 times → reward alert pops, `referralRewardTier = 3`, `adFreeUntil` extended
+  5. Analytics DebugView shows `referral_sent` on each share
+- **Known limitations (acceptable for MVP):**
+  - No cross-device sync of referral codes — works only because Play Store's Install Referrer API attributes the source install
+  - Referrer can't be notified when someone installs their link (requires backend). Mitigation: milestone rewards reward the sharer directly based on share count
+  - `ad_clicked` analytics event still deferred — needs native AdMob click callback plumbing
+- **Future upgrade path:** Swap `Option C` for Branch.io when we have revenue. Branch gives real referrer→referee attribution, proper reward-on-install, deep linking into specific screens, and a dashboard.
 
 #### Architecture:
 
@@ -417,7 +458,50 @@ Goal: Build the two features that unlock organic growth — referrals and locali
 ---
 
 ### Task 2.2: Localization (i18n) — 10 Languages
-- [ ] **Status: NOT STARTED**
+- [x] **Status: CORE COMPLETE — remaining screens to migrate on demand**
+- **Date completed (core):** 2026-04-14
+- **What shipped:**
+  - `react-i18next`, `i18next`, `expo-localization` added to package.json (installed)
+  - `src/shared/i18n/i18n.ts`: init config, device-locale resolver, `changeLanguage()`, `SUPPORTED_LANGUAGES` (12 entries including `system`), `RTL_LANGUAGES = ['ar']`
+  - `src/shared/i18n/index.ts`: public API — also re-exports `useTranslation` and `Trans`
+  - `src/shared/i18n/locales/en.json`: source-of-truth with ~150 keys across namespaces (common, onboarding, calculator, vault, settings, subscription, feature_discovery, referral, pin_setup, about)
+  - 10 translation files shipped — `es`, `pt-BR`, `hi`, `fr`, `de`, `tr`, `id`, `ru`, `ar`, `vi` — all with full coverage of the en.json surface (these are production-usable translations that will benefit from a native-speaker review pass but don't block launch)
+  - settingsStore: `language` field (persisted) + `rtlApplied` flag + `setLanguage` + `setRtlApplied`
+  - `App.tsx`: `initI18n(language)` before first render (dbReady AND i18nReady gate RootNavigator); `applyRtlFromLanguage()` on startup flips `I18nManager.forceRTL` based on resolved language
+  - `LanguageScreen.tsx`: new screen with `SUPPORTED_LANGUAGES` list, native+English name display, selected checkmark, RTL restart prompt on Arabic toggle
+  - `VaultNavigator`: registered `Language` route
+  - `SettingsScreen`: "Language" row under Tell a friend, icon `globe`, subtitle shows current native name
+  - Icon component: added `globe` → Lucide `Globe`
+  - Migrated to `t()`: `WelcomeScreen` (4 slide titles/subtitles, Skip, Next, CTA), `HowItWorksScreen` (title, 3 steps, Got It), `FirstImportScreen` (title, subtitle, CTA, skip, loading, success/partial/error alerts with pluralization)
+  - Pluralization via i18next suffix convention (`*_one` / `*_other` + `{ count }`)
+- **RTL support:**
+  - `RTL_LANGUAGES` constant = `['ar']`
+  - `applyRtlFromLanguage()` in App.tsx calls `I18nManager.allowRTL + forceRTL` when entering/leaving an RTL language
+  - `LanguageScreen.handleSelect` does the same on user switch + alerts for restart
+  - Native layout only fully flips after process restart (RN limitation — documented in the restart prompt)
+- **Screens NOT yet migrated (acceptable — low user impact):**
+  - `SettingsScreen` (dense — migrate gradually as sections get touched)
+  - `SubscriptionScreen` (keys ready in en.json under `subscription.*` — replace strings next pass)
+  - `AboutScreen` (keys ready under `about.*`)
+  - `PinSetupScreen`, `VaultHomeScreen`, `MediaViewerScreen`, `AudioPlayerScreen`, `AlbumViewScreen`, `NoteEditorScreen`, `IntruderLogsScreen`, `FeatureDiscoveryCard` — keys in en.json, strings still hardcoded
+  - **Next pass ordering:** SubscriptionScreen → SettingsScreen → VaultHomeScreen → rest. Done screen-by-screen so we never ship a half-translated page.
+- **Known limitations (acceptable for v1):**
+  - Translations are AI-assisted — professional native-speaker review recommended before major marketing push. Use `en.json` as the source; only edit other locales after translator review.
+  - Date/time/number formatting still uses default `toLocaleString()` — works correctly once `I18nManager` RTL flips. No extra work needed unless we add currency formatting later.
+  - Google Play Console listing localization is separate — add translated store title/description/screenshots per language when submitting.
+- **Files touched:**
+  - NEW: `src/shared/i18n/i18n.ts`, `src/shared/i18n/index.ts`, `src/shared/i18n/locales/{en,es,pt-BR,hi,fr,de,tr,id,ru,ar,vi}.json` (11 files)
+  - NEW: `src/features/settings/screens/LanguageScreen.tsx`
+  - MODIFIED: `package.json`, `src/app/App.tsx`, `src/store/settingsStore.ts`, `src/types/navigation.ts`
+  - MODIFIED: `src/app/navigation/VaultNavigator.tsx`, `src/features/settings/index.ts`, `src/features/settings/screens/index.ts`, `src/features/settings/screens/SettingsScreen.tsx`
+  - MODIFIED: `src/shared/components/Icon.tsx` (Globe icon)
+  - MODIFIED: `src/features/onboarding/screens/{WelcomeScreen,HowItWorksScreen,FirstImportScreen}.tsx`
+- **Verification on device:**
+  1. Fresh install with device locale = Spanish → app renders in Spanish
+  2. Settings → Language → pick French → onboarding (if re-triggered) renders in French
+  3. Settings → Language → pick Arabic → restart prompt shows, restart app → layout is RTL
+  4. Settings → Language → System default → reverts to device locale
+- **Reference this when migrating remaining screens:** every string you touch that's user-facing should become `t('namespace.key')`. Add the English source to `en.json` under the right namespace. Don't translate the other locale files by hand — run the next translation pass against all 10 at once (either AI + review or Fiverr)
 - **Why:** English-only caps addressable market at ~15% of Play Store users. Vault apps are global. Adding 10 languages 5-7x your audience overnight.
 - **Effort:** 3-4 days for setup + string extraction. Translation: $500-$1000 via Fiverr/Gengo, or use AI translation + native speaker review.
 
@@ -851,6 +935,12 @@ Record key decisions here so future sessions have context:
 | 2026-04-14 | Chose Firebase Analytics over PostHog | Free unlimited events, integrates with AdMob for ROAS tracking, consistent with existing Google stack (AdMob, Play Billing, Google Drive) |
 | 2026-04-14 | Privacy-hardened Firebase Analytics | Manifest disables auto-collection + ADID + SSAID; JS opts in after init. Matches Sentry privacy posture (vault app = no PII leaving device without explicit consent). |
 | 2026-04-14 | Task 1.1 code complete | All funnel events wired. User must create Firebase project + drop google-services.json into android/app/ to activate. |
+| 2026-04-14 | Task 2.1 chose Option C (Play Install Referrer, no backend) | Ship fast with no infra cost. Reward sharers via share-count milestones (3/5/10 shares → 7/14/30 days ad-free) since we can't notify them server-side. Upgrade to Branch.io once revenue justifies backend. |
+| 2026-04-14 | Referral reward = extended `adFreeUntil` (not `premiumStatus='trial'`) | Cleaner interaction with existing billing flow — no risk of the referral grant being overwritten by `checkPremiumStatus()` polling. Users get the most concrete part of premium (no ads) without corrupting the subscription state machine. |
+| 2026-04-14 | Task 2.1 code complete | All referral wiring + reward UI done. User must rebuild Android (new native dependency) and verify on device with a test install-via-link flow. |
+| 2026-04-14 | Task 2.2 shipped 11 locales at once | Ship all 10 translations up-front (AI-assisted) rather than rolling out one at a time. Rationale: Play Store ASO benefits require the listing to be translated for each market, so having the in-app translations ready lets us localize the listing in parallel. Native-speaker review is a follow-up polish pass, not a blocker. |
+| 2026-04-14 | Kept all locale JSONs bundled (not lazy-loaded) | Total locale payload is ~50KB gzipped — negligible on Android. Lazy loading would add a loading state on first language switch and a failure mode for offline users. Bundle-all is simpler and faster. |
+| 2026-04-14 | Migrated only onboarding screens to t() in this pass | Onboarding is the first user impression and most visible. Other screens will migrate as they're next touched for feature work — lowers the risk of a half-translated screen shipping. |
 
 ---
 

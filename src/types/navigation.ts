@@ -88,6 +88,8 @@ export type VaultStackParamList = {
   UninstallProtection: undefined;
   /** Privacy Policy screen */
   PrivacyPolicy: undefined;
+  /** Language selector (LOCALE-001) */
+  Language: undefined;
 };
 
 /**
