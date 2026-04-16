@@ -9,6 +9,7 @@
 
 import React, { useRef, useCallback, useMemo } from 'react';
 import { View, TextInput, StyleSheet } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { useThemeColors, type ColorTokens, typography, spacing } from '@shared/theme';
 import { Icon, IconButton } from '@shared/components/Icon';
 
@@ -21,8 +22,10 @@ interface SearchBarProps {
 export function SearchBar({
   value,
   onChangeText,
-  placeholder = 'Search files...',
+  placeholder,
 }: SearchBarProps): React.JSX.Element {
+  const { t } = useTranslation();
+  const resolvedPlaceholder = placeholder ?? t('vault.search_files_placeholder');
   const themeColors = useThemeColors();
   const styles = useMemo(() => createStyles(themeColors), [themeColors]);
   const inputRef = useRef<TextInput>(null);
@@ -39,7 +42,7 @@ export function SearchBar({
         ref={inputRef}
         value={value}
         onChangeText={onChangeText}
-        placeholder={placeholder}
+        placeholder={resolvedPlaceholder}
         placeholderTextColor={themeColors.textTertiary}
         style={styles.input}
         autoCapitalize="none"

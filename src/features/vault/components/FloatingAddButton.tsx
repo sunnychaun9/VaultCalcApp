@@ -14,6 +14,7 @@ import {
   StyleSheet,
 } from 'react-native';
 import Animated from 'react-native-reanimated';
+import { useTranslation } from 'react-i18next';
 import { useThemeColors, type ColorTokens, typography, spacing, elevationLevels } from '@shared/theme';
 import { usePressAnimation } from '@shared/hooks/useAnimations';
 
@@ -31,9 +32,11 @@ interface FloatingAddButtonProps {
  */
 export function FloatingAddButton({
   onPress,
-  label = '+ Add Files',
+  label,
   disabled = false,
 }: FloatingAddButtonProps): React.JSX.Element {
+  const { t } = useTranslation();
+  const resolvedLabel = label ?? t('vault.add_files');
   const themeColors = useThemeColors();
   const styles = useMemo(() => createStyles(themeColors), [themeColors]);
   const { animatedStyle, onPressIn, onPressOut } = usePressAnimation({
@@ -53,9 +56,9 @@ export function FloatingAddButton({
           disabled && styles.buttonDisabled,
         ]}
         accessibilityRole="button"
-        accessibilityLabel={label}
+        accessibilityLabel={resolvedLabel}
       >
-        <Text style={styles.buttonText}>{label}</Text>
+        <Text style={styles.buttonText}>{resolvedLabel}</Text>
       </Pressable>
     </Animated.View>
   );

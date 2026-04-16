@@ -51,17 +51,18 @@ import {
 import { alert } from '@store/alertStore';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { trackEvent, type PlanParam } from '@services/analytics';
+import { useTranslation } from '@shared/i18n';
 
 // ── Types & Constants ─────────────────────────────────────────
 
 type PlanType = 'yearly' | 'monthly' | 'lifetime' | 'remove_ads';
 
 const PREMIUM_FEATURES = [
-  { icon: 'eye-off' as const, label: 'No ads, ever', desc: 'Zero interruptions' },
-  { icon: 'scan' as const, label: 'Intruder alerts', desc: 'Photo evidence on break-in' },
-  { icon: 'shield' as const, label: 'Cloud backup', desc: 'Encrypted offsite backup' },
-  { icon: 'lock' as const, label: 'Unlimited storage', desc: 'No file count limits' },
-  { icon: 'eye-off' as const, label: 'Fake crash & decoy', desc: 'Advanced stealth modes' },
+  { icon: 'eye-off' as const, labelKey: 'subscription.feature_no_ads', descKey: 'subscription.feature_no_ads_desc' },
+  { icon: 'scan' as const, labelKey: 'subscription.feature_intruder', descKey: 'subscription.feature_intruder_desc' },
+  { icon: 'shield' as const, labelKey: 'subscription.feature_cloud', descKey: 'subscription.feature_cloud_desc' },
+  { icon: 'lock' as const, labelKey: 'subscription.feature_storage', descKey: 'subscription.feature_storage_desc' },
+  { icon: 'eye-off' as const, labelKey: 'subscription.feature_decoy', descKey: 'subscription.feature_decoy_desc' },
 ] as const;
 
 const PLAN_PRODUCT_MAP: Record<PlanType, string> = {
@@ -111,12 +112,13 @@ function HeroGradient(): React.JSX.Element {
 
 // ── Animated Feature Row ──────────────────────────────────────
 
-function FeatureRow({ icon, label, desc, index }: {
+function FeatureRow({ icon, labelKey, descKey, index }: {
   icon: typeof PREMIUM_FEATURES[number]['icon'];
-  label: string;
-  desc: string;
+  labelKey: string;
+  descKey: string;
   index: number;
 }): React.JSX.Element {
+  const { t } = useTranslation();
   const translateX = useSharedValue(30);
   const opacity = useSharedValue(0);
 
@@ -137,8 +139,8 @@ function FeatureRow({ icon, label, desc, index }: {
         <Icon name={icon} size={18} color="#60A5FA" />
       </View>
       <View style={featureStyles.textCol}>
-        <Text style={featureStyles.label}>{label}</Text>
-        <Text style={featureStyles.desc}>{desc}</Text>
+        <Text style={featureStyles.label}>{t(labelKey)}</Text>
+        <Text style={featureStyles.desc}>{t(descKey)}</Text>
       </View>
       <Icon name="check" size={16} color="#22C55E" strokeWidth={3} />
     </Animated.View>
@@ -181,6 +183,7 @@ const featureStyles = StyleSheet.create({
 // ── Main Component ────────────────────────────────────────────
 
 export function SubscriptionScreen(): React.JSX.Element {
+  const { t } = useTranslation();
   const themeColors = useThemeColors();
   const isDark = themeColors === colors.dark;
   const styles = useMemo(() => createStyles(themeColors, isDark), [themeColors, isDark]);
@@ -301,13 +304,13 @@ export function SubscriptionScreen(): React.JSX.Element {
       trackEvent('paywall_purchased', { plan: selectedPlan as PlanParam });
       setPremiumStatus('premium');
       setPremiumPurchase(result.purchase.productId, result.purchase.purchaseToken);
-      alert('Welcome to Premium!', 'Your purchase was successful. Enjoy all premium features!', [
-        { text: 'OK', onPress: () => navigation.goBack() },
+      alert(t('subscription.success_title'), t('subscription.success_body'), [
+        { text: t('common.ok'), onPress: () => navigation.goBack() },
       ]);
     } else if (result.cancelled) {
       // User cancelled — no-op
     } else if (result.error) {
-      alert('Purchase Failed', result.error);
+      alert(t('subscription.purchase_failed'), result.error);
     }
   }, [onActivity, isPremium, isPurchasing, selectedPlan, products, setPremiumStatus, setPremiumPurchase, navigation]);
 
@@ -325,22 +328,22 @@ export function SubscriptionScreen(): React.JSX.Element {
       if (activePurchase) {
         setPremiumStatus('premium');
         setPremiumPurchase(activePurchase.productId, activePurchase.purchaseToken);
-        alert('Purchases Restored', 'Your premium access has been restored.');
+        alert(t('subscription.restore_success_title'), t('subscription.restore_success_body'));
       } else {
-        alert('No Purchases Found', 'No active premium purchases were found for this account.');
+        alert(t('subscription.restore_empty_title'), t('subscription.restore_empty_body'));
       }
     } else {
-      alert('Restore Failed', 'Unable to check for existing purchases. Please try again.');
+      alert(t('subscription.restore_failed_title'), t('subscription.restore_failed_body'));
     }
   }, [onActivity, isRestoring, setPremiumStatus, setPremiumPurchase]);
 
   const ctaLabel = selectedPlan === 'remove_ads'
-    ? `Remove Ads — ${removeAdsPrice}`
+    ? t('subscription.cta_remove_ads', { price: removeAdsPrice })
     : selectedPlan === 'lifetime'
-      ? `Get Lifetime — ${lifetimePrice}`
+      ? t('subscription.cta_buy_lifetime', { price: lifetimePrice })
       : selectedPlan === 'yearly'
-        ? 'Start 3-Day Free Trial'
-        : `Subscribe — ${monthlyPrice}/mo`;
+        ? t('subscription.cta_start_trial')
+        : t('subscription.cta_subscribe', { price: monthlyPrice });
 
   return (
     <View style={styles.container}>
@@ -370,12 +373,12 @@ export function SubscriptionScreen(): React.JSX.Element {
               <Icon name="shield-check" size={52} color="#60A5FA" />
             </View>
             <Text style={styles.heroTitle}>
-              {isPremium ? "You're Premium!" : 'Protect what matters most'}
+              {isPremium ? t('subscription.active_title') : t('subscription.hero_title')}
             </Text>
             <Text style={styles.heroSubtitle}>
               {isPremium
-                ? 'You have access to all premium features'
-                : 'Your photos, files, and secrets deserve real protection.'}
+                ? t('subscription.active_subtitle')
+                : t('subscription.hero_subtitle')}
             </Text>
           </Animated.View>
 
@@ -386,7 +389,7 @@ export function SubscriptionScreen(): React.JSX.Element {
             return isNew ? (
               <Animated.View style={[styles.urgencyBanner, contentAnimStyle]}>
                 <Icon name="clock" size={14} color="#F59E0B" />
-                <Text style={styles.urgencyText}>New user offer — Save 72% on yearly</Text>
+                <Text style={styles.urgencyText}>{t('subscription.urgency_banner', { percent: 72 })}</Text>
               </Animated.View>
             ) : null;
           })()}
@@ -395,10 +398,10 @@ export function SubscriptionScreen(): React.JSX.Element {
           <View style={styles.featureCard}>
             {PREMIUM_FEATURES.map((feature, index) => (
               <FeatureRow
-                key={feature.label}
+                key={feature.labelKey}
                 icon={feature.icon}
-                label={feature.label}
-                desc={feature.desc}
+                labelKey={feature.labelKey}
+                descKey={feature.descKey}
                 index={index}
               />
             ))}
@@ -420,13 +423,13 @@ export function SubscriptionScreen(): React.JSX.Element {
                 >
                   {/* Most Popular badge */}
                   <View style={styles.popularBadge}>
-                    <Text style={styles.popularBadgeText}>MOST POPULAR</Text>
+                    <Text style={styles.popularBadgeText}>{t('subscription.most_popular')}</Text>
                   </View>
-                  <Text style={styles.planTitle}>Yearly</Text>
+                  <Text style={styles.planTitle}>{t('subscription.plan_yearly')}</Text>
                   <Text style={styles.planPrice}>{yearlyPrice}</Text>
-                  <Text style={styles.planPer}>/year</Text>
+                  <Text style={styles.planPer}>{t('subscription.per_year')}</Text>
                   <View style={styles.savePill}>
-                    <Text style={styles.savePillText}>Save 72%</Text>
+                    <Text style={styles.savePillText}>{t('subscription.plan_yearly_save', { percent: 72 })}</Text>
                   </View>
                   <Text style={styles.planEquiv}>{yearlyMonthly}</Text>
                   {selectedPlan === 'yearly' && (
@@ -447,9 +450,9 @@ export function SubscriptionScreen(): React.JSX.Element {
                   accessibilityLabel={`Select monthly plan, ${monthlyPrice} per month`}
                 >
                   <View style={styles.popularBadgeSpacer} />
-                  <Text style={styles.planTitle}>Monthly</Text>
+                  <Text style={styles.planTitle}>{t('subscription.plan_monthly')}</Text>
                   <Text style={styles.planPrice}>{monthlyPrice}</Text>
-                  <Text style={styles.planPer}>/month</Text>
+                  <Text style={styles.planPer}>{t('subscription.per_month')}</Text>
                   {selectedPlan === 'monthly' && (
                     <View style={styles.checkBadge}>
                       <Icon name="check" size={12} color="#FFFFFF" strokeWidth={3} />
@@ -466,7 +469,7 @@ export function SubscriptionScreen(): React.JSX.Element {
                 accessibilityLabel={showMorePlans ? 'Hide additional plans' : 'Show additional plans'}
               >
                 <Text style={styles.moreOptionsText}>
-                  {showMorePlans ? 'Fewer options' : 'More options'}
+                  {showMorePlans ? t('subscription.fewer_options') : t('subscription.more_options')}
                 </Text>
                 <Icon
                   name="chevron-right"
@@ -490,8 +493,8 @@ export function SubscriptionScreen(): React.JSX.Element {
                   >
                     <View style={styles.lifetimeRow}>
                       <View style={styles.lifetimeTextCol}>
-                        <Text style={styles.planTitle}>Lifetime</Text>
-                        <Text style={styles.lifetimeSub}>Pay once, own forever</Text>
+                        <Text style={styles.planTitle}>{t('subscription.plan_lifetime')}</Text>
+                        <Text style={styles.lifetimeSub}>{t('subscription.plan_lifetime_desc')}</Text>
                       </View>
                       {selectedPlan === 'lifetime' && (
                         <View style={styles.inlineCheckBadge}>
@@ -514,8 +517,8 @@ export function SubscriptionScreen(): React.JSX.Element {
                   >
                     <View style={styles.lifetimeRow}>
                       <View style={styles.lifetimeTextCol}>
-                        <Text style={styles.planTitle}>Remove Ads Only</Text>
-                        <Text style={styles.lifetimeSub}>One-time purchase</Text>
+                        <Text style={styles.planTitle}>{t('subscription.plan_remove_ads')}</Text>
+                        <Text style={styles.lifetimeSub}>{t('subscription.plan_remove_ads_desc')}</Text>
                       </View>
                       {selectedPlan === 'remove_ads' && (
                         <View style={styles.inlineCheckBadge}>
@@ -555,11 +558,11 @@ export function SubscriptionScreen(): React.JSX.Element {
             {/* Trust signals */}
             <View style={styles.trustRow}>
               <Icon name="lock" size={12} color="#64748B" />
-              <Text style={styles.trustText}>Secure & private</Text>
+              <Text style={styles.trustText}>{t('subscription.trust_badge_secure')}</Text>
               <Text style={styles.trustDot}>{'\u00B7'}</Text>
-              <Text style={styles.trustText}>Cancel anytime</Text>
+              <Text style={styles.trustText}>{t('subscription.trust_badge_cancel')}</Text>
             </View>
-            <Text style={styles.socialProof}>Trusted by thousands to protect their private files</Text>
+            <Text style={styles.socialProof}>{t('subscription.social_proof')}</Text>
 
             <Pressable
               onPress={handleRestore}
@@ -568,7 +571,7 @@ export function SubscriptionScreen(): React.JSX.Element {
               accessibilityLabel="Restore purchases"
             >
               <Text style={styles.restoreLink}>
-                {isRestoring ? 'Restoring...' : 'Restore purchases'}
+                {isRestoring ? t('subscription.restore_loading') : t('subscription.restore')}
               </Text>
             </Pressable>
           </Animated.View>

@@ -26,6 +26,7 @@ import { unhideMediaItems } from '@services/unhide';
 import { useAuthStore } from '@store/authStore';
 import { useThemeColors, type ColorTokens, typography, spacing } from '@shared/theme';
 import { Icon, type IconName } from '@shared/components/Icon';
+import { useTranslation } from 'react-i18next';
 
 interface VideoActionBarProps {
   selectedItems: MediaItem[];
@@ -42,6 +43,7 @@ export function VideoActionBar({
   onDeselectAll,
   onOperationComplete,
 }: VideoActionBarProps): React.JSX.Element {
+  const { t } = useTranslation();
   const themeColors = useThemeColors();
   const styles = useMemo(() => createStyles(themeColors), [themeColors]);
   const queryClient = useQueryClient();
@@ -59,7 +61,7 @@ export function VideoActionBar({
     try {
       await shareMediaItems(selectedItems);
     } catch {
-      Alert.alert('Error', 'Failed to share selected videos.');
+      Alert.alert(t('common.error'), t('video_actions.share_error'));
     }
     setIsProcessing(false);
   };
@@ -79,9 +81,9 @@ export function VideoActionBar({
       queryClient.invalidateQueries({ queryKey: ['albums'] });
       setShowAlbumPicker(false);
       onOperationComplete();
-      Alert.alert('Moved', `${selectedItems.length} video(s) moved to album.`);
+      Alert.alert(t('video_actions.moved_title'), t('video_actions.moved_body', { count: selectedItems.length }));
     } catch {
-      Alert.alert('Error', 'Failed to move videos.');
+      Alert.alert(t('common.error'), t('video_actions.share_error'));
     }
     setIsProcessing(false);
   };
@@ -89,12 +91,12 @@ export function VideoActionBar({
   const handleUnhide = async () => {
     if (selectedItems.length === 0) return;
     Alert.alert(
-      'Unhide Videos',
-      `Restore ${selectedCount} video(s) to device gallery?`,
+      t('video_actions.unhide_title'),
+      t(selectedCount === 1 ? 'video_actions.unhide_body_one' : 'video_actions.unhide_body_other', { count: selectedCount }),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Unhide',
+          text: t('video_actions.unhide'),
           onPress: async () => {
             setIsProcessing(true);
             try {
@@ -102,7 +104,7 @@ export function VideoActionBar({
               queryClient.invalidateQueries({ queryKey: ['media'] });
               onOperationComplete();
             } catch {
-              Alert.alert('Error', 'Failed to unhide videos.');
+              Alert.alert(t('common.error'), t('video_actions.unhide_error'));
             }
             setIsProcessing(false);
           },
@@ -114,12 +116,12 @@ export function VideoActionBar({
   const handleDelete = () => {
     if (selectedItems.length === 0) return;
     Alert.alert(
-      'Delete Videos',
-      `Permanently delete ${selectedCount} video(s)? This cannot be undone.`,
+      t('video_actions.delete_title'),
+      t(selectedCount === 1 ? 'video_actions.delete_body_one' : 'video_actions.delete_body_other', { count: selectedCount }),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Delete',
+          text: t('common.delete'),
           style: 'destructive',
           onPress: async () => {
             setIsProcessing(true);
@@ -128,7 +130,7 @@ export function VideoActionBar({
               queryClient.invalidateQueries({ queryKey: ['media'] });
               onOperationComplete();
             } catch {
-              Alert.alert('Error', 'Failed to delete videos.');
+              Alert.alert(t('common.error'), t('video_actions.delete_error'));
             }
             setIsProcessing(false);
           },
@@ -148,12 +150,12 @@ export function VideoActionBar({
             disabled={isProcessing}
           >
             <Text style={styles.selectBtnText}>
-              {allSelected ? 'Deselect All' : 'Select All'}
+              {allSelected ? t('video_actions.deselect_all') : t('video_actions.select_all')}
             </Text>
           </Pressable>
-          <Text style={styles.countText}>{selectedCount} selected</Text>
+          <Text style={styles.countText}>{t('vault.selection_count_other', { count: selectedCount })}</Text>
           <Pressable style={styles.selectBtn} onPress={onDeselectAll} disabled={isProcessing}>
-            <Text style={styles.selectBtnText}>Cancel</Text>
+            <Text style={styles.selectBtnText}>{t('common.cancel')}</Text>
           </Pressable>
         </View>
 
@@ -161,28 +163,28 @@ export function VideoActionBar({
         <View style={styles.actionsRow}>
           <ActionButton
             icon="share"
-            label="Share"
+            label={t('common.share')}
             onPress={handleShare}
             disabled={isProcessing || selectedCount === 0}
             color={themeColors.accent}
           />
           <ActionButton
             icon="folder"
-            label="Move"
+            label={t('video_actions.move_to_album')}
             onPress={handleMove}
             disabled={isProcessing || selectedCount === 0}
             color={themeColors.accent}
           />
           <ActionButton
             icon="scan"
-            label="Unhide"
+            label={t('video_actions.unhide')}
             onPress={handleUnhide}
             disabled={isProcessing || selectedCount === 0}
             color={themeColors.accent}
           />
           <ActionButton
             icon="trash"
-            label="Delete"
+            label={t('common.delete')}
             onPress={handleDelete}
             disabled={isProcessing || selectedCount === 0}
             color={themeColors.error}
@@ -194,9 +196,9 @@ export function VideoActionBar({
       <Modal visible={showAlbumPicker} transparent animationType="slide" onRequestClose={() => setShowAlbumPicker(false)}>
         <Pressable style={styles.modalBackdrop} onPress={() => setShowAlbumPicker(false)}>
           <View style={styles.albumPickerContainer}>
-            <Text style={styles.albumPickerTitle}>Move to Album</Text>
+            <Text style={styles.albumPickerTitle}>{t('video_actions.move_to_album')}</Text>
             {albumList.length === 0 ? (
-              <Text style={styles.albumPickerEmpty}>No albums found. Create an album first.</Text>
+              <Text style={styles.albumPickerEmpty}>{t('video_actions.no_albums')}</Text>
             ) : (
               <FlatList
                 data={albumList}
@@ -214,7 +216,7 @@ export function VideoActionBar({
               />
             )}
             <Pressable style={styles.closeBtn} onPress={() => setShowAlbumPicker(false)}>
-              <Text style={styles.closeBtnText}>Cancel</Text>
+              <Text style={styles.closeBtnText}>{t('common.cancel')}</Text>
             </Pressable>
           </View>
         </Pressable>

@@ -31,6 +31,7 @@ import { intruderLogs, type IntruderLog, type RiskLevel } from '@services/storag
 import { decryptFile, getVaultDirectory } from '@services/crypto';
 import { deleteFile } from '@services/media';
 import { useThemeColors, type ColorTokens, typography, spacing, layout } from '@shared/theme';
+import { useTranslation } from '@shared/i18n';
 
 type DetailRoute = RouteProp<VaultStackParamList, 'IntruderDetail'>;
 
@@ -74,6 +75,7 @@ export function IntruderDetailScreen(): React.JSX.Element {
   const navigation = useNavigation();
   const route = useRoute<DetailRoute>();
   const { onActivity } = useActivityTracker();
+  const { t } = useTranslation();
 
   const [log, setLog] = useState<IntruderLog | null>(null);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
@@ -139,11 +141,11 @@ export function IntruderDetailScreen(): React.JSX.Element {
           <Pressable onPress={handleBack} style={styles.backButton}>
             <Text style={styles.backButtonText}>&#x2190;</Text>
           </Pressable>
-          <Text style={styles.title}>Report</Text>
+          <Text style={styles.title}>{t('intruder_detail.title')}</Text>
           <View style={styles.placeholder} />
         </View>
         <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Loading...</Text>
+          <Text style={styles.loadingText}>{t('common.loading')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -160,7 +162,7 @@ export function IntruderDetailScreen(): React.JSX.Element {
         <Pressable onPress={handleBack} style={styles.backButton}>
           <Text style={styles.backButtonText}>&#x2190;</Text>
         </Pressable>
-        <Text style={styles.title}>Intruder Report</Text>
+        <Text style={styles.title}>{t('intruder_detail.title')}</Text>
         <View style={styles.placeholder} />
       </View>
 
@@ -178,7 +180,7 @@ export function IntruderDetailScreen(): React.JSX.Element {
           ) : (
             <View style={styles.photoPlaceholder}>
               <Text style={styles.photoPlaceholderText}>
-                {log.photoPath ? 'Decrypting...' : 'No Photo Captured'}
+                {log.photoPath ? t('common.decrypting') : t('intruder_detail.no_photo')}
               </Text>
             </View>
           )}
@@ -192,30 +194,30 @@ export function IntruderDetailScreen(): React.JSX.Element {
 
         {/* Details card */}
         <View style={styles.detailsCard}>
-          <DetailRow label="Timestamp" value={formatFullTimestamp(log.timestamp)} colors={themeColors} />
-          <DetailRow label="Location" value={log.cityName || 'Unknown'} colors={themeColors} />
+          <DetailRow label={t('intruder_detail.timestamp')} value={formatFullTimestamp(log.timestamp)} colors={themeColors} />
+          <DetailRow label={t('intruder_detail.location')} value={log.cityName || t('common.unknown')} colors={themeColors} />
           {hasLocation && (
             <DetailRow
-              label="Coordinates"
+              label={t('intruder_detail.coordinates')}
               value={`${log.latitude!.toFixed(6)}, ${log.longitude!.toFixed(6)}`}
               colors={themeColors}
             />
           )}
-          <DetailRow label="Failed Attempts" value={String(log.failedAttempts)} colors={themeColors} />
+          <DetailRow label={t('intruder_detail.failed_attempts')} value={String(log.failedAttempts)} colors={themeColors} />
           <DetailRow
-            label="Risk Level"
+            label={t('intruder_detail.risk_level')}
             value={`${log.riskLevel} ${getRiskIndicator(log.riskLevel)}`}
             valueColor={riskColor}
             colors={themeColors}
           />
-          <DetailRow label="Device" value={formatDeviceInfo(log.deviceInfo)} colors={themeColors} />
-          <DetailRow label="OS Version" value={`Android ${log.deviceInfo?.osVersion ?? 'Unknown'}`} colors={themeColors} />
+          <DetailRow label={t('intruder_detail.device')} value={formatDeviceInfo(log.deviceInfo)} colors={themeColors} />
+          <DetailRow label={t('intruder_detail.os_version')} value={t('intruder_detail.os_android', { version: log.deviceInfo?.osVersion ?? t('common.unknown') })} colors={themeColors} />
         </View>
 
         {/* Map section */}
         {hasLocation && (
           <View style={styles.mapSection}>
-            <Text style={styles.mapSectionTitle}>Location Map</Text>
+            <Text style={styles.mapSectionTitle}>{t('intruder_detail.location_map')}</Text>
             <Pressable onPress={handleOpenMap} style={styles.mapCard}>
               <Image
                 source={{
@@ -225,7 +227,7 @@ export function IntruderDetailScreen(): React.JSX.Element {
                 resizeMode="cover"
               />
               <View style={styles.mapOverlay}>
-                <Text style={styles.mapOverlayText}>Tap to open in Maps</Text>
+                <Text style={styles.mapOverlayText}>{t('intruder_detail.tap_to_open_maps')}</Text>
               </View>
             </Pressable>
           </View>

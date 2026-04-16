@@ -10,6 +10,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import type BottomSheetType from '@gorhom/bottom-sheet';
 import { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import type { MediaItem } from '@services/storage/database';
+import { useTranslation } from 'react-i18next';
 import { useThemeColors, type ColorTokens, typography, spacing } from '@shared/theme';
 import { AppBottomSheet } from '@shared/components/AppBottomSheet';
 import { formatFileSize, formatDateTime, formatDuration, formatMimeType } from '@shared/utils/formatters';
@@ -30,6 +31,7 @@ export function PropertiesModal({
   item,
   onClose,
 }: PropertiesModalProps): React.JSX.Element {
+  const { t } = useTranslation();
   const themeColors = useThemeColors();
   const styles = useMemo(() => createStyles(themeColors), [themeColors]);
   const sheetRef = useRef<BottomSheetType>(null);
@@ -45,33 +47,33 @@ export function PropertiesModal({
   const rows: PropertyRow[] = useMemo(() => {
     if (item === null) return [];
     const r: PropertyRow[] = [
-      { label: 'Name', value: item.originalName },
-      { label: 'Type', value: formatMimeType(item.mimeType) },
-      { label: 'Size', value: formatFileSize(item.sizeBytes) },
+      { label: t('properties.name'), value: item.originalName },
+      { label: t('properties.type'), value: formatMimeType(item.mimeType) },
+      { label: t('properties.size'), value: formatFileSize(item.sizeBytes) },
     ];
     if (item.width != null && item.height != null) {
-      r.push({ label: 'Dimensions', value: `${item.width} \u00D7 ${item.height}` });
+      r.push({ label: t('properties.dimensions'), value: `${item.width} \u00D7 ${item.height}` });
     }
     if (item.durationMs != null && item.durationMs > 0) {
-      r.push({ label: 'Duration', value: formatDuration(item.durationMs) });
+      r.push({ label: t('properties.duration'), value: formatDuration(item.durationMs) });
     }
-    r.push({ label: 'Last modified', value: formatDateTime(item.createdAt) });
+    r.push({ label: t('properties.last_modified'), value: formatDateTime(item.createdAt) });
     const originalUri = item.metadata?.originalUri as string | undefined;
     if (originalUri) {
       const displayPath = originalUri.startsWith('content://')
         ? decodeURIComponent(originalUri.replace(/^content:\/\/[^/]+\//, '/'))
         : originalUri;
-      r.push({ label: 'Original path', value: displayPath });
+      r.push({ label: t('properties.original_path'), value: displayPath });
     }
-    r.push({ label: 'Current path', value: item.encryptedPath });
+    r.push({ label: t('properties.current_path'), value: item.encryptedPath });
     return r;
-  }, [item]);
+  }, [item, t]);
 
   return (
     <AppBottomSheet
       ref={sheetRef}
       snapPoints={['40%', '75%']}
-      title="Properties"
+      title={t('properties.title')}
       onDismiss={onClose}
     >
       <BottomSheetScrollView style={styles.scroll}>

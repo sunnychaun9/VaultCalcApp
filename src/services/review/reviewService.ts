@@ -21,6 +21,7 @@
 import { NativeModules, Platform } from 'react-native';
 import { useSettingsStore } from '@store/settingsStore';
 import { alert } from '@store/alertStore';
+import { i18n } from '@shared/i18n';
 
 const { InAppReviewModule } = NativeModules;
 
@@ -101,15 +102,15 @@ export function triggerReviewPrompt(): void {
   useSettingsStore.getState().recordReviewPrompt();
 
   alert(
-    'Enjoying privacy?',
-    'Your files are safe with VaultCalc. If you\'re enjoying the app, a quick rating helps others find it too.',
+    i18n.t('review.title'),
+    i18n.t('review.body'),
     [
       {
-        text: 'Not now',
+        text: i18n.t('common.not_now'),
         style: 'cancel',
       },
       {
-        text: 'Rate VaultCalc',
+        text: i18n.t('review.rate_button'),
         onPress: () => {
           launchPlayStoreReview();
         },

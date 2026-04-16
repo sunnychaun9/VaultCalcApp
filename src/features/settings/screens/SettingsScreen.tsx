@@ -38,6 +38,7 @@ import { SettingsRow } from '../components/SettingsRow';
 import { enableStealth, disableStealth } from '@services/security/stealth';
 import { setAppIcon as nativeSetAppIcon, type AppIconAlias } from '@services/appicon';
 import { showRewardedAd, grantAdFreeMode } from '@services/ads';
+import { useTranslation } from '@shared/i18n';
 
 /** Format bytes to human-readable string */
 function formatBytes(bytes: number): string {
@@ -59,22 +60,22 @@ interface StorageStats {
 /** Lock timeout options for cycling */
 const LOCK_TIMEOUTS = [30000, 60000, 120000, 300000] as const;
 
-/** Display labels for lock timeout values */
-const TIMEOUT_LABELS: Record<number, string> = {
-  30000: '30s',
-  60000: '1m',
-  120000: '2m',
-  300000: '5m',
+/** Display labels for lock timeout values — keyed by settings.auto_lock_* i18n keys */
+const TIMEOUT_KEYS: Record<number, string> = {
+  30000: 'settings.auto_lock_30s',
+  60000: 'settings.auto_lock_1m',
+  120000: 'settings.auto_lock_2m',
+  300000: 'settings.auto_lock_5m',
 };
 
 /** Theme mode options for cycling */
 const THEME_MODES = ['system', 'light', 'dark'] as const;
 
-/** Display labels for theme modes */
-const THEME_LABELS: Record<string, string> = {
-  system: 'System',
-  light: 'Light',
-  dark: 'Dark',
+/** Display labels for theme modes — keyed by settings.theme_* i18n keys */
+const THEME_KEYS: Record<string, string> = {
+  system: 'settings.theme_system',
+  light: 'settings.theme_light',
+  dark: 'settings.theme_dark',
 };
 
 /**
@@ -86,6 +87,7 @@ const THEME_LABELS: Record<string, string> = {
  * - ABOUT: App version
  */
 export function SettingsScreen(): React.JSX.Element {
+  const { t } = useTranslation();
   const themeColors = useThemeColors();
   const isDark = themeColors === colors.dark;
   const styles = useMemo(() => createStyles(themeColors, isDark), [themeColors, isDark]);
@@ -177,13 +179,13 @@ export function SettingsScreen(): React.JSX.Element {
 
   const { backupStatusLabel, backupStatusColor } = useMemo(() => {
     if (lastBackupAt === null) {
-      return { backupStatusLabel: 'Never backed up', backupStatusColor: themeColors.textTertiary };
+      return { backupStatusLabel: t('settings.backup_never'), backupStatusColor: themeColors.textTertiary };
     }
     const diff = currentItemCount - (lastBackupItemCount ?? 0);
     if (diff > 0) {
-      return { backupStatusLabel: `${diff} new item${diff === 1 ? '' : 's'}`, backupStatusColor: themeColors.warning };
+      return { backupStatusLabel: t('settings.backup_new_items', { count: diff }), backupStatusColor: themeColors.warning };
     }
-    return { backupStatusLabel: 'Up to date', backupStatusColor: themeColors.success };
+    return { backupStatusLabel: t('settings.backup_up_to_date'), backupStatusColor: themeColors.success };
   }, [lastBackupAt, currentItemCount, lastBackupItemCount, themeColors]);
 
   // Biometric availability (BIO-002)
@@ -213,7 +215,7 @@ export function SettingsScreen(): React.JSX.Element {
       if (biometricStatus === 'available') {
         setBiometricEnabled(true);
       } else {
-        alert('Biometric Unavailable', getBiometricStatusMessage(biometricStatus));
+        alert(t('settings.biometric_unavailable'), getBiometricStatusMessage(biometricStatus));
       }
     } else {
       setBiometricEnabled(false);
@@ -303,7 +305,7 @@ export function SettingsScreen(): React.JSX.Element {
       const granted = checkAndGrantShareMilestones();
       if (granted) {
         const { alert } = await import('@store/alertStore');
-        alert('Reward unlocked!', `You earned ${granted.label} for sharing VaultCalc. Enjoy!`);
+        alert(t('about.reward_title'), t('about.reward_body', { label: granted.label }));
       }
     } catch {
       // Share cancelled or failed — silent
@@ -327,25 +329,25 @@ export function SettingsScreen(): React.JSX.Element {
     if (isWatchingAd) return;
 
     alert(
-      'Go ad-free for 24 hours?',
-      'Watch a short video and all ads disappear for a full day.',
+      t('settings.rewarded_confirm_title'),
+      t('settings.rewarded_confirm_body'),
       [
-        { text: 'Not now', style: 'cancel' },
+        { text: t('common.not_now'), style: 'cancel' },
         {
-          text: 'Watch video',
+          text: t('settings.rewarded_confirm_button'),
           onPress: async () => {
             setIsWatchingAd(true);
             try {
               const result = await showRewardedAd();
               if (result.success && result.data?.rewarded) {
                 await grantAdFreeMode();
-                alert('You\'re ad-free!', 'No ads for the next 24 hours. Enjoy the quiet.');
+                alert(t('settings.rewarded_success_title'), t('settings.rewarded_success_body'));
               } else if (!result.success) {
-                alert('No video available', result.error || 'We couldn\'t load a video right now. Try again in a minute.');
+                alert(t('settings.rewarded_no_video_title'), result.error || t('settings.rewarded_no_video_body'));
               }
             } catch (err) {
-              const msg = err instanceof Error ? err.message : 'Unknown error';
-              alert('Couldn\'t play video', `${msg}. Please check your internet and try again.`);
+              const msg = err instanceof Error ? err.message : t('common.unknown');
+              alert(t('settings.rewarded_error_title'), t('settings.rewarded_error_body', { error: msg }));
             } finally {
               setIsWatchingAd(false);
             }
@@ -380,12 +382,12 @@ export function SettingsScreen(): React.JSX.Element {
 
     // Step 1: Show explanation dialog BEFORE requesting any permissions
     alert(
-      'Intruder Selfie Detection',
-      'This feature uses your front camera to capture a photo when someone enters the wrong PIN.\n\nPhotos are encrypted and stored only on your device. You can review them in Intruder Logs.\n\nCamera permission is required to enable this feature.',
+      t('settings.intruder_detection_consent_title'),
+      t('settings.intruder_detection_consent_body'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Continue',
+          text: t('common.continue'),
           onPress: async () => {
             // Step 2: Request ONLY camera permission (location is a separate toggle)
             try {
@@ -397,8 +399,8 @@ export function SettingsScreen(): React.JSX.Element {
               // Step 3: Only enable if camera permission is granted
               if (!camGranted) {
                 alert(
-                  'Camera Permission Required',
-                  'Intruder detection needs camera access to photograph unauthorized attempts. Please allow camera access in your device settings to use this feature.',
+                  t('settings.intruder_camera_required_title'),
+                  t('settings.intruder_camera_required_body'),
                 );
                 return;
               }
@@ -407,8 +409,8 @@ export function SettingsScreen(): React.JSX.Element {
               setIntruderDetectionEnabled(true);
             } catch {
               alert(
-                'Permission Error',
-                'Could not request camera permission. Please try again.',
+                t('settings.permission_error'),
+                t('settings.intruder_camera_error'),
               );
             }
           },
@@ -426,12 +428,12 @@ export function SettingsScreen(): React.JSX.Element {
 
     // Show explanation dialog before requesting location permission
     alert(
-      'Record Intruder Location',
-      'VaultCalc can store the approximate location of unauthorized access attempts.\n\nThis uses your last known location only — no continuous tracking or background access.\n\nLocation permission is required to enable this.',
+      t('settings.intruder_location_consent_title'),
+      t('settings.intruder_location_consent_body'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Continue',
+          text: t('common.continue'),
           onPress: async () => {
             try {
               const granted = await PermissionsAndroid.request(
@@ -441,14 +443,14 @@ export function SettingsScreen(): React.JSX.Element {
                 setIntruderLocationEnabled(true);
               } else {
                 alert(
-                  'Location Permission Required',
-                  'To record intruder location, allow location access in your device settings.',
+                  t('settings.intruder_location_required_title'),
+                  t('settings.intruder_location_required_body'),
                 );
               }
             } catch {
               alert(
-                'Permission Error',
-                'Could not request location permission. Please try again.',
+                t('settings.permission_error'),
+                t('settings.intruder_location_error'),
               );
             }
           },
@@ -462,22 +464,22 @@ export function SettingsScreen(): React.JSX.Element {
     if (value) {
       // Enabling stealth — show confirmation dialog first
       alert(
-        'Go invisible?',
-        'The app icon will vanish from your home screen.\n\nTo reopen, tap the "Calculator" notification in your notification shade.',
+        t('settings.hide_confirm_title'),
+        t('settings.hide_confirm_body'),
         [
-          { text: 'Not now', style: 'cancel' },
+          { text: t('common.not_now'), style: 'cancel' },
           {
-            text: 'Hide it',
+            text: t('settings.hide_confirm_button'),
             onPress: async () => {
               const result = await enableStealth();
               if (result.success) {
                 setStealthModeEnabled(true);
                 alert(
-                  'You\'re invisible',
-                  'The app icon is hidden.\n\nTo reopen:\nTap the "Calculator" notification in your notification shade.',
+                  t('settings.hide_success_title'),
+                  t('settings.hide_success_body'),
                 );
               } else {
-                alert('Couldn\'t hide', result.error ?? 'Something went wrong. Please try again.');
+                alert(t('settings.hide_error'), result.error ?? t('common.error_generic'));
               }
             },
           },
@@ -488,7 +490,7 @@ export function SettingsScreen(): React.JSX.Element {
       if (result.success) {
         setStealthModeEnabled(false);
       } else {
-        alert('Couldn\'t restore', result.error ?? 'Something went wrong. Please try again.');
+        alert(t('settings.unhide_error'), result.error ?? t('common.error_generic'));
       }
     }
   }, [onActivity, setStealthModeEnabled]);
@@ -500,11 +502,11 @@ export function SettingsScreen(): React.JSX.Element {
     if (result.success) {
       setAppIcon(alias);
       alert(
-        'New look applied',
-        'Head to your home screen to see the change.',
+        t('settings.app_icon_changed_title'),
+        t('settings.app_icon_changed_body'),
       );
     } else {
-      alert('Couldn\'t change icon', result.error ?? 'Something went wrong. Please try again.');
+      alert(t('settings.app_icon_change_error'), result.error ?? t('common.error_generic'));
     }
   }, [onActivity, appIcon, setAppIcon]);
 
@@ -553,9 +555,9 @@ export function SettingsScreen(): React.JSX.Element {
       const result = await signInToGoogle();
       if (result.success && result.account) {
         setGoogleDriveConnection(result.account.email, result.account.displayName);
-        alert('You\'re connected', `Signed in as ${result.account.email}`);
+        alert(t('settings.backup_connected_title'), t('settings.backup_connected_body', { email: result.account.email }));
       } else if (result.errorCode !== 'SIGN_IN_CANCELLED') {
-        alert('Couldn\'t connect', result.error ?? 'Something went wrong. Please try again.');
+        alert(t('settings.backup_connect_error'), result.error ?? t('common.error_generic'));
       }
     } finally {
       setIsConnecting(false);
@@ -565,17 +567,17 @@ export function SettingsScreen(): React.JSX.Element {
   const handleGoogleDriveDisconnect = useCallback(() => {
     onActivity();
     alert(
-      'Disconnect Google Drive?',
-      'Your backup connection will be removed. You can always reconnect later.',
+      t('settings.backup_disconnect_title'),
+      t('settings.backup_disconnect_body'),
       [
-        { text: 'Keep connected', style: 'cancel' },
+        { text: t('settings.backup_disconnect_keep'), style: 'cancel' },
         {
-          text: 'Disconnect',
+          text: t('settings.disconnect'),
           style: 'destructive',
           onPress: async () => {
             await signOutFromGoogle();
             setGoogleDriveConnection(null, null);
-            alert('Disconnected', 'Google Drive is no longer linked.');
+            alert(t('settings.backup_disconnected_title'), t('settings.backup_disconnected_body'));
           },
         },
       ],
@@ -589,11 +591,11 @@ export function SettingsScreen(): React.JSX.Element {
     // Gate cloud backup behind premium for free users
     if (premiumStatus === 'free') {
       alert(
-        'Cloud backup is a Premium feature',
-        'Keep your encrypted files safe with automatic Google Drive backup. Upgrade to unlock.',
+        t('settings.backup_premium_title'),
+        t('settings.backup_premium_body'),
         [
-          { text: 'Not now', style: 'cancel', onPress: () => useSettingsStore.getState().incrementPaywallDismissCount() },
-          { text: 'Upgrade', onPress: () => navigation.navigate('Subscription') },
+          { text: t('common.not_now'), style: 'cancel', onPress: () => useSettingsStore.getState().incrementPaywallDismissCount() },
+          { text: t('common.upgrade'), onPress: () => navigation.navigate('Subscription') },
         ],
       );
       return;
@@ -612,16 +614,16 @@ export function SettingsScreen(): React.JSX.Element {
     if (result.success) {
       setLastBackupAt(Date.now());
       setLastBackupItemCount(currentItemCount);
-      alert('Backed up', `${result.uploadedCount} ${result.uploadedCount === 1 ? 'file' : 'files'} safely uploaded to Google Drive.`);
+      alert(t('settings.backup_success_title'), t('settings.backup_success', { count: result.uploadedCount }));
     } else if (result.failures && result.failures.length > 0) {
       setLastBackupAt(Date.now());
       setLastBackupItemCount(currentItemCount);
       alert(
-        'Almost done',
-        `${result.uploadedCount} of ${result.totalCount} files uploaded. ${result.failures.length} couldn't be backed up.`,
+        t('settings.backup_partial_title'),
+        t('settings.backup_partial_body', { uploaded: result.uploadedCount, total: result.totalCount, failed: result.failures.length }),
       );
     } else {
-      alert('Backup didn\'t work', result.error ?? 'Something went wrong. Please try again.');
+      alert(t('settings.backup_failed_title'), result.error ?? t('common.error_generic'));
     }
   }, [isBackingUp, onActivity, setLastBackupAt, setLastBackupItemCount, currentItemCount]);
 
@@ -629,12 +631,12 @@ export function SettingsScreen(): React.JSX.Element {
     if (isRestoring) return;
     onActivity();
     alert(
-      'Restore your files?',
-      'Your encrypted backup will be downloaded from Google Drive. Files you already have will be skipped.',
+      t('settings.restore_confirm_title'),
+      t('settings.restore_confirm_body'),
       [
-        { text: 'Not now', style: 'cancel' },
+        { text: t('common.not_now'), style: 'cancel' },
         {
-          text: 'Restore',
+          text: t('settings.restore_from_backup'),
           onPress: async () => {
             setIsRestoring(true);
             setRestoreProgress(null);
@@ -648,16 +650,16 @@ export function SettingsScreen(): React.JSX.Element {
 
             if (result.success) {
               alert(
-                'Welcome back',
-                `${result.restoredCount} ${result.restoredCount === 1 ? 'file' : 'files'} restored.${result.skippedCount ? ` ${result.skippedCount} already in your vault.` : ''}`,
+                t('settings.restore_success_title'),
+                t('settings.restore_success_body', { count: result.restoredCount }) + (result.skippedCount ? t('settings.restore_skipped', { count: result.skippedCount }) : ''),
               );
             } else if (result.failures && result.failures.length > 0) {
               alert(
-                'Almost done',
-                `${result.restoredCount} of ${result.totalCount} files restored. ${result.failures.length} couldn't be downloaded.${result.skippedCount ? ` ${result.skippedCount} skipped.` : ''}`,
+                t('settings.restore_partial_title'),
+                t('settings.restore_partial_body', { restored: result.restoredCount, total: result.totalCount, failed: result.failures.length }) + (result.skippedCount ? t('settings.restore_partial_skipped', { count: result.skippedCount }) : ''),
               );
             } else {
-              alert('Couldn\'t restore', result.error ?? 'Something went wrong. Please try again.');
+              alert(t('settings.restore_error'), result.error ?? t('common.error_generic'));
             }
           },
         },
@@ -669,11 +671,11 @@ export function SettingsScreen(): React.JSX.Element {
     onActivity();
     if (value && premiumStatus === 'free') {
       alert(
-        'Auto-backup is a Premium feature',
-        'Never worry about losing files again. Upgrade to enable automatic cloud backup.',
+        t('settings.auto_backup_premium_title'),
+        t('settings.auto_backup_premium_body'),
         [
-          { text: 'Not now', style: 'cancel' },
-          { text: 'Upgrade', onPress: () => navigation.navigate('Subscription') },
+          { text: t('common.not_now'), style: 'cancel' },
+          { text: t('common.upgrade'), onPress: () => navigation.navigate('Subscription') },
         ],
       );
       return;
@@ -692,7 +694,7 @@ export function SettingsScreen(): React.JSX.Element {
           accessibilityLabel="Go back"
           containerStyle={styles.backButton}
         />
-        <Text style={styles.title}>Settings</Text>
+        <Text style={styles.title}>{t('settings.title')}</Text>
         <View style={styles.placeholder} />
       </View>
 
@@ -702,71 +704,71 @@ export function SettingsScreen(): React.JSX.Element {
         showsVerticalScrollIndicator={false}
       >
         {/* ── SECURITY ── */}
-        <SettingsSection title="Security" description="Protect your vault">
+        <SettingsSection title={t('settings.section_security')} description={t('settings.section_security_desc')}>
           {!isDecoyMode && (
-            <SettingsRow type="navigation" icon="key" title="Change PIN" onPress={handleChangePin} />
+            <SettingsRow type="navigation" icon="key" title={t('settings.change_pin')} onPress={handleChangePin} />
           )}
           {!isDecoyMode && (
-            <SettingsRow type="value" icon="lock" title="Unlock method" value={unlockMethod === 'pattern' ? 'Pattern' : 'PIN'} onPress={handleCycleUnlockMethod} />
+            <SettingsRow type="value" icon="lock" title={t('settings.unlock_method')} value={unlockMethod === 'pattern' ? t('settings.pattern') : t('settings.pin')} onPress={handleCycleUnlockMethod} />
           )}
           {!isDecoyMode && unlockMethod === 'pattern' && isPatternConfigured() && (
             <>
-              <SettingsRow type="navigation" icon="grid" title="Change pattern" onPress={handleChangePattern} />
-              <SettingsRow type="toggle" icon="scan" title="Show pattern path" value={showPatternPath} onValueChange={handleToggleShowPatternPath} />
+              <SettingsRow type="navigation" icon="grid" title={t('settings.change_pattern')} onPress={handleChangePattern} />
+              <SettingsRow type="toggle" icon="scan" title={t('settings.show_pattern_path')} value={showPatternPath} onValueChange={handleToggleShowPatternPath} />
             </>
           )}
           {!isDecoyMode && unlockMethod === 'pattern' && !isPatternConfigured() && (
-            <SettingsRow type="navigation" icon="grid" title="Set up pattern" onPress={handlePatternSetup} value="Not set" />
+            <SettingsRow type="navigation" icon="grid" title={t('settings.setup_pattern')} onPress={handlePatternSetup} value={t('settings.not_set')} />
           )}
           {!isDecoyMode && unlockMethod !== 'pattern' && (
-            <SettingsRow type="navigation" icon="grid" title="Set up pattern lock" onPress={handlePatternSetup} />
+            <SettingsRow type="navigation" icon="grid" title={t('settings.setup_pattern_desc')} onPress={handlePatternSetup} />
           )}
-          <SettingsRow type="value" icon="clock" title="Auto-lock after" value={TIMEOUT_LABELS[lockTimeout]} onPress={handleCycleTimeout} />
-          <SettingsRow type="toggle" icon="lock" title="Lock on background" subtitle="Automatically lock when you leave the app" value={lockOnBackground} onValueChange={handleToggleLockOnBackground} />
+          <SettingsRow type="value" icon="clock" title={t('settings.auto_lock')} value={t(TIMEOUT_KEYS[lockTimeout])} onPress={handleCycleTimeout} />
+          <SettingsRow type="toggle" icon="lock" title={t('settings.lock_on_background')} subtitle={t('settings.lock_on_background_desc')} value={lockOnBackground} onValueChange={handleToggleLockOnBackground} />
           {!isDecoyMode && (
-            <SettingsRow type="toggle" icon="fingerprint" title="Biometric unlock" subtitle={biometricStatus !== 'available' && biometricStatus !== 'unknown' ? getBiometricStatusMessage(biometricStatus) : 'Use fingerprint or face to unlock'} value={biometricEnabled} onValueChange={handleToggleBiometric} highlighted />
+            <SettingsRow type="toggle" icon="fingerprint" title={t('settings.biometric_unlock')} subtitle={biometricStatus !== 'available' && biometricStatus !== 'unknown' ? getBiometricStatusMessage(biometricStatus) : t('settings.biometric_unlock_desc')} value={biometricEnabled} onValueChange={handleToggleBiometric} highlighted />
           )}
           {!isDecoyMode && (
-            <SettingsRow type="toggle" icon="key" title="Quick unlock" subtitle="Long-press = on calculator to open vault instantly" value={quickUnlockEnabled} onValueChange={setQuickUnlockEnabled} showDivider={false} />
+            <SettingsRow type="toggle" icon="key" title={t('settings.quick_unlock')} subtitle={t('settings.quick_unlock_desc')} value={quickUnlockEnabled} onValueChange={setQuickUnlockEnabled} showDivider={false} />
           )}
         </SettingsSection>
 
         {/* ── PRIVACY ── */}
         {!isDecoyMode && (
-          <SettingsSection title="Privacy" description="Advanced protection features">
-            <SettingsRow type="toggle" icon="shield" title="Panic mode" subtitle="Shake or press buttons to instantly hide everything" value={panicButtonEnabled} onValueChange={handleTogglePanicButton} highlighted />
+          <SettingsSection title={t('settings.section_privacy')} description={t('settings.section_privacy_desc')}>
+            <SettingsRow type="toggle" icon="shield" title={t('settings.panic_mode')} subtitle={t('settings.panic_mode_desc')} value={panicButtonEnabled} onValueChange={handleTogglePanicButton} highlighted />
             {panicButtonEnabled && (
               <>
-                <SettingsRow type="toggle" icon="shield" title="Shake device" value={true} onValueChange={() => {}} subtitle="Always enabled" />
-                <SettingsRow type="toggle" icon="shield" title="Triple press volume" value={panicTriggerVolume} onValueChange={handleTogglePanicVolume} />
-                <SettingsRow type="toggle" icon="shield" title="Triple press power" value={panicTriggerPower} onValueChange={handleTogglePanicPower} />
-                <SettingsRow type="toggle" icon="alert-triangle" title="Decoy exit screen" subtitle="Show an error screen instead of locking" value={panicAction === 'fakeCrash'} onValueChange={(v) => setPanicAction(v ? 'fakeCrash' : 'lock')} />
+                <SettingsRow type="toggle" icon="shield" title={t('settings.panic_shake')} value={true} onValueChange={() => {}} subtitle={t('settings.panic_shake_always')} />
+                <SettingsRow type="toggle" icon="shield" title={t('settings.panic_triple_volume')} value={panicTriggerVolume} onValueChange={handleTogglePanicVolume} />
+                <SettingsRow type="toggle" icon="shield" title={t('settings.panic_triple_power')} value={panicTriggerPower} onValueChange={handleTogglePanicPower} />
+                <SettingsRow type="toggle" icon="alert-triangle" title={t('settings.decoy_exit_screen')} subtitle={t('settings.decoy_exit_screen_desc')} value={panicAction === 'fakeCrash'} onValueChange={(v) => setPanicAction(v ? 'fakeCrash' : 'lock')} />
               </>
             )}
-            <SettingsRow type="toggle" icon="scan" title="Intruder selfie detection" subtitle="Capture a photo when someone enters the wrong PIN" value={intruderDetectionEnabled} onValueChange={handleToggleIntruderDetection} highlighted />
+            <SettingsRow type="toggle" icon="scan" title={t('settings.intruder_detection')} subtitle={t('settings.intruder_detection_desc')} value={intruderDetectionEnabled} onValueChange={handleToggleIntruderDetection} highlighted />
             {intruderDetectionEnabled && (
               <>
-                <SettingsRow type="toggle" icon="map-pin" title="Record intruder location" subtitle="Store approximate location of unauthorized attempts (optional)" value={intruderLocationEnabled} onValueChange={handleToggleIntruderLocation} />
-                <SettingsRow type="navigation" icon="scan" title="Intruder log" subtitle="See who tried to break in" onPress={handleIntruderLogs} />
+                <SettingsRow type="toggle" icon="map-pin" title={t('settings.intruder_location')} subtitle={t('settings.intruder_location_desc')} value={intruderLocationEnabled} onValueChange={handleToggleIntruderLocation} />
+                <SettingsRow type="navigation" icon="scan" title={t('settings.intruder_log')} subtitle={t('settings.intruder_log_desc')} onPress={handleIntruderLogs} />
               </>
             )}
-            <SettingsRow type="navigation" icon="lock" title="App Lock" subtitle="Protect other apps behind your PIN" onPress={() => navigation.navigate('AppLock')} />
-            <SettingsRow type="navigation" icon="lock" title="Notification Privacy" subtitle="Hide sensitive notification previews" onPress={() => navigation.navigate('NotificationPrivacy')} />
-            <SettingsRow type="navigation" icon="shield" title="Uninstall Protection" subtitle="Stop anyone from deleting this app" onPress={() => navigation.navigate('UninstallProtection')} />
-            <SettingsRow type="navigation" icon="key" title="Decoy vault" subtitle="A fake vault to show if someone forces you to unlock" onPress={handleDecoySetup} value={decoyVaultConfigured ? 'Configured' : 'Not set'} />
-            <SettingsRow type="toggle" icon="scan" title="Hide app icon" subtitle={stealthModeEnabled ? 'App is hidden. Tap notification to open.' : 'Hide from launcher. Open via notification.'} value={stealthModeEnabled} onValueChange={handleToggleStealth} showDivider={false} />
+            <SettingsRow type="navigation" icon="lock" title={t('settings.app_lock')} subtitle={t('settings.app_lock_desc')} onPress={() => navigation.navigate('AppLock')} />
+            <SettingsRow type="navigation" icon="lock" title={t('settings.notification_privacy')} subtitle={t('settings.notification_privacy_desc')} onPress={() => navigation.navigate('NotificationPrivacy')} />
+            <SettingsRow type="navigation" icon="shield" title={t('settings.uninstall_protection')} subtitle={t('settings.uninstall_protection_desc')} onPress={() => navigation.navigate('UninstallProtection')} />
+            <SettingsRow type="navigation" icon="key" title={t('settings.decoy_vault')} subtitle={t('settings.decoy_vault_desc')} onPress={handleDecoySetup} value={decoyVaultConfigured ? t('settings.decoy_configured') : t('settings.not_set')} />
+            <SettingsRow type="toggle" icon="scan" title={t('settings.hide_app_icon')} subtitle={stealthModeEnabled ? t('settings.hide_app_icon_active_desc') : t('settings.hide_app_icon_desc')} value={stealthModeEnabled} onValueChange={handleToggleStealth} showDivider={false} />
           </SettingsSection>
         )}
 
         {/* ── APP APPEARANCE — hidden in decoy mode and stealth mode ── */}
         {!isDecoyMode && !stealthModeEnabled && (
-          <SettingsSection title="App Appearance" description="Change how the app looks on your home screen">
+          <SettingsSection title={t('settings.section_app_appearance')} description={t('settings.section_app_appearance_desc')}>
             {(['default', 'calculator', 'weather', 'notes'] as const).map((alias, idx, arr) => {
               const labels: Record<AppIconAlias, string> = {
-                default: 'Default (VaultCalc)',
-                calculator: 'Calculator',
-                weather: 'Weather',
-                notes: 'Notes',
+                default: t('settings.app_icon_default'),
+                calculator: t('settings.app_icon_calculator'),
+                weather: t('settings.app_icon_weather'),
+                notes: t('settings.app_icon_notes'),
               };
               const icons: Record<AppIconAlias, 'calculator' | 'image' | 'pencil' | 'settings'> = {
                 default: 'settings',
@@ -780,7 +782,7 @@ export function SettingsScreen(): React.JSX.Element {
                   type="value"
                   icon={icons[alias]}
                   title={labels[alias]}
-                  value={appIcon === alias ? 'Selected' : ''}
+                  value={appIcon === alias ? t('settings.app_icon_selected') : ''}
                   valueColor={themeColors.accent}
                   onPress={() => handleChangeAppIcon(alias)}
                   showDivider={idx < arr.length - 1}
@@ -792,49 +794,49 @@ export function SettingsScreen(): React.JSX.Element {
 
         {/* ── CLOUD BACKUP — hidden in decoy mode ── */}
         {!isDecoyMode && (
-          <SettingsSection title="Cloud Backup" description="Keep your vault safe in the cloud">
+          <SettingsSection title={t('settings.section_cloud_backup')} description={t('settings.section_cloud_backup_desc')}>
             {googleDriveEmail ? (
               <>
-                <SettingsRow type="value" icon="folder" title="Google Drive" value="Connected" valueColor={themeColors.success} />
-                <SettingsRow type="navigation" icon="folder" title={isBackingUp ? 'Backing Up...' : 'Back Up Now'} onPress={handleBackupNow} />
-                <SettingsRow type="value" icon="clock" title="Backup status" value={backupStatusLabel} valueColor={backupStatusColor} />
-                <SettingsRow type="toggle" icon="folder" title="Auto-backup" subtitle="Back up automatically when files change" value={autoBackupEnabled} onValueChange={handleToggleAutoBackup} />
-                <SettingsRow type="navigation" icon="folder" title={isRestoring ? 'Restoring...' : 'Restore from Backup'} onPress={handleRestoreFromDrive} />
-                <SettingsRow type="navigation" icon="trash" title="Disconnect" onPress={handleGoogleDriveDisconnect} destructive showDivider={false} />
+                <SettingsRow type="value" icon="folder" title={t('settings.google_drive')} value={t('settings.google_drive_connected')} valueColor={themeColors.success} />
+                <SettingsRow type="navigation" icon="folder" title={isBackingUp ? t('settings.backing_up') : t('settings.backup_now')} onPress={handleBackupNow} />
+                <SettingsRow type="value" icon="clock" title={t('settings.backup_status')} value={backupStatusLabel} valueColor={backupStatusColor} />
+                <SettingsRow type="toggle" icon="folder" title={t('settings.auto_backup')} subtitle={t('settings.auto_backup_desc')} value={autoBackupEnabled} onValueChange={handleToggleAutoBackup} />
+                <SettingsRow type="navigation" icon="folder" title={isRestoring ? t('settings.restoring') : t('settings.restore_from_backup')} onPress={handleRestoreFromDrive} />
+                <SettingsRow type="navigation" icon="trash" title={t('settings.disconnect')} onPress={handleGoogleDriveDisconnect} destructive showDivider={false} />
               </>
             ) : (
-              <SettingsRow type="navigation" icon="folder" title={isConnecting ? 'Connecting...' : 'Connect Google Drive'} onPress={handleGoogleDriveConnect} showDivider={false} />
+              <SettingsRow type="navigation" icon="folder" title={isConnecting ? t('settings.connecting') : t('settings.connect_google_drive')} onPress={handleGoogleDriveConnect} showDivider={false} />
             )}
           </SettingsSection>
         )}
 
         {/* ── STORAGE ── */}
-        <SettingsSection title="Storage" description="Manage vault files and space">
-          <SettingsRow type="toggle" icon="trash" title="Delete originals after import" subtitle="Automatically remove source files so no trace is left" value={deleteOriginalsAfterImport} onValueChange={handleToggleDeleteOriginals} />
-          <SettingsRow type="value" icon="folder" title="Vault size" value={storageStats !== null ? formatBytes(storageStats.totalSize) : '...'} subtitle={storageStats !== null ? `${storageStats.photoCount} photos, ${storageStats.videoCount} videos, ${storageStats.docCount} docs` : undefined} showDivider={false} />
+        <SettingsSection title={t('settings.section_storage')} description={t('settings.section_storage_desc')}>
+          <SettingsRow type="toggle" icon="trash" title={t('settings.delete_originals')} subtitle={t('settings.delete_originals_desc')} value={deleteOriginalsAfterImport} onValueChange={handleToggleDeleteOriginals} />
+          <SettingsRow type="value" icon="folder" title={t('settings.vault_size')} value={storageStats !== null ? formatBytes(storageStats.totalSize) : '...'} subtitle={storageStats !== null ? t('settings.vault_size_summary', { photos: storageStats.photoCount, videos: storageStats.videoCount, docs: storageStats.docCount }) : undefined} showDivider={false} />
         </SettingsSection>
 
         {/* ── APPEARANCE ── */}
-        <SettingsSection title="Appearance">
-          <SettingsRow type="value" icon="settings" title="Theme" value={THEME_LABELS[themeMode]} onPress={handleCycleTheme} />
-          <SettingsRow type="toggle" icon="settings" title="Haptic feedback" subtitle="Feel a gentle tap when you press buttons" value={hapticEnabled} onValueChange={handleToggleHaptic} showDivider={false} />
+        <SettingsSection title={t('settings.section_appearance')}>
+          <SettingsRow type="value" icon="settings" title={t('settings.theme')} value={t(THEME_KEYS[themeMode])} onPress={handleCycleTheme} />
+          <SettingsRow type="toggle" icon="settings" title={t('settings.haptic_feedback')} subtitle={t('settings.haptic_feedback_desc')} value={hapticEnabled} onValueChange={handleToggleHaptic} showDivider={false} />
         </SettingsSection>
 
         {/* ── ABOUT ── */}
-        <SettingsSection title="About">
+        <SettingsSection title={t('settings.section_about')}>
           {!isDecoyMode && (
-            <SettingsRow type="navigation" icon="star" title="VaultCalc Premium" subtitle="Remove ads and unlock everything" onPress={handleSubscription} highlighted />
+            <SettingsRow type="navigation" icon="star" title={t('settings.premium')} subtitle={t('settings.premium_desc')} onPress={handleSubscription} highlighted />
           )}
           {!isDecoyMode && premiumStatus === 'free' && !isCurrentlyAdFree && (
-            <SettingsRow type="navigation" icon="play" title="Remove ads for 24 hours" subtitle="Watch a short video" onPress={handleWatchAd} />
+            <SettingsRow type="navigation" icon="play" title={t('settings.remove_ads_rewarded')} subtitle={t('settings.remove_ads_rewarded_desc')} onPress={handleWatchAd} />
           )}
           {!isDecoyMode && adFreeRemainingHours > 0 && premiumStatus === 'free' && (
-            <SettingsRow type="value" icon="play" title="Ad-free mode" value={`${adFreeRemainingHours}h left`} onPress={() => {}} />
+            <SettingsRow type="value" icon="play" title={t('settings.ad_free_mode')} value={t('settings.ad_free_remaining', { hours: adFreeRemainingHours })} onPress={() => {}} />
           )}
-          <SettingsRow type="navigation" icon="share" title="Tell a friend" subtitle="Help others discover private file protection" onPress={handleShareApp} />
-          <SettingsRow type="navigation" icon="globe" title="Language" subtitle={currentLanguageLabel} onPress={handleLanguage} />
-          <SettingsRow type="navigation" icon="shield" title="Privacy Policy" subtitle="How your data is handled" onPress={handlePrivacyPolicy} />
-          <SettingsRow type="navigation" icon="settings" title="About VaultCalc" onPress={handleAbout} showDivider={false} />
+          <SettingsRow type="navigation" icon="share" title={t('settings.share_app')} subtitle={t('settings.share_app_desc')} onPress={handleShareApp} />
+          <SettingsRow type="navigation" icon="globe" title={t('settings.language')} subtitle={currentLanguageLabel} onPress={handleLanguage} />
+          <SettingsRow type="navigation" icon="shield" title={t('settings.privacy_policy')} subtitle={t('settings.privacy_policy_desc')} onPress={handlePrivacyPolicy} />
+          <SettingsRow type="navigation" icon="settings" title={t('settings.about')} onPress={handleAbout} showDivider={false} />
         </SettingsSection>
       </ScrollView>
 

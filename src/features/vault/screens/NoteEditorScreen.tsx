@@ -38,12 +38,14 @@ import { useActivityTracker } from '@features/auth';
 import { shareNoteAsText } from '@services/share';
 import { alert } from '@store/alertStore';
 import { sanitizeUserInput } from '@shared/utils/formatters';
+import { useTranslation } from 'react-i18next';
 
 type Props = VaultStackScreenProps<'NoteEditor'>;
 
 type SaveStatus = 'idle' | 'unsaved' | 'saving' | 'saved';
 
 export function NoteEditorScreen({ navigation, route }: Props): React.JSX.Element {
+  const { t } = useTranslation();
   const { noteId } = route.params;
   const themeColors = useThemeColors();
   const isDark = themeColors === colors.dark;
@@ -211,12 +213,12 @@ export function NoteEditorScreen({ navigation, route }: Props): React.JSX.Elemen
   const handleDelete = useCallback(() => {
     onActivity();
     alert(
-      'Delete this note?',
-      `"${title.trim() || 'Untitled'}" will be gone permanently.`,
+      t('note_editor.delete_title'),
+      t('note_editor.delete_body', { title: title.trim() || t('note_editor.untitled') }),
       [
-        { text: 'Keep', style: 'cancel' },
+        { text: t('common.keep'), style: 'cancel' },
         {
-          text: 'Delete',
+          text: t('common.delete'),
           style: 'destructive',
           onPress: async () => {
             if (autoSaveTimerRef.current) {
@@ -264,7 +266,7 @@ export function NoteEditorScreen({ navigation, route }: Props): React.JSX.Elemen
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Decrypting...</Text>
+          <Text style={styles.loadingText}>{t('common.decrypting')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -293,12 +295,12 @@ export function NoteEditorScreen({ navigation, route }: Props): React.JSX.Elemen
             <View style={styles.statusDot} />
           )}
           {saveStatus === 'saving' && (
-            <Text style={styles.statusText}>Saving...</Text>
+            <Text style={styles.statusText}>{t('common.saving')}</Text>
           )}
           {saveStatus === 'saved' && (
             <Animated.View style={[styles.statusSavedRow, checkAnimStyle]}>
               <Icon name="check" size={14} color={themeColors.success} />
-              <Text style={styles.statusSavedText}> Saved</Text>
+              <Text style={styles.statusSavedText}> {t('common.done')}</Text>
             </Animated.View>
           )}
         </View>
@@ -358,7 +360,7 @@ export function NoteEditorScreen({ navigation, route }: Props): React.JSX.Elemen
             style={styles.titleInput}
             value={title}
             onChangeText={handleTitleChange}
-            placeholder="Title"
+            placeholder={t('note_editor.title_placeholder')}
             placeholderTextColor={themeColors.textTertiary}
             returnKeyType="next"
             onSubmitEditing={handleTitleSubmit}
@@ -376,7 +378,7 @@ export function NoteEditorScreen({ navigation, route }: Props): React.JSX.Elemen
             style={styles.contentInput}
             value={content}
             onChangeText={handleContentChange}
-            placeholder="Start writing..."
+            placeholder={t('note_editor.content_placeholder')}
             placeholderTextColor={themeColors.textTertiary}
             multiline
             textAlignVertical="top"
@@ -387,7 +389,7 @@ export function NoteEditorScreen({ navigation, route }: Props): React.JSX.Elemen
         {/* Bottom bar with word count */}
         <Animated.View style={styles.bottomBar} entering={FadeIn.delay(200).duration(300)}>
           <Text style={styles.countText}>
-            {wordCount} {wordCount === 1 ? 'word' : 'words'}
+            {t(wordCount === 1 ? 'note_editor.word_count_one' : 'note_editor.word_count_other', { count: wordCount })}
           </Text>
           <Text style={styles.countDivider}>{'\u00B7'}</Text>
           <Text style={styles.countText}>

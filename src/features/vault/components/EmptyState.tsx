@@ -23,6 +23,8 @@ import Animated, {
   withDelay,
   withTiming,
 } from 'react-native-reanimated';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { useThemeColors, type ColorTokens, typography, spacing, layout } from '@shared/theme';
 import {
   ImagesIllustration,
@@ -48,48 +50,50 @@ interface EmptyConfig {
   buttonText: string;
 }
 
-const EMPTY_STATE_CONFIG: Record<string, EmptyConfig> = {
-  images: {
-    title: 'Your memories belong here',
-    description: 'Import photos from your gallery to lock them away. Only you will ever see them.',
-    buttonText: 'Add Photos',
-  },
-  videos: {
-    title: 'Your private theater',
-    description: 'Import videos to encrypt and hide them. Watch anytime, share never.',
-    buttonText: 'Add Videos',
-  },
-  documents: {
-    title: 'Lock up what matters',
-    description: 'Import sensitive PDFs, files, and documents. Encrypted the moment they arrive.',
-    buttonText: 'Add Documents',
-  },
-  audio: {
-    title: 'Sound, sealed, delivered',
-    description: 'Import voice memos, recordings, or music that no one else should hear.',
-    buttonText: 'Add Audio',
-  },
-  albums: {
-    title: 'Organize your secrets',
-    description: 'Create albums to sort your hidden photos and videos into private collections.',
-    buttonText: 'Create Album',
-  },
-  notes: {
-    title: 'Thoughts worth protecting',
-    description: 'Write encrypted notes that exist only on your device. No cloud, no leaks.',
-    buttonText: 'Write a Note',
-  },
-  favorites: {
-    title: 'Nothing starred yet',
-    description: 'Tap the star on any item to pin it here for quick access.',
-    buttonText: '',
-  },
-  search: {
-    title: 'Nothing matched',
-    description: 'Try a different keyword or check the spelling.',
-    buttonText: '',
-  },
-};
+function getEmptyStateConfig(t: TFunction): Record<string, EmptyConfig> {
+  return {
+    images: {
+      title: t('vault.empty_images_title'),
+      description: t('vault.empty_images_description'),
+      buttonText: t('vault.empty_images_button'),
+    },
+    videos: {
+      title: t('vault.empty_videos_title'),
+      description: t('vault.empty_videos_description'),
+      buttonText: t('vault.empty_videos_button'),
+    },
+    documents: {
+      title: t('vault.empty_documents_title'),
+      description: t('vault.empty_documents_description'),
+      buttonText: t('vault.empty_documents_button'),
+    },
+    audio: {
+      title: t('vault.empty_audio_title'),
+      description: t('vault.empty_audio_description'),
+      buttonText: t('vault.empty_audio_button'),
+    },
+    albums: {
+      title: t('vault.empty_albums_title'),
+      description: t('vault.empty_albums_description'),
+      buttonText: t('vault.empty_albums_button'),
+    },
+    notes: {
+      title: t('vault.empty_notes_title'),
+      description: t('vault.empty_notes_description'),
+      buttonText: t('vault.empty_notes_button'),
+    },
+    favorites: {
+      title: t('vault.empty_favorites_title'),
+      description: t('vault.empty_favorites_description'),
+      buttonText: '',
+    },
+    search: {
+      title: t('vault.empty_search_title'),
+      description: t('vault.empty_search_description'),
+      buttonText: '',
+    },
+  };
+}
 
 /** Map content type → illustration component */
 function renderIllustration(
@@ -118,9 +122,10 @@ export function EmptyState({
   contentType,
   onAddPress,
 }: EmptyStateProps): React.JSX.Element {
+  const { t } = useTranslation();
   const themeColors = useThemeColors();
   const styles = useMemo(() => createStyles(themeColors), [themeColors]);
-  const config = EMPTY_STATE_CONFIG[contentType];
+  const config = getEmptyStateConfig(t)[contentType];
 
   // ── Entry animation ──
   const illustrationTranslateY = useSharedValue(20);

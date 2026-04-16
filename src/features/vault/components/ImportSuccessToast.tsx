@@ -17,6 +17,7 @@ import Animated, {
   withSequence,
   runOnJS,
 } from 'react-native-reanimated';
+import { useTranslation } from 'react-i18next';
 import { useThemeColors, type ColorTokens, typography, spacing } from '@shared/theme';
 import { Icon } from '@shared/components/Icon';
 
@@ -31,6 +32,7 @@ export function ImportSuccessToast({
   visible,
   onDismiss,
 }: ImportSuccessToastProps): React.JSX.Element | null {
+  const { t } = useTranslation();
   const themeColors = useThemeColors();
   const styles = useMemo(() => createStyles(themeColors), [themeColors]);
 
@@ -85,8 +87,6 @@ export function ImportSuccessToast({
 
   if (!visible) return null;
 
-  const fileWord = count === 1 ? 'file' : 'files';
-
   return (
     <View style={styles.overlay} pointerEvents="none">
       <Animated.View style={[styles.card, containerStyle]}>
@@ -100,9 +100,9 @@ export function ImportSuccessToast({
             <Icon name="check" size={12} color="#FFFFFF" strokeWidth={3} />
           </Animated.View>
         </View>
-        <Text style={styles.title}>Encrypted & Hidden</Text>
+        <Text style={styles.title}>{t('vault.import_success_title')}</Text>
         <Text style={styles.subtitle}>
-          {count} {fileWord} secured in your vault
+          {t('vault.import_success', { count })}
         </Text>
       </Animated.View>
     </View>

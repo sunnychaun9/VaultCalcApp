@@ -15,6 +15,7 @@ import Animated, {
   useAnimatedStyle,
   withSpring,
 } from 'react-native-reanimated';
+import { useTranslation } from 'react-i18next';
 import { useThemeColors, type ColorTokens, typography, spacing, layout } from '@shared/theme';
 import { IconButton } from '@shared/components/Icon';
 
@@ -44,6 +45,7 @@ export function SelectionBar({
   isDeleting = false,
   isSharing = false,
 }: SelectionBarProps): React.JSX.Element {
+  const { t } = useTranslation();
   const themeColors = useThemeColors();
   const styles = useMemo(() => createStyles(themeColors), [themeColors]);
 
@@ -83,15 +85,15 @@ export function SelectionBar({
         accessibilityRole="button"
         accessibilityLabel="Clear selection"
       >
-        <Text style={[styles.cancelText, busy && styles.disabledText]}>Cancel</Text>
+        <Text style={[styles.cancelText, busy && styles.disabledText]}>{t('common.cancel')}</Text>
       </Pressable>
 
       <Animated.View style={countAnimStyle}>
         <Text style={styles.countText}>
-          {isSharing ? 'Sharing...' : isDeleting ? 'Deleting...' : (
+          {isSharing ? t('vault.sharing') : isDeleting ? t('vault.deleting') : (
             <>
               <Text style={styles.countNumber}>{selectedCount}</Text>
-              {' selected'}
+              {' '}{t('common.selected')}
             </>
           )}
         </Text>

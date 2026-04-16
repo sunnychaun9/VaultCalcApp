@@ -14,6 +14,7 @@ import {
   Pressable,
   StyleSheet,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { useThemeColors, type ColorTokens, typography, spacing, layout } from '@shared/theme';
 import { Icon, ICON_SIZE } from '@shared/components/Icon';
 
@@ -31,6 +32,7 @@ export function PremiumUpsell({
   feature,
   onUpgrade,
 }: PremiumUpsellProps): React.JSX.Element {
+  const { t } = useTranslation();
   const themeColors = useThemeColors();
   const styles = useMemo(() => createStyles(themeColors), [themeColors]);
 
@@ -39,11 +41,11 @@ export function PremiumUpsell({
       <Icon name="lock" size={ICON_SIZE.xl} color={themeColors.textTertiary} style={styles.icon} />
 
       <Text style={styles.title}>
-        &quot;{feature}&quot; is a Premium feature
+        {t('premium_upsell.title', { feature })}
       </Text>
 
       <Text style={styles.description}>
-        Upgrade to VaultCalc Premium to unlock this feature.
+        {t('premium_upsell.body')}
       </Text>
 
       <Pressable
@@ -55,7 +57,7 @@ export function PremiumUpsell({
         accessibilityRole="button"
         accessibilityLabel="Upgrade to Premium"
       >
-        <Text style={styles.buttonText}>Upgrade to Premium</Text>
+        <Text style={styles.buttonText}>{t('premium_upsell.button')}</Text>
       </Pressable>
     </View>
   );

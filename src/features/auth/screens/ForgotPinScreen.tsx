@@ -33,6 +33,7 @@ import { getPinRules } from '../services/authService';
 import { useShakeAnimation, useDotScaleAnimations, useTapHaptic } from '../hooks/useLockAnimations';
 import { typography, spacing } from '@shared/theme';
 import { Icon } from '@shared/components/Icon';
+import { useTranslation } from '@shared/i18n';
 import { BG_TOP, BG_BOTTOM, TEXT_PRIMARY, TEXT_SECONDARY, TEXT_MUTED, CARD_BG, CARD_BORDER } from '../components/LockScreenContainer';
 
 type Phase = 'question' | 'newpin' | 'confirmpin';
@@ -46,6 +47,7 @@ const DOT_EMPTY = 'rgba(100, 116, 139, 0.3)';
 
 export function ForgotPinScreen(): React.JSX.Element {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const { t } = useTranslation();
 
   const [phase, setPhase] = useState<Phase>('question');
   const [answer, setAnswer] = useState('');
@@ -98,7 +100,7 @@ export function ForgotPinScreen(): React.JSX.Element {
     if (isProcessing || attemptsLeft <= 0) return;
     const trimmed = answer.trim();
     if (trimmed.length < 1) {
-      setError('Please enter your answer');
+      setError(t('forgot_pin.error_empty_answer'));
       triggerShake();
       return;
     }
@@ -113,11 +115,11 @@ export function ForgotPinScreen(): React.JSX.Element {
       } else {
         const remaining = attemptsLeft - 1;
         setAttemptsLeft(remaining);
-        setError(remaining > 0 ? `Wrong answer. ${remaining} attempt${remaining !== 1 ? 's' : ''} left.` : 'Too many attempts. Please try later.');
+        setError(remaining > 0 ? t('forgot_pin.error_wrong_answer', { count: remaining }) : t('forgot_pin.error_too_many_attempts'));
         triggerShake();
       }
     } catch {
-      setError('Verification failed');
+      setError(t('forgot_pin.error_verify_failed'));
       triggerShake();
     } finally {
       setIsProcessing(false);
@@ -133,7 +135,7 @@ export function ForgotPinScreen(): React.JSX.Element {
     }
 
     if (currentPin.length < PIN_RULES.MIN_LENGTH) {
-      setError(`PIN must be at least ${PIN_RULES.MIN_LENGTH} digits`);
+      setError(t('forgot_pin.error_too_short'));
       triggerShake();
       return;
     }
@@ -145,7 +147,7 @@ export function ForgotPinScreen(): React.JSX.Element {
       prevLength.current = 0;
     } else {
       if (newPin !== confirmPin) {
-        setError('PINs do not match');
+        setError(t('forgot_pin.error_mismatch'));
         setConfirmPin('');
         resetAll();
         prevLength.current = 0;
@@ -159,11 +161,11 @@ export function ForgotPinScreen(): React.JSX.Element {
         if (result.success) {
           navigation.navigate('Calculator');
         } else {
-          setError(result.error ?? 'Failed to reset PIN');
+          setError(result.error ?? t('forgot_pin.error_reset_failed'));
           triggerShake();
         }
       } catch {
-        setError('An error occurred');
+        setError(t('forgot_pin.error_generic'));
         triggerShake();
       } finally {
         setIsProcessing(false);
@@ -203,12 +205,12 @@ export function ForgotPinScreen(): React.JSX.Element {
         <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
           <View style={styles.centeredContent}>
             <Icon name="lock" size={48} color="rgba(255,255,255,0.9)" />
-            <Text style={styles.title}>No Recovery Set Up</Text>
+            <Text style={styles.title}>{t('forgot_pin.no_recovery_title')}</Text>
             <Text style={[styles.subtitle, { marginBottom: 32 }]}>
-              Recovery was not configured during PIN setup. Unfortunately, your PIN cannot be reset without it.
+              {t('forgot_pin.no_recovery_body')}
             </Text>
             <Pressable onPress={() => navigation.goBack()} style={styles.continueButton}>
-              <Text style={styles.continueButtonText}>Go Back</Text>
+              <Text style={styles.continueButtonText}>{t('common.go_back')}</Text>
             </Pressable>
           </View>
         </SafeAreaView>
@@ -235,27 +237,27 @@ export function ForgotPinScreen(): React.JSX.Element {
             <Icon name={phase === 'question' ? 'key' : 'lock'} size={48} color="rgba(255,255,255,0.9)" />
           </View>
           <Text style={styles.title}>
-            {phase === 'question' ? 'Forgot PIN' : phase === 'newpin' ? 'New PIN' : 'Confirm PIN'}
+            {phase === 'question' ? t('forgot_pin.title') : phase === 'newpin' ? t('forgot_pin.new_pin_label') : t('forgot_pin.confirm_pin_label')}
           </Text>
           <Text style={styles.subtitle}>
             {phase === 'question'
-              ? 'Answer your security question'
+              ? t('forgot_pin.question_subtitle')
               : phase === 'newpin'
-                ? `Enter a new ${PIN_RULES.MIN_LENGTH}-${PIN_RULES.MAX_LENGTH} digit PIN`
-                : 'Re-enter your new PIN'}
+                ? t('forgot_pin.new_pin_placeholder')
+                : t('forgot_pin.confirm_pin_placeholder')}
           </Text>
         </View>
 
         {phase === 'question' ? (
           <Animated.View style={[styles.cardWrapper, { transform: [{ translateX: shakeValue }] }]}>
             <View style={styles.card}>
-              <Text style={styles.questionLabel}>Security Question</Text>
+              <Text style={styles.questionLabel}>{t('forgot_pin.security_question_label')}</Text>
               <Text style={styles.questionDisplay}>{question}</Text>
               <TextInput
                 style={styles.answerInput}
                 value={answer}
                 onChangeText={(t) => { setAnswer(t); setError(null); }}
-                placeholder="Type your answer"
+                placeholder={t('forgot_pin.answer_placeholder')}
                 placeholderTextColor="rgba(100, 116, 139, 0.5)"
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -337,7 +339,7 @@ export function ForgotPinScreen(): React.JSX.Element {
             ]}
           >
             <Text style={[styles.continueButtonText, !canContinue && styles.continueButtonTextDisabled]}>
-              {isProcessing ? 'Processing...' : phase === 'question' ? 'Verify' : phase === 'newpin' ? 'Continue' : 'Reset PIN'}
+              {isProcessing ? t('common.processing') : phase === 'question' ? t('forgot_pin.button_verify') : phase === 'newpin' ? t('common.continue') : t('forgot_pin.button_reset')}
             </Text>
           </Pressable>
         </View>

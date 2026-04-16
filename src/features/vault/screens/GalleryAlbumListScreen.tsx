@@ -29,6 +29,7 @@ import {
   hasGalleryPermissions,
   type GalleryAlbum,
 } from '@services/gallery';
+import { useTranslation } from 'react-i18next';
 
 type NavigationProp = NativeStackNavigationProp<VaultStackParamList, 'GalleryAlbumList'>;
 type ScreenRoute = RouteProp<VaultStackParamList, 'GalleryAlbumList'>;
@@ -36,6 +37,7 @@ type ScreenRoute = RouteProp<VaultStackParamList, 'GalleryAlbumList'>;
 const THUMBNAIL_SIZE = 64;
 
 export function GalleryAlbumListScreen(): React.JSX.Element {
+  const { t } = useTranslation();
   const themeColors = useThemeColors();
   const styles = useMemo(() => createStyles(themeColors), [themeColors]);
   const navigation = useNavigation<NavigationProp>();
@@ -122,22 +124,22 @@ export function GalleryAlbumListScreen(): React.JSX.Element {
         >
           <Icon name="arrow-left" size={24} color={themeColors.textPrimary} />
         </Pressable>
-        <Text style={styles.headerTitle}>Select Album</Text>
+        <Text style={styles.headerTitle}>{t('gallery_import.select_album')}</Text>
         <View style={styles.headerButton} />
       </View>
 
       {/* Permission prompt */}
       {hasPermission === false && (
         <View style={styles.centerContent}>
-          <Text style={styles.emptyTitle}>Permission Required</Text>
+          <Text style={styles.emptyTitle}>{t('gallery_import.permission_required_title')}</Text>
           <Text style={styles.emptySubtitle}>
-            Grant access to your {mediaType === 'video' ? 'videos' : 'photos'} to import them into the vault.
+            {mediaType === 'video' ? t('gallery_import.permission_videos_body') : t('gallery_import.permission_photos_body')}
           </Text>
           <Pressable
             onPress={handleRequestPermission}
             style={({ pressed }) => [styles.permissionButton, pressed && styles.permissionButtonPressed]}
           >
-            <Text style={styles.permissionButtonText}>Grant Permission</Text>
+            <Text style={styles.permissionButtonText}>{t('gallery_import.grant_permission')}</Text>
           </Pressable>
         </View>
       )}
@@ -152,9 +154,9 @@ export function GalleryAlbumListScreen(): React.JSX.Element {
       {/* Empty state */}
       {!isLoading && hasPermission && albums.length === 0 && (
         <View style={styles.centerContent}>
-          <Text style={styles.emptyTitle}>No {mediaType === 'video' ? 'Videos' : 'Photos'} Found</Text>
+          <Text style={styles.emptyTitle}>{mediaType === 'video' ? t('gallery_import.no_videos_title') : t('gallery_import.no_photos_title')}</Text>
           <Text style={styles.emptySubtitle}>
-            There are no local {mediaType === 'video' ? 'videos' : 'photos'} on this device.
+            {mediaType === 'video' ? t('gallery_import.no_videos_body') : t('gallery_import.no_photos_body')}
           </Text>
         </View>
       )}

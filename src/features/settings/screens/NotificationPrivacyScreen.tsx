@@ -24,6 +24,7 @@ import { useActivityTracker } from '@features/auth';
 import { useThemeColors, type ColorTokens, typography, spacing } from '@shared/theme';
 import { PremiumSwitch } from '@shared/components/PremiumSwitch';
 import { alert } from '@store/alertStore';
+import { useTranslation } from '@shared/i18n';
 import {
   getInstalledApps,
   getProtectedApps,
@@ -47,6 +48,7 @@ export function NotificationPrivacyScreen(): React.JSX.Element {
   const styles = useMemo(() => createStyles(themeColors), [themeColors]);
   const navigation = useNavigation();
   const { onActivity } = useActivityTracker();
+  const { t } = useTranslation();
 
   const [apps, setApps] = useState<AppInfo[]>([]);
   const [protectedApps, setProtectedApps] = useState<Set<string>>(new Set());
@@ -102,7 +104,7 @@ export function NotificationPrivacyScreen(): React.JSX.Element {
       setHideSenderEnabled(hideSenderVal as boolean);
       setBlockEntirelyEnabled(blockEntirelyVal as boolean);
     } catch (e) {
-      alert('Error', 'Failed to load installed apps');
+      alert(t('common.error'), t('notification_privacy.load_error'));
     } finally {
       setIsLoading(false);
     }
@@ -122,12 +124,12 @@ export function NotificationPrivacyScreen(): React.JSX.Element {
 
     if (value && !serviceEnabled) {
       alert(
-        'Notification Access Required',
-        'Notification Privacy needs permission to read notifications.\n\nYou will be taken to Notification Access settings. Enable "VaultCalc".',
+        t('notification_privacy.permission_title'),
+        t('notification_privacy.permission_body'),
         [
-          { text: 'Cancel', style: 'cancel' },
+          { text: t('common.cancel'), style: 'cancel' },
           {
-            text: 'Open Settings',
+            text: t('notification_privacy.open_settings'),
             onPress: async () => {
               await openListenerSettings();
             },
@@ -216,20 +218,20 @@ export function NotificationPrivacyScreen(): React.JSX.Element {
       {/* Header */}
       <View style={styles.header}>
         <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Text style={styles.backText}>Back</Text>
+          <Text style={styles.backText}>{t('common.back')}</Text>
         </Pressable>
-        <Text style={styles.title}>Notification Privacy</Text>
+        <Text style={styles.title}>{t('notification_privacy.title')}</Text>
         <View style={styles.backButton} />
       </View>
 
       {/* Enable toggle */}
       <View style={styles.enableRow}>
         <View style={styles.enableTextContainer}>
-          <Text style={styles.enableLabel}>Enable Notification Privacy</Text>
+          <Text style={styles.enableLabel}>{t('notification_privacy.enable_label')}</Text>
           <Text style={styles.enableDesc}>
             {serviceEnabled
-              ? 'Mask notification content from selected apps.'
-              : 'Notification listener not enabled.'}
+              ? t('notification_privacy.enabled_desc')
+              : t('notification_privacy.disabled_desc')}
           </Text>
         </View>
         <PremiumSwitch
@@ -247,7 +249,7 @@ export function NotificationPrivacyScreen(): React.JSX.Element {
           onPress={() => openListenerSettings()}
         >
           <Text style={styles.serviceWarningText}>
-            Tap to enable Notification Access
+            {t('notification_privacy.enable_hint')}
           </Text>
         </Pressable>
       )}
@@ -255,10 +257,10 @@ export function NotificationPrivacyScreen(): React.JSX.Element {
       {/* Masking options */}
       {featureEnabled && (
         <View style={styles.optionsContainer}>
-          <Text style={styles.optionsTitle}>Privacy Options</Text>
+          <Text style={styles.optionsTitle}>{t('notification_privacy.title')}</Text>
 
           <View style={styles.optionRow}>
-            <Text style={styles.optionLabel}>Hide message content</Text>
+            <Text style={styles.optionLabel}>{t('notification_privacy.hide_content')}</Text>
             <PremiumSwitch
               value={hideContentEnabled}
               onValueChange={handleToggleHideContent}
@@ -270,7 +272,7 @@ export function NotificationPrivacyScreen(): React.JSX.Element {
           </View>
 
           <View style={styles.optionRow}>
-            <Text style={styles.optionLabel}>Hide sender name</Text>
+            <Text style={styles.optionLabel}>{t('notification_privacy.hide_sender')}</Text>
             <PremiumSwitch
               value={hideSenderEnabled}
               onValueChange={handleToggleHideSender}
@@ -282,7 +284,7 @@ export function NotificationPrivacyScreen(): React.JSX.Element {
           </View>
 
           <View style={styles.optionRow}>
-            <Text style={styles.optionLabel}>Block notifications completely</Text>
+            <Text style={styles.optionLabel}>{t('notification_privacy.block_notifications')}</Text>
             <PremiumSwitch
               value={blockEntirelyEnabled}
               onValueChange={handleToggleBlockEntirely}
@@ -298,7 +300,7 @@ export function NotificationPrivacyScreen(): React.JSX.Element {
       <View style={styles.searchContainer}>
         <TextInput
           style={styles.searchInput}
-          placeholder="Search apps..."
+          placeholder={t('notification_privacy.search_placeholder')}
           placeholderTextColor={themeColors.textTertiary}
           value={searchQuery}
           onChangeText={setSearchQuery}
@@ -324,7 +326,7 @@ export function NotificationPrivacyScreen(): React.JSX.Element {
 
       <View style={styles.footer}>
         <Text style={styles.footerText}>
-          {protectedApps.size} app{protectedApps.size !== 1 ? 's' : ''} protected
+          {t('notification_privacy.apps_protected', { count: protectedApps.size })}
         </Text>
       </View>
     </SafeAreaView>

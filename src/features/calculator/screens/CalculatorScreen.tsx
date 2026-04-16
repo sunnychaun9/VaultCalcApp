@@ -28,14 +28,15 @@ import type { CalcTheme } from '@store/settingsStore';
 import { useOrientation } from '@shared/hooks';
 import { Icon, IconButton } from '@shared/components/Icon';
 import { DecoyExitScreen } from '@features/auth/components';
+import { useTranslation } from 'react-i18next';
 
-function formatHistoryTime(timestamp: number): string {
+function formatHistoryTime(timestamp: number, t: (key: string, opts?: Record<string, unknown>) => string): string {
   if (!timestamp) return '';
   const now = Date.now();
   const diff = now - timestamp;
-  if (diff < 60_000) return 'Just now';
-  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
-  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
+  if (diff < 60_000) return t('calculator.time_just_now');
+  if (diff < 3_600_000) return t('calculator.time_minutes_ago', { count: Math.floor(diff / 60_000) });
+  if (diff < 86_400_000) return t('calculator.time_hours_ago', { count: Math.floor(diff / 3_600_000) });
   const d = new Date(timestamp);
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
@@ -54,6 +55,7 @@ function formatHistoryTime(timestamp: number): string {
  * - Failed attempt tracking and warnings (AUTH-006)
  */
 export function CalculatorScreen(): React.JSX.Element {
+  const { t } = useTranslation();
   const baseThemeColors = useThemeColors();
   const themeColors = useCalcThemeColors();
   const isDark = baseThemeColors === colors.dark;
@@ -208,7 +210,7 @@ export function CalculatorScreen(): React.JSX.Element {
           <Pressable style={styles.menuBackdrop} onPress={() => setShowMenu(false)}>
             <View style={styles.menuPopup}>
               <Pressable style={styles.menuItem} onPress={() => { setShowMenu(false); setShowThemePicker(true); }}>
-                <Text style={styles.menuItemText}>Theme</Text>
+                <Text style={styles.menuItemText}>{t('calculator.theme')}</Text>
               </Pressable>
             </View>
           </Pressable>
@@ -261,7 +263,7 @@ export function CalculatorScreen(): React.JSX.Element {
               accessibilityRole="button"
               accessibilityLabel="Forgot PIN"
             >
-              <Text style={styles.forgotText}>Forgot PIN?</Text>
+              <Text style={styles.forgotText}>{t('calculator.forgot_pin')}</Text>
             </Pressable>
           )}
         </View>
@@ -289,13 +291,13 @@ export function CalculatorScreen(): React.JSX.Element {
               accessibilityLabel="Close history"
               hitSize={44}
             />
-            <Text style={styles.historyTitle}>History</Text>
+            <Text style={styles.historyTitle}>{t('calculator.history_title')}</Text>
             {history.length > 0 ? (
               <Pressable
                 onPress={clearHistory}
                 style={styles.historyClearBtn}
               >
-                <Text style={styles.historyClearText}>Clear</Text>
+                <Text style={styles.historyClearText}>{t('calculator.history_clear')}</Text>
               </Pressable>
             ) : (
               <View style={{ width: 44 }} />
@@ -304,12 +306,12 @@ export function CalculatorScreen(): React.JSX.Element {
           <ScrollView style={styles.historyScroll} contentContainerStyle={styles.historyScrollContent}>
             {history.length === 0 ? (
               <View style={styles.historyEmpty}>
-                <Text style={styles.historyEmptyText}>No history yet</Text>
+                <Text style={styles.historyEmptyText}>{t('calculator.history_empty')}</Text>
               </View>
             ) : (
               history.slice().reverse().map((entry, idx) => (
                 <View key={idx} style={styles.historyEntry}>
-                  <Text style={styles.historyTimestamp}>{formatHistoryTime(entry.timestamp)}</Text>
+                  <Text style={styles.historyTimestamp}>{formatHistoryTime(entry.timestamp, t)}</Text>
                   <Text style={styles.historyExpression}>{entry.expression}</Text>
                   <Text style={styles.historyResult}>{entry.result}</Text>
                 </View>
@@ -324,7 +326,7 @@ export function CalculatorScreen(): React.JSX.Element {
     <Modal visible={showThemePicker} transparent animationType="fade" onRequestClose={() => setShowThemePicker(false)}>
       <Pressable style={styles.themePickerBackdrop} onPress={() => setShowThemePicker(false)}>
         <View style={styles.themePickerCard}>
-          <Text style={styles.themePickerTitle}>Calculator Theme</Text>
+          <Text style={styles.themePickerTitle}>{t('calculator.theme_picker_title')}</Text>
           {(Object.keys(calcThemes) as CalcTheme[]).map((key) => {
             const theme = calcThemes[key];
             const isSelected = calcTheme === key;
@@ -353,7 +355,7 @@ export function CalculatorScreen(): React.JSX.Element {
     {/* One-time vault hint toast */}
     {showVaultHint && (
       <RNAnimated.View style={[styles.vaultHint, { opacity: hintOpacity }]} pointerEvents="none">
-        <Text style={styles.vaultHintText}>Enter your PIN and press = to reopen your vault</Text>
+        <Text style={styles.vaultHintText}>{t('calculator.vault_hint')}</Text>
       </RNAnimated.View>
     )}
     </>

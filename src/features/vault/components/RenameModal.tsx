@@ -19,6 +19,7 @@ import {
   KeyboardAvoidingView,
   StyleSheet,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { useThemeColors, colors, type ColorTokens, typography, spacing } from '@shared/theme';
 import { sanitizeUserInput } from '@shared/utils/formatters';
 
@@ -44,6 +45,7 @@ export function RenameModal({
   onRename,
   onClose,
 }: RenameModalProps): React.JSX.Element {
+  const { t } = useTranslation();
   const themeColors = useThemeColors();
   const isDark = themeColors === colors.dark;
   const styles = useMemo(() => createStyles(themeColors, isDark), [themeColors, isDark]);
@@ -76,7 +78,7 @@ export function RenameModal({
       <KeyboardAvoidingView style={styles.overlay} behavior="padding">
         <Pressable style={styles.backdrop} onPress={onClose} />
         <View style={styles.dialog}>
-          <Text style={styles.title}>Rename</Text>
+          <Text style={styles.title}>{t('vault.rename_title')}</Text>
           <View style={styles.inputRow}>
             <TextInput
               ref={inputRef}
@@ -98,13 +100,13 @@ export function RenameModal({
           </View>
           <View style={styles.buttons}>
             <Pressable style={styles.button} onPress={onClose}>
-              <Text style={styles.buttonText}>Cancel</Text>
+              <Text style={styles.buttonText}>{t('common.cancel')}</Text>
             </Pressable>
             <Pressable
               style={[styles.button, styles.buttonPrimary]}
               onPress={handleSubmit}
             >
-              <Text style={styles.buttonPrimaryText}>Rename</Text>
+              <Text style={styles.buttonPrimaryText}>{t('common.rename')}</Text>
             </Pressable>
           </View>
         </View>

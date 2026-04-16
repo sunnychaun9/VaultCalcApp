@@ -11,6 +11,7 @@ import React, { useMemo } from 'react';
 import { View, Text, Pressable, Image, StyleSheet } from 'react-native';
 import Animated from 'react-native-reanimated';
 import type { Album, CoverMediaInfo } from '@services/storage/database';
+import { useTranslation } from 'react-i18next';
 import { useThemeColors, type ColorTokens, typography, spacing, layout } from '@shared/theme';
 import { useDecryptedThumbnail } from '../hooks';
 import { Icon } from '@shared/components/Icon';
@@ -43,6 +44,7 @@ export const AlbumListItem = React.memo(function AlbumListItem({
   onLongPress,
   index = 0,
 }: AlbumListItemProps): React.JSX.Element {
+  const { t } = useTranslation();
   const themeColors = useThemeColors();
   const styles = useMemo(() => createStyles(themeColors), [themeColors]);
   const { uri: coverUri } = useDecryptedThumbnail(
@@ -52,7 +54,7 @@ export const AlbumListItem = React.memo(function AlbumListItem({
   );
 
   const count = mediaCount ?? 0;
-  const countLabel = count === 1 ? '1 item' : `${count} items`;
+  const countLabel = t('vault.items_count', { count });
 
   const entryStyle = useListItemAnimation({ index });
   const { animatedStyle: pressStyle, onPressIn, onPressOut } = usePressAnimation({ scaleDown: 0.98, opacityDown: 0.9 });

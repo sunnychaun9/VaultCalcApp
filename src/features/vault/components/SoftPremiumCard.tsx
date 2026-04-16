@@ -16,6 +16,7 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
+import { useTranslation } from 'react-i18next';
 import { useThemeColors, type ColorTokens, typography, spacing, layout } from '@shared/theme';
 import { Icon, IconButton } from '@shared/components/Icon';
 
@@ -25,6 +26,7 @@ interface SoftPremiumCardProps {
 }
 
 export function SoftPremiumCard({ onDismiss, onUpgrade }: SoftPremiumCardProps): React.JSX.Element {
+  const { t } = useTranslation();
   const themeColors = useThemeColors();
   const styles = useMemo(() => createStyles(themeColors), [themeColors]);
 
@@ -49,8 +51,8 @@ export function SoftPremiumCard({ onDismiss, onUpgrade }: SoftPremiumCardProps):
           <Icon name="star" size={18} color={themeColors.accent} />
         </View>
         <View style={styles.textCol}>
-          <Text style={styles.title}>Enjoying VaultCalc?</Text>
-          <Text style={styles.subtitle}>Go premium to remove ads forever</Text>
+          <Text style={styles.title}>{t('soft_premium.title')}</Text>
+          <Text style={styles.subtitle}>{t('soft_premium.subtitle')}</Text>
         </View>
         <IconButton
           name="x"
@@ -66,7 +68,7 @@ export function SoftPremiumCard({ onDismiss, onUpgrade }: SoftPremiumCardProps):
         accessibilityRole="button"
         accessibilityLabel="Learn more about premium"
       >
-        <Text style={styles.ctaText}>Learn more</Text>
+        <Text style={styles.ctaText}>{t('common.learn_more')}</Text>
       </Pressable>
     </Animated.View>
   );

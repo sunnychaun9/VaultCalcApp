@@ -36,6 +36,7 @@ import { importFiles, type ImportProgress } from '@services/import';
 import type { PickedFile } from '@services/filePicker';
 import { ImportProgressOverlay } from '../components';
 import { alert } from '@store/alertStore';
+import { useTranslation } from 'react-i18next';
 
 type NavigationProp = NativeStackNavigationProp<VaultStackParamList, 'GalleryMediaSelect'>;
 type ScreenRoute = RouteProp<VaultStackParamList, 'GalleryMediaSelect'>;
@@ -51,6 +52,7 @@ function formatDuration(ms: number): string {
 }
 
 export function GalleryMediaSelectScreen(): React.JSX.Element {
+  const { t } = useTranslation();
   const themeColors = useThemeColors();
   const styles = useMemo(() => createStyles(themeColors), [themeColors]);
   const navigation = useNavigation<NavigationProp>();
@@ -150,27 +152,27 @@ export function GalleryMediaSelectScreen(): React.JSX.Element {
 
       // Show result
       if (result.failed.length === 0) {
-        let msg = `${result.imported} ${result.imported === 1 ? 'file' : 'files'} encrypted and hidden.`;
+        let msg = t(result.imported === 1 ? 'vault.import_gallery_success_one' : 'vault.import_gallery_success_other', { count: result.imported });
         if (deletedOriginals) {
-          msg += `\nOriginals removed from your gallery.`;
+          msg += `\n${t('vault.import_gallery_originals_removed')}`;
         }
-        alert('Safe and sound', msg);
+        alert(t('vault.import_gallery_success_title'), msg);
       } else if (result.imported > 0) {
         alert(
-          'Almost there',
-          `${result.imported} imported, but ${result.failed.length} couldn't be added.\n\n${result.failed.map(f => f.name).join(', ')}`,
+          t('vault.import_gallery_partial_title'),
+          t('vault.import_gallery_partial_body', { imported: result.imported, failed: result.failed.length }),
         );
       } else {
         alert(
-          'Couldn\'t import',
-          `Something went wrong. Please try again.\n\n${result.failed[0]?.error ?? ''}`,
+          t('vault.import_gallery_error_title'),
+          t('vault.import_gallery_error_body'),
         );
       }
 
       // Navigate back to vault
       navigation.popTo('VaultHome');
     } catch (e) {
-      alert('Something went wrong', e instanceof Error ? e.message : 'Import failed. Please try again.');
+      alert(t('common.error'), e instanceof Error ? e.message : t('common.error_generic'));
     } finally {
       setIsImporting(false);
       setImportProgress(null);
@@ -244,7 +246,7 @@ export function GalleryMediaSelectScreen(): React.JSX.Element {
             styles.importButtonText,
             selectedCount === 0 && styles.importButtonTextDisabled,
           ]}>
-            Import{selectedCount > 0 ? ` (${selectedCount})` : ''}
+            {selectedCount > 0 ? t('gallery_import.import_count', { count: selectedCount }) : t('gallery_import.import_button')}
           </Text>
         </Pressable>
       </View>
@@ -259,8 +261,8 @@ export function GalleryMediaSelectScreen(): React.JSX.Element {
       {/* Empty state */}
       {!isLoading && items.length === 0 && (
         <View style={styles.centerContent}>
-          <Text style={styles.emptyTitle}>No Items</Text>
-          <Text style={styles.emptySubtitle}>This album is empty.</Text>
+          <Text style={styles.emptyTitle}>{t('gallery_import.no_items_title')}</Text>
+          <Text style={styles.emptySubtitle}>{t('gallery_import.album_empty')}</Text>
         </View>
       )}
 

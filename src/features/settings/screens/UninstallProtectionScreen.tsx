@@ -21,6 +21,7 @@ import { useActivityTracker } from '@features/auth';
 import { useThemeColors, type ColorTokens, typography, spacing } from '@shared/theme';
 import { Icon } from '@shared/components/Icon';
 import { alert } from '@store/alertStore';
+import { useTranslation } from '@shared/i18n';
 
 const { UninstallProtectModule } = NativeModules;
 
@@ -29,6 +30,7 @@ export function UninstallProtectionScreen(): React.JSX.Element {
   const styles = useMemo(() => createStyles(themeColors), [themeColors]);
   const navigation = useNavigation();
   const { onActivity } = useActivityTracker();
+  const { t } = useTranslation();
 
   const [isEnabled, setIsEnabled] = useState(false);
 
@@ -57,26 +59,26 @@ export function UninstallProtectionScreen(): React.JSX.Element {
       await UninstallProtectModule.requestEnable();
       // System dialog opens — status checked on focus return
     } catch {
-      alert('Error', 'Failed to request device admin activation.');
+      alert(t('common.error'), t('uninstall_protection.enable_error'));
     }
-  }, [onActivity]);
+  }, [onActivity, t]);
 
   const handleDisable = useCallback(() => {
     onActivity();
     alert(
-      'Disable Uninstall Protection?',
-      'This will allow the app to be uninstalled. Your hidden files will be lost forever if the app is removed.',
+      t('uninstall_protection.disable_title'),
+      t('uninstall_protection.disable_body'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Disable',
+          text: t('common.disable'),
           style: 'destructive',
           onPress: async () => {
             try {
               await UninstallProtectModule.disable();
               setIsEnabled(false);
             } catch {
-              alert('Error', 'Failed to disable. Try deactivating in Android Settings > Security > Device Admin Apps.');
+              alert(t('common.error'), t('uninstall_protection.disable_error'));
             }
           },
         },
@@ -91,17 +93,16 @@ export function UninstallProtectionScreen(): React.JSX.Element {
         <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
           <Icon name="arrow-left" size={20} color={themeColors.textPrimary} />
         </Pressable>
-        <Text style={styles.title}>Uninstall Protection</Text>
+        <Text style={styles.title}>{t('uninstall_protection.title')}</Text>
         <View style={styles.backButton} />
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Main card */}
         <View style={styles.mainCard}>
-          <Text style={styles.cardTitle}>Avoid accidental uninstallation</Text>
+          <Text style={styles.cardTitle}>{t('uninstall_protection.subtitle')}</Text>
           <Text style={styles.cardDescription}>
-            After uninstalling VaultCalc, hidden files won't return to your gallery and may be lost.
-            Please unhide your vault files before uninstalling or enable Uninstall Protection.
+            {t('uninstall_protection.warning_body')}
           </Text>
 
           <Pressable
@@ -113,29 +114,29 @@ export function UninstallProtectionScreen(): React.JSX.Element {
             ]}
           >
             <Text style={[styles.actionButtonText, isEnabled && styles.actionButtonTextDisable]}>
-              {isEnabled ? 'Disable' : 'Enable'}
+              {isEnabled ? t('common.disable') : t('common.enable')}
             </Text>
           </Pressable>
 
           {isEnabled && (
             <View style={styles.statusBadge}>
-              <Text style={styles.statusText}>Protected</Text>
+              <Text style={styles.statusText}>{t('uninstall_protection.protected')}</Text>
             </View>
           )}
         </View>
 
         {/* Tips card */}
         <View style={styles.tipsCard}>
-          <Text style={styles.tipsTitle}>Tips</Text>
+          <Text style={styles.tipsTitle}>{t('uninstall_protection.tips_title')}</Text>
 
           <View style={styles.tipRow}>
             <View style={styles.tipNumber}>
               <Text style={styles.tipNumberText}>1</Text>
             </View>
             <View style={styles.tipContent}>
-              <Text style={styles.tipLabel}>Don't delete folders in Vault</Text>
+              <Text style={styles.tipLabel}>{t('uninstall_protection.tip1_title')}</Text>
               <Text style={styles.tipDescription}>
-                Please do not move or delete folders in Vault, or your hidden files may no longer be protected.
+                {t('uninstall_protection.tip1_body')}
               </Text>
             </View>
           </View>
@@ -145,9 +146,9 @@ export function UninstallProtectionScreen(): React.JSX.Element {
               <Text style={styles.tipNumberText}>2</Text>
             </View>
             <View style={styles.tipContent}>
-              <Text style={styles.tipLabel}>Prevent files deletion by cleaner apps</Text>
+              <Text style={styles.tipLabel}>{t('uninstall_protection.tip2_title')}</Text>
               <Text style={styles.tipDescription}>
-                To avoid hidden files being cleared by some cleaner apps, please exclude VaultCalc from the cleanup of these apps.
+                {t('uninstall_protection.tip2_body')}
               </Text>
             </View>
           </View>
@@ -157,9 +158,9 @@ export function UninstallProtectionScreen(): React.JSX.Element {
               <Text style={styles.tipNumberText}>3</Text>
             </View>
             <View style={styles.tipContent}>
-              <Text style={styles.tipLabel}>Unhide files before uninstalling</Text>
+              <Text style={styles.tipLabel}>{t('uninstall_protection.tip3_title')}</Text>
               <Text style={styles.tipDescription}>
-                If you plan to uninstall, export all vault files to your gallery first using the "Export to Gallery" option.
+                {t('uninstall_protection.tip3_body')}
               </Text>
             </View>
           </View>

@@ -33,6 +33,7 @@ import { recordIntruderAttempt } from '@services/intruderCamera';
 import { typography, spacing } from '@shared/theme';
 import { Icon } from '@shared/components/Icon';
 import { isRecoveryConfigured } from '../services/recoveryService';
+import { useTranslation } from '@shared/i18n';
 
 /** Colors for the dark lock screen */
 const ACCENT = '#3B82F6';
@@ -41,6 +42,7 @@ const WARNING_COLOR = '#EAB308';
 
 export function PatternUnlockScreen(): React.JSX.Element {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const { t } = useTranslation();
 
   const { authenticate } = useAuthStore();
   const intruderDetectionEnabled = useSettingsStore(s => s.intruderDetectionEnabled);
@@ -129,7 +131,7 @@ export function PatternUnlockScreen(): React.JSX.Element {
 
   // Warning/lockout message
   const displayWarning = isLockedOut && lockoutTimeRemaining
-    ? `Locked out. Try again in ${lockoutTimeRemaining}`
+    ? t('pattern_unlock.locked_out', { time: lockoutTimeRemaining })
     : warningMessage;
 
   const displayWarningColor = isLockedOut ? ERROR_COLOR : wColor;
@@ -137,7 +139,7 @@ export function PatternUnlockScreen(): React.JSX.Element {
   return (
     <Animated.View style={[styles.animatedRoot, { opacity: successOpacity, transform: [{ scale: successScale }] }]}>
       <LockScreenContainer
-        title="Draw Pattern"
+        title={t('pattern_unlock.title')}
         warningMessage={displayWarning}
         warningColor={displayWarningColor}
         bottomContent={
@@ -147,7 +149,7 @@ export function PatternUnlockScreen(): React.JSX.Element {
               onPress={handleSwitchToPin}
               style={({ pressed }) => [styles.toggleButton, pressed && styles.togglePressed]}
             >
-              <Text style={styles.toggleText}>Use PIN Instead</Text>
+              <Text style={styles.toggleText}>{t('pattern_unlock.use_pin_instead')}</Text>
             </Pressable>
 
             {/* Forgot PIN/Pattern — after 3+ fails */}
@@ -156,7 +158,7 @@ export function PatternUnlockScreen(): React.JSX.Element {
                 onPress={() => navigation.navigate('ForgotPin' as never)}
                 style={({ pressed }) => [styles.toggleButton, pressed && styles.togglePressed]}
               >
-                <Text style={[styles.toggleText, { fontSize: 13 }]}>Forgot PIN?</Text>
+                <Text style={[styles.toggleText, { fontSize: 13 }]}>{t('pattern_unlock.forgot_pin')}</Text>
               </Pressable>
             )}
 

@@ -63,7 +63,7 @@ export function HowItWorksScreen(): React.JSX.Element {
         </View>
 
         <Text style={styles.disclosure}>
-          This app can appear as a calculator, weather, or notes app on your home screen for privacy. You can change this anytime in Settings.
+          {t('onboarding.how_it_works_disclosure')}
         </Text>
       </View>
 

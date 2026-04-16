@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Stop, Rect, RadialGradient } from 'react-native-svg';
 import { typography, spacing } from '@shared/theme';
 import { Icon } from '@shared/components/Icon';
+import { useTranslation } from '@shared/i18n';
 
 /** Premium dark palette — synced with PinSetupScreen */
 const BG_TOP = '#0A0E1A';
@@ -49,13 +50,15 @@ interface LockScreenContainerProps {
  */
 export function LockScreenContainer({
   title,
-  subtitle = 'Your private vault is protected',
+  subtitle,
   warningMessage,
   warningColor,
   children,
   bottomContent,
 }: LockScreenContainerProps): React.JSX.Element {
   const styles = useMemo(() => createStyles(), []);
+  const { t } = useTranslation();
+  const resolvedSubtitle = subtitle ?? t('lock_screen.tagline');
 
   // Lock icon breathing pulse
   const pulseScale = useRef(new Animated.Value(1)).current;
@@ -111,7 +114,7 @@ export function LockScreenContainer({
               {warningMessage}
             </Text>
           ) : (
-            <Text style={styles.subtitle}>{subtitle}</Text>
+            <Text style={styles.subtitle}>{resolvedSubtitle}</Text>
           )}
         </View>
 
@@ -129,7 +132,7 @@ export function LockScreenContainer({
           {/* Trust indicator */}
           <View style={styles.trustRow}>
             <Icon name="shield" size={16} color="rgba(255,255,255,0.4)" />
-            <Text style={styles.trustText}>Protected with encryption</Text>
+            <Text style={styles.trustText}>{t('lock_screen.encryption_badge')}</Text>
           </View>
         </View>
         </ScrollView>

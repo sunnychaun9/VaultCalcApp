@@ -41,6 +41,7 @@ import {
   useTapHaptic,
   useLockIconPulse,
 } from '../hooks/useLockAnimations';
+import { useTranslation } from '@shared/i18n';
 import type { RootStackParamList, RootStackScreenProps } from '@typedefs/navigation';
 
 type SetupMode = 'create' | 'confirm' | 'recovery';
@@ -72,6 +73,7 @@ export function PinSetupScreen(): React.JSX.Element {
   const isInitialSetup = route.params?.isInitialSetup ?? true;
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList, 'PinSetup'>>();
+  const { t } = useTranslation();
 
   const [mode, setMode] = useState<SetupMode>('create');
   const [pin, setPin] = useState('');
@@ -219,7 +221,7 @@ export function PinSetupScreen(): React.JSX.Element {
     if (isProcessing) return;
     const trimmed = securityAnswer.trim();
     if (trimmed.length < 1) {
-      setError('Type an answer you\'ll remember');
+      setError(t('pin_setup.error_answer_empty'));
       triggerShake();
       return;
     }
@@ -229,16 +231,16 @@ export function PinSetupScreen(): React.JSX.Element {
       if (result.success) {
         finishSetup();
       } else {
-        setError(result.error ?? 'Couldn\'t save recovery. Try again.');
+        setError(result.error ?? t('pin_setup.error_recovery_save'));
         triggerShake();
       }
     } catch {
-      setError('Something went wrong. Please try again.');
+      setError(t('pin_setup.error_generic'));
       triggerShake();
     } finally {
       setIsProcessing(false);
     }
-  }, [isProcessing, securityAnswer, selectedQuestionId, triggerShake, finishSetup]);
+  }, [isProcessing, securityAnswer, selectedQuestionId, triggerShake, finishSetup, t]);
 
   const handleContinue = useCallback(async () => {
     if (isProcessing) return;
@@ -249,7 +251,7 @@ export function PinSetupScreen(): React.JSX.Element {
     }
 
     if (currentPin.length < PIN_RULES.MIN_LENGTH) {
-      setError(`Enter at least ${PIN_RULES.MIN_LENGTH} digits`);
+      setError(t('pin_setup.error_too_short'));
       triggerShake();
       return;
     }
@@ -260,7 +262,7 @@ export function PinSetupScreen(): React.JSX.Element {
       resetAll();
     } else {
       if (pin !== confirmPin) {
-        setError('Those PINs didn\'t match. Try again.');
+        setError(t('pin_setup.error_mismatch'));
         setConfirmPin('');
         resetAll();
         triggerShake();
@@ -278,17 +280,17 @@ export function PinSetupScreen(): React.JSX.Element {
           setMode('recovery');
           setError(null);
         } else {
-          setError(result.error ?? 'Couldn\'t save your PIN. Try again.');
+          setError(result.error ?? t('pin_setup.error_save_failed'));
           triggerShake();
         }
       } catch {
-        setError('Something went wrong. Please try again.');
+        setError(t('pin_setup.error_generic'));
         triggerShake();
       } finally {
         setIsProcessing(false);
       }
     }
-  }, [mode, currentPin, pin, confirmPin, isProcessing, triggerShake, resetAll, handleSaveRecovery]);
+  }, [mode, currentPin, pin, confirmPin, isProcessing, triggerShake, resetAll, handleSaveRecovery, t]);
 
   const handleBack = useCallback(() => {
     if (mode === 'recovery') {
@@ -350,7 +352,7 @@ export function PinSetupScreen(): React.JSX.Element {
             {(mode === 'confirm' || mode === 'recovery' || !isInitialSetup) ? (
               <Pressable onPress={handleBack} style={styles.backButton} hitSlop={12}>
                 {mode === 'recovery'
-                  ? <Text style={styles.backButtonText}>Skip</Text>
+                  ? <Text style={styles.backButtonText}>{t('common.skip')}</Text>
                   : <Icon name="arrow-left" size={22} color="rgba(255,255,255,0.8)" />}
               </Pressable>
             ) : <View style={styles.backButton} />}
@@ -365,14 +367,14 @@ export function PinSetupScreen(): React.JSX.Element {
             </Animated.View>
 
             <Text style={styles.title}>
-              {mode === 'create' ? 'Create your PIN' : mode === 'confirm' ? 'Confirm your PIN' : 'Recovery Setup'}
+              {mode === 'create' ? t('pin_setup.title_create') : mode === 'confirm' ? t('pin_setup.title_confirm') : t('pin_setup.recovery_title')}
             </Text>
             <Text style={styles.subtitle}>
               {mode === 'create'
-                ? 'Enter a secure PIN to protect your vault'
+                ? t('pin_setup.subtitle_create')
                 : mode === 'confirm'
-                  ? 'Re-enter your PIN to confirm'
-                  : 'Set a security question in case you forget'}
+                  ? t('pin_setup.subtitle_confirm')
+                  : t('pin_setup.recovery_subtitle')}
             </Text>
           </View>
 
@@ -386,7 +388,7 @@ export function PinSetupScreen(): React.JSX.Element {
                 <View style={styles.card}>
                   <View style={styles.recoveryLabelRow}>
                     <Icon name="shield" size={16} color={ACCENT} />
-                    <Text style={styles.recoveryLabel}>Security Question</Text>
+                    <Text style={styles.recoveryLabel}>{t('pin_setup.security_question_label')}</Text>
                   </View>
 
                   {SECURITY_QUESTIONS.map((q, idx) => {
@@ -425,14 +427,14 @@ export function PinSetupScreen(): React.JSX.Element {
                   <Animated.View style={{ opacity: answerFade }}>
                     <View style={[styles.recoveryLabelRow, { marginTop: 20 }]}>
                       <Icon name="lock" size={14} color={TEXT_SECONDARY} />
-                      <Text style={styles.recoveryLabel}>Your Answer</Text>
+                      <Text style={styles.recoveryLabel}>{t('pin_setup.your_answer_label')}</Text>
                     </View>
                     <Animated.View style={[styles.answerInputWrapper, { borderColor: inputBorderColor }]}>
                       <TextInput
                         style={styles.answerInput}
                         value={securityAnswer}
                         onChangeText={(t) => { setSecurityAnswer(t); setError(null); }}
-                        placeholder="Type your answer"
+                        placeholder={t('pin_setup.answer_placeholder')}
                         placeholderTextColor="rgba(100, 116, 139, 0.5)"
                         autoCapitalize="none"
                         autoCorrect={false}
@@ -555,14 +557,14 @@ export function PinSetupScreen(): React.JSX.Element {
               ]}
             >
               <Text style={[styles.continueButtonText, !canContinue && styles.continueButtonTextDisabled]}>
-                {isProcessing ? 'Saving...' : mode === 'create' ? 'Continue' : mode === 'confirm' ? 'Create PIN' : 'Save Recovery'}
+                {isProcessing ? t('common.saving') : mode === 'create' ? t('common.continue') : mode === 'confirm' ? t('pin_setup.button_create') : t('pin_setup.button_save_recovery')}
               </Text>
             </Pressable>
 
             <View style={styles.trustRow}>
               <Icon name="shield" size={14} color="rgba(255,255,255,0.35)" />
               <Text style={styles.trustText}>
-                {mode === 'recovery' ? 'Helps recover your PIN if forgotten' : 'Protected with AES-256 encryption'}
+                {mode === 'recovery' ? t('pin_setup.recovery_hint') : t('pin_setup.encryption_badge')}
               </Text>
             </View>
           </View>

@@ -23,6 +23,7 @@ import {
   getShareRewardProgress,
 } from '@services/referral';
 import { trackEvent } from '@services/analytics';
+import { useTranslation } from '@shared/i18n';
 
 /**
  * About Screen Component
@@ -34,6 +35,7 @@ import { trackEvent } from '@services/analytics';
  * - Footer
  */
 export function AboutScreen(): React.JSX.Element {
+  const { t } = useTranslation();
   const themeColors = useThemeColors();
   const styles = useMemo(() => createStyles(themeColors), [themeColors]);
   const navigation = useNavigation();
@@ -64,13 +66,13 @@ export function AboutScreen(): React.JSX.Element {
       const granted = checkAndGrantShareMilestones();
       if (granted) {
         alert(
-          'Reward unlocked!',
-          `You earned ${granted.label} for sharing VaultCalc. Enjoy!`,
+          t('about.reward_title'),
+          t('about.reward_body', { label: granted.label }),
         );
       } else if (appShareCount === 0) {
         alert(
-          'Thanks for sharing!',
-          'Share with a few more friends to unlock ad-free time as a reward.',
+          t('about.share_thanks_title'),
+          t('about.share_thanks_body'),
         );
       }
     } catch {
@@ -89,25 +91,25 @@ export function AboutScreen(): React.JSX.Element {
           accessibilityLabel="Go back"
           containerStyle={styles.backButton}
         />
-        <Text style={styles.title}>About</Text>
+        <Text style={styles.title}>{t('about.title')}</Text>
         <View style={styles.placeholder} />
       </View>
 
       {/* Content */}
       <View style={styles.content}>
-        <Text style={styles.appName}>VaultCalc</Text>
-        <Text style={styles.tagline}>Your secrets, hidden in plain sight</Text>
-        <Text style={styles.socialProof}>Trusted by privacy-conscious users worldwide</Text>
+        <Text style={styles.appName}>{t('about.app_name')}</Text>
+        <Text style={styles.tagline}>{t('about.tagline')}</Text>
+        <Text style={styles.socialProof}>{t('about.social_proof')}</Text>
 
         {/* Info card */}
         <View style={styles.sectionCard}>
           <View style={styles.row}>
-            <Text style={styles.rowLabel}>Version</Text>
+            <Text style={styles.rowLabel}>{t('about.version_label')}</Text>
             <Text style={styles.rowValue}>1.0.0</Text>
           </View>
           <View style={styles.rowDivider} />
           <View style={styles.row}>
-            <Text style={styles.rowLabel}>Build</Text>
+            <Text style={styles.rowLabel}>{t('about.build_label')}</Text>
             <Text style={styles.rowValue}>1</Text>
           </View>
         </View>
@@ -120,26 +122,24 @@ export function AboutScreen(): React.JSX.Element {
           accessibilityLabel="Share VaultCalc with friends"
         >
           <Icon name="share" size={18} color={themeColors.accent} />
-          <Text style={styles.shareButtonText}>Share with friends</Text>
+          <Text style={styles.shareButtonText}>{t('about.share_cta')}</Text>
         </Pressable>
         {progress.nextTier ? (
           <Text style={styles.shareSubtext}>
-            Share {progress.sharesRemaining} more{' '}
-            {progress.sharesRemaining === 1 ? 'time' : 'times'} to unlock{' '}
-            {progress.nextTier.label}
+            {t('about.share_progress', { remaining: progress.sharesRemaining, times: progress.sharesRemaining === 1 ? 'time' : 'times', label: progress.nextTier.label })}
           </Text>
         ) : (
           <Text style={styles.shareSubtext}>
-            You've unlocked every share reward. Thanks for spreading the word!
+            {t('about.share_all_done')}
           </Text>
         )}
         <Text style={styles.shareCountText}>
-          Shared {appShareCount} {appShareCount === 1 ? 'time' : 'times'}
+          {t(appShareCount === 1 ? 'about.share_count_one' : 'about.share_count_other', { count: appShareCount })}
         </Text>
       </View>
 
       {/* Footer */}
-      <Text style={styles.footer}>Made with care for your privacy</Text>
+      <Text style={styles.footer}>{t('about.footer')}</Text>
     </SafeAreaView>
   );
 }

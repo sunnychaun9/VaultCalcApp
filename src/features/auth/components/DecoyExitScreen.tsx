@@ -34,6 +34,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useThemeColors, colors, type ColorTokens, typography, spacing, layout } from '@shared/theme';
 import { Icon } from '@shared/components/Icon';
+import { useTranslation } from '@shared/i18n';
 
 interface DecoyExitScreenProps {
   visible: boolean;
@@ -51,6 +52,7 @@ interface DecoyExitScreenProps {
  */
 export function DecoyExitScreen({ visible, onDismiss }: DecoyExitScreenProps): React.JSX.Element {
   const themeColors = useThemeColors();
+  const { t } = useTranslation();
   const isDark = themeColors === colors.dark;
   const styles = React.useMemo(() => createStyles(themeColors, isDark), [themeColors, isDark]);
 
@@ -142,11 +144,11 @@ export function DecoyExitScreen({ visible, onDismiss }: DecoyExitScreenProps): R
           </Animated.View>
 
           {/* Title */}
-          <Text style={styles.title}>Something went wrong</Text>
+          <Text style={styles.title}>{t('decoy_exit.title')}</Text>
 
           {/* Message */}
           <Text style={styles.message}>
-            An unexpected error occurred. You can try again or close the app.
+            {t('decoy_exit.body')}
           </Text>
 
           {/* Buttons */}
@@ -157,7 +159,7 @@ export function DecoyExitScreen({ visible, onDismiss }: DecoyExitScreenProps): R
               accessibilityRole="button"
               accessibilityLabel="Close app"
             >
-              <Text style={styles.buttonSecondaryText}>Close</Text>
+              <Text style={styles.buttonSecondaryText}>{t('decoy_exit.close_app')}</Text>
             </Pressable>
 
             <Pressable
@@ -166,7 +168,7 @@ export function DecoyExitScreen({ visible, onDismiss }: DecoyExitScreenProps): R
               accessibilityRole="button"
               accessibilityLabel="Try again"
             >
-              <Text style={styles.buttonPrimaryText}>Try Again</Text>
+              <Text style={styles.buttonPrimaryText}>{t('decoy_exit.try_again')}</Text>
             </Pressable>
           </View>
         </Animated.View>

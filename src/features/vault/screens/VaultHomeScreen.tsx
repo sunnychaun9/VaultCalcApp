@@ -47,21 +47,15 @@ import { requestGalleryPermissions, hasGalleryPermissions, type GalleryMediaType
 import { alert } from '@store/alertStore';
 import { sanitizeUserInput } from '@shared/utils/formatters';
 import { trackEvent, type MediaTypeParam } from '@services/analytics';
+import { useTranslation } from 'react-i18next';
 
 /** Map DB media type → analytics param (photo → image). */
 function mediaTypeToAnalytics(t: MediaType): MediaTypeParam {
   return t === 'photo' ? 'image' : t;
 }
 
-/** Tab configuration */
-const TABS: { key: TabType; label: string }[] = [
-  { key: 'images', label: 'Images' },
-  { key: 'videos', label: 'Videos' },
-  { key: 'audio', label: 'Audio' },
-  { key: 'documents', label: 'Docs' },
-  { key: 'albums', label: 'Albums' },
-  { key: 'notes', label: 'Notes' },
-];
+/** Tab keys in display order */
+const TAB_KEYS: TabType[] = ['images', 'videos', 'audio', 'documents', 'albums', 'notes'];
 
 /** Map UI tab → database MediaType (null = unsupported) */
 const TAB_TO_MEDIA_TYPE: Record<TabType, MediaType | null> = {
@@ -83,6 +77,7 @@ const TAB_TO_MEDIA_TYPE: Record<TabType, MediaType | null> = {
  * - FAB for adding files
  */
 export function VaultHomeScreen(): React.JSX.Element {
+  const { t } = useTranslation();
   const themeColors = useThemeColors();
   const isDark = themeColors === colors.dark;
   const styles = useMemo(() => createStyles(themeColors, isDark), [themeColors, isDark]);
@@ -90,6 +85,13 @@ export function VaultHomeScreen(): React.JSX.Element {
   const { isLandscape } = useOrientation();
   const gridColumns = isLandscape ? 5 : layout.vaultGridColumns;
   const queryClient = useQueryClient();
+
+  /** Tab configuration — rebuilt when language changes */
+  const TABS = useMemo(() => TAB_KEYS.map(key => ({
+    key,
+    label: t(`vault.tab_${key === 'documents' ? 'documents' : key}` as any),
+  })), [t]);
+
   const tabScrollRef = useRef<RNScrollView>(null);
   const pagerRef = useRef<PagerView>(null);
   const sortSheetRef = useRef<BottomSheetType>(null);
@@ -151,11 +153,11 @@ export function VaultHomeScreen(): React.JSX.Element {
         if (count > 0 && !intruderNudgeShown.current) {
           intruderNudgeShown.current = true;
           alert(
-            'Someone tried to break in',
-            `${count} intrusion ${count === 1 ? 'attempt' : 'attempts'} detected. Upgrade to Premium for advanced alerts with location tracking and detailed reports.`,
+            t('engagement.intruder_alert_title'),
+            t(count === 1 ? 'engagement.intruder_alert_body_one' : 'engagement.intruder_alert_body_other', { count }),
             [
-              { text: 'Not now', style: 'cancel' },
-              { text: 'See details', onPress: () => navigation.navigate('Subscription') },
+              { text: t('common.not_now'), style: 'cancel' },
+              { text: t('engagement.intruder_alert_button'), onPress: () => navigation.navigate('Subscription') },
             ],
           );
         }
@@ -181,19 +183,19 @@ export function VaultHomeScreen(): React.JSX.Element {
       // Dynamic offer: first-time → discount angle, returning → urgency angle
       const isReturning = paywallDismissCount >= 2;
       const title = isReturning
-        ? 'Last chance for this offer'
-        : 'You\'ve been protecting files for 3 days';
+        ? t('engagement.returning_offer_title')
+        : t('engagement.new_user_offer_title');
       const message = isReturning
-        ? 'Upgrade now before the price goes up. Go ad-free and unlock all features.'
-        : 'You\'re clearly serious about privacy. Unlock Premium and get the full experience.';
+        ? t('engagement.returning_offer_body')
+        : t('engagement.new_user_offer_body');
 
       alert(title, message, [
         {
-          text: 'Maybe later',
+          text: t('engagement.maybe_later'),
           style: 'cancel',
           onPress: () => useSettingsStore.getState().incrementPaywallDismissCount(),
         },
-        { text: 'See plans', onPress: () => navigation.navigate('Subscription') },
+        { text: t('engagement.offer_button'), onPress: () => navigation.navigate('Subscription') },
       ]);
     }, 5000);
     return () => clearTimeout(timer);
@@ -215,11 +217,11 @@ export function VaultHomeScreen(): React.JSX.Element {
       useSettingsStore.getState().markWinBackShown();
 
       alert(
-        'We miss you!',
-        'Your premium access expired 30+ days ago. Come back and get 50% off yearly — your files are still waiting.',
+        t('engagement.winback_title'),
+        t('engagement.winback_body'),
         [
-          { text: 'Not now', style: 'cancel' },
-          { text: 'See offer', onPress: () => navigation.navigate('Subscription') },
+          { text: t('common.not_now'), style: 'cancel' },
+          { text: t('engagement.winback_button'), onPress: () => navigation.navigate('Subscription') },
         ],
       );
     }, 3000);
@@ -337,7 +339,7 @@ export function VaultHomeScreen(): React.JSX.Element {
       pendingAddMediaIdsRef.current = null;
       clearSelection();
       setShowCreateAlbum(false);
-      alert('Album created', `"${newAlbum.name}" is ready with ${added} ${added === 1 ? 'item' : 'items'} inside.`);
+      alert(t('vault.create_album'), `"${newAlbum.name}" — ${t(added === 1 ? 'vault.items_count_one' : 'vault.items_count_other', { count: added })}`);
     } else {
       setShowCreateAlbum(false);
     }
@@ -358,7 +360,7 @@ export function VaultHomeScreen(): React.JSX.Element {
     onActivity();
     alert(album.name, undefined, [
       {
-        text: 'Rename',
+        text: t('common.rename'),
         onPress: () => {
           setRenameAlbumTarget(album);
           setRenameAlbumName(album.name);
@@ -366,30 +368,30 @@ export function VaultHomeScreen(): React.JSX.Element {
         },
       },
       {
-        text: 'Delete',
+        text: t('common.delete'),
         style: 'destructive',
         onPress: () => {
           alert(
-            'Remove this album?',
-            `"${album.name}" will be removed, but your files stay safe in the vault.`,
+            t('album_view.remove_from_album_title'),
+            t('album_view.remove_from_album_body_one', { album: album.name }),
             [
-              { text: 'Keep it', style: 'cancel' },
+              { text: t('album_view.keep_here'), style: 'cancel' },
               {
-                text: 'Remove',
+                text: t('common.remove'),
                 style: 'destructive',
                 onPress: async () => {
                   await albumsDb.deleteById(album.id);
                   await queryClient.invalidateQueries({ queryKey: ['albums'] });
                   await queryClient.invalidateQueries({ queryKey: ['albumMediaCounts', isDecoyMode] });
                   await queryClient.invalidateQueries({ queryKey: ['albumCoverMedia', isDecoyMode] });
-                  alert('Album removed', `"${album.name}" is gone. Your files are still safe.`);
+                  alert(t('album_view.removed_title'), t('album_view.removed_body_one', { count: 1 }));
                 },
               },
             ],
           );
         },
       },
-      { text: 'Cancel', style: 'cancel' },
+      { text: t('common.cancel'), style: 'cancel' },
     ]);
   }, [onActivity, queryClient, isDecoyMode]);
 
@@ -488,15 +490,15 @@ export function VaultHomeScreen(): React.JSX.Element {
       const result = await shareMediaItems(selectedItems);
       if (result.failed.length > 0 && result.shared > 0) {
         alert(
-          'Almost there',
-          `${result.shared} shared successfully, but ${result.failed.length} couldn't be shared.\n\n${result.failed.map(f => f.name).join(', ')}`,
+          t('album_view.share_partial_title'),
+          t('album_view.share_partial_body', { shared: result.shared, failed: result.failed.length }),
         );
       } else if (result.failed.length > 0) {
-        alert('Couldn\'t share', `Something went wrong: ${result.failed[0]?.error ?? 'Please try again.'}`);
+        alert(t('album_view.share_failed_title'), t('album_view.share_failed_body', { error: result.failed[0]?.error ?? t('common.error_generic') }));
       }
       clearSelection();
     } catch (e) {
-      alert('Something went wrong', e instanceof Error ? e.message : 'Sharing failed. Please try again.');
+      alert(t('album_view.share_error_title'), e instanceof Error ? e.message : t('common.error_generic'));
     } finally {
       setIsSharing(false);
     }
@@ -557,7 +559,7 @@ export function VaultHomeScreen(): React.JSX.Element {
       await queryClient.invalidateQueries({ queryKey: ['albumMediaCounts', isDecoyMode] });
       setShowAddToAlbum(false);
       clearSelection();
-      alert('Moved to album', `${added} ${added === 1 ? 'file' : 'files'} added to "${album.name}".`);
+      alert(t('album_view.moved_title'), t('album_view.moved_body', { count: added, album: album.name }));
     } finally {
       setIsAddingToAlbum(false);
     }
@@ -589,28 +591,28 @@ export function VaultHomeScreen(): React.JSX.Element {
     if (selected.length === 0) return;
 
     alert(
-      'Unhide and save?',
-      `This will save ${selected.length} ${selected.length === 1 ? 'file' : 'files'} back to your gallery where anyone can see ${selected.length === 1 ? 'it' : 'them'}.`,
+      t('album_view.export_title'),
+      t(selected.length === 1 ? 'album_view.export_body_one' : 'album_view.export_body_other', { count: selected.length }),
       [
-        { text: 'Keep hidden', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Save to gallery',
+          text: t('common.export'),
           onPress: async () => {
             setSuppressAutoLock(true);
             try {
               const result = await unhideMediaItems(selected);
               if (result.failed.length > 0 && result.saved > 0) {
                 alert(
-                  'Almost done',
-                  `${result.saved} saved to gallery, but ${result.failed.length} couldn't be exported.\n\n${result.failed.map(f => f.name).join(', ')}`,
+                  t('album_view.export_partial_title'),
+                  t('album_view.export_partial_body', { saved: result.saved, failed: result.failed.length }),
                 );
               } else if (result.failed.length > 0) {
-                alert('Couldn\'t export', `Something went wrong: ${result.failed[0]?.error ?? 'Please try again.'}`);
+                alert(t('album_view.export_failed_title'), t('album_view.export_failed_body', { error: result.failed[0]?.error ?? t('common.error_generic') }));
               } else {
-                alert('Saved to gallery', `${result.saved} ${result.saved === 1 ? 'file is' : 'files are'} now visible in your gallery.`);
+                alert(t('album_view.export_success_title'), t(result.saved === 1 ? 'album_view.export_success_body_one' : 'album_view.export_success_body_other', { count: result.saved }));
               }
             } catch (e) {
-              alert('Something went wrong', e instanceof Error ? e.message : 'Export failed. Please try again.');
+              alert(t('album_view.export_error_title'), e instanceof Error ? e.message : t('common.error_generic'));
             } finally {
               setSuppressAutoLock(false);
             }
@@ -669,7 +671,7 @@ export function VaultHomeScreen(): React.JSX.Element {
       if (mediaType !== null) {
         queryClient.invalidateQueries({ queryKey: ['media', mediaType, isDecoyMode] });
       }
-      alert('Rename failed', 'Please try again.');
+      alert(t('common.error'), t('common.error_generic'));
     }
   }, [selectedIds, activeTab, queryClient, isDecoyMode, clearSelection]);
 
@@ -784,13 +786,13 @@ export function VaultHomeScreen(): React.JSX.Element {
           setTimeout(() => {
             let originalsMsg = '';
             if (result.originalsDeleted > 0) {
-              originalsMsg += `${result.originalsDeleted} ${result.originalsDeleted === 1 ? 'original' : 'originals'} removed from your gallery.`;
+              originalsMsg += t('vault.import_gallery_originals_removed');
             }
             if (result.originalsDeleteFailed > 0) {
               originalsMsg += originalsMsg ? '\n' : '';
-              originalsMsg += 'Some originals couldn\'t be removed automatically.';
+              originalsMsg += t('common.error_generic');
             }
-            alert('Originals cleaned up', originalsMsg);
+            alert(t('vault.import_success_title'), originalsMsg);
           }, 2800);
         }
 
@@ -800,13 +802,13 @@ export function VaultHomeScreen(): React.JSX.Element {
         }, 4000);
       } else if (result.imported > 0) {
         alert(
-          'Almost there',
-          `${result.imported} imported successfully, but ${result.failed.length} couldn't be added.\n\n${result.failed.map(f => f.name).join(', ')}`,
+          t('vault.import_gallery_partial_title'),
+          t('vault.import_gallery_partial_body', { imported: result.imported, failed: result.failed.length }),
         );
       } else {
         alert(
-          'Couldn\'t import',
-          `None of the ${result.total} ${result.total === 1 ? 'file' : 'files'} could be imported.\n\n${result.failed[0]?.error ?? 'Please try again.'}`,
+          t('vault.import_gallery_error_title'),
+          t('vault.import_gallery_error_body'),
         );
       }
     } catch (e) {
@@ -815,7 +817,7 @@ export function VaultHomeScreen(): React.JSX.Element {
       // failed imports per device tells us whether the native pickFiles →
       // encrypt → store pipeline is healthy.
       Sentry.captureException(e, { tags: { area: 'import', tab: activeTab } });
-      alert('Something went wrong', e instanceof Error ? e.message : 'Import failed. Please try again.');
+      alert(t('common.error'), e instanceof Error ? e.message : t('common.error_generic'));
     } finally {
       setSuppressAutoLock(false);
       onActivity(); // Reset timeout so session doesn't expire right after import
@@ -898,12 +900,12 @@ export function VaultHomeScreen(): React.JSX.Element {
       if (selectedNoteIds.length === 0) return;
 
       alert(
-        'Delete forever?',
-        `${selectedNoteIds.length === 1 ? 'This note' : `These ${selectedNoteIds.length} notes`} will be permanently deleted.`,
+        t('album_view.delete_forever_title'),
+        t(selectedNoteIds.length === 1 ? 'album_view.delete_forever_body_one' : 'album_view.delete_forever_body_other', { count: selectedNoteIds.length }),
         [
-          { text: 'Keep', style: 'cancel' },
+          { text: t('common.keep'), style: 'cancel' },
           {
-            text: 'Delete',
+            text: t('common.delete'),
             style: 'destructive',
             onPress: async () => {
               setIsDeleting(true);
@@ -911,7 +913,7 @@ export function VaultHomeScreen(): React.JSX.Element {
                 await notesDb.deleteByIds(selectedNoteIds);
                 await queryClient.invalidateQueries({ queryKey: ['notes'] });
                 clearSelection();
-                alert('Gone for good', `${selectedNoteIds.length} ${selectedNoteIds.length === 1 ? 'note' : 'notes'} permanently deleted.`);
+                alert(t('album_view.deleted_title'), t(selectedNoteIds.length === 1 ? 'album_view.deleted_body_one' : 'album_view.deleted_body_other', { count: selectedNoteIds.length }));
               } finally {
                 setIsDeleting(false);
               }
@@ -926,12 +928,12 @@ export function VaultHomeScreen(): React.JSX.Element {
     if (selectedItems.length === 0) return;
 
     alert(
-      'Delete forever?',
-      `${selectedItems.length === 1 ? 'This file' : `These ${selectedItems.length} files`} will be gone permanently.`,
+      t('album_view.delete_forever_title'),
+      t(selectedItems.length === 1 ? 'album_view.delete_forever_body_one' : 'album_view.delete_forever_body_other', { count: selectedItems.length }),
       [
-        { text: 'Keep', style: 'cancel' },
+        { text: t('common.keep'), style: 'cancel' },
         {
-          text: 'Delete',
+          text: t('common.delete'),
           style: 'destructive',
           onPress: async () => {
             setIsDeleting(true);
@@ -945,11 +947,11 @@ export function VaultHomeScreen(): React.JSX.Element {
 
               if (result.failed.length > 0) {
                 alert(
-                  'Almost done',
-                  `${result.deleted} deleted, but ${result.failed.length} couldn't be removed.\n\n${result.failed.map(f => f.name).join(', ')}`,
+                  t('album_view.deleted_partial_title'),
+                  t('album_view.deleted_partial_body', { deleted: result.deleted, failed: result.failed.length }),
                 );
               } else {
-                alert('Gone for good', `${result.deleted} ${result.deleted === 1 ? 'file' : 'files'} permanently deleted.`);
+                alert(t('album_view.deleted_title'), t(result.deleted === 1 ? 'album_view.deleted_body_one' : 'album_view.deleted_body_other', { count: result.deleted }));
               }
             } finally {
               setIsDeleting(false);
@@ -1001,7 +1003,7 @@ export function VaultHomeScreen(): React.JSX.Element {
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header — compact: lock + title + search + settings */}
       <VaultHeader
-        title="Vault"
+        title={t('vault.title')}
         showSettings={true}
         onSettingsPress={handleSettingsPress}
         isSelectionMode={isSelectionMode}
@@ -1018,7 +1020,7 @@ export function VaultHomeScreen(): React.JSX.Element {
         <SearchBar
           value={searchQuery}
           onChangeText={setSearchQuery}
-          placeholder={`Search ${activeTab}...`}
+          placeholder={t('vault.search_files_placeholder')}
         />
       )}
 
@@ -1290,7 +1292,7 @@ export function VaultHomeScreen(): React.JSX.Element {
         <>
           <FloatingAddButton
             onPress={handleAddPress}
-            label={isImporting ? 'Importing...' : activeTab === 'albums' ? '+ New Album' : activeTab === 'notes' ? '+ New Note' : '+ Add Files'}
+            label={isImporting ? t('common.processing') : activeTab === 'albums' ? `+ ${t('vault.new_album')}` : activeTab === 'notes' ? `+ ${t('vault.create_note')}` : t('vault.add_files')}
             disabled={isImporting}
           />
         </>
@@ -1310,9 +1312,9 @@ export function VaultHomeScreen(): React.JSX.Element {
       {/* Create Album Dialog (ALBUM-001) */}
       <InputDialog
         visible={showCreateAlbum}
-        title="New Album"
-        placeholder="Album name"
-        confirmLabel="Create"
+        title={t('vault.new_album')}
+        placeholder={t('vault.rename_placeholder')}
+        confirmLabel={t('vault.create_album')}
         onConfirm={handleConfirmCreateAlbum}
         onDismiss={() => {
           pendingAddMediaIdsRef.current = null;
@@ -1333,10 +1335,10 @@ export function VaultHomeScreen(): React.JSX.Element {
       {/* Rename Album Dialog (ALBUM-005) */}
       <InputDialog
         visible={showRenameAlbum}
-        title="Rename Album"
-        placeholder="Album name"
+        title={t('vault.rename_title')}
+        placeholder={t('vault.rename_placeholder')}
         initialValue={renameAlbumName}
-        confirmLabel="Rename"
+        confirmLabel={t('common.rename')}
         onConfirm={handleConfirmRenameAlbum}
         onDismiss={() => {
           setShowRenameAlbum(false);
@@ -1350,7 +1352,7 @@ export function VaultHomeScreen(): React.JSX.Element {
       <AppBottomSheet
         ref={sortSheetRef}
         snapPoints={[300]}
-        title="Sort By"
+        title={t('vault.actions')}
         onDismiss={() => setShowSortSheet(false)}
       >
         <View style={styles.sheetContent}>
@@ -1394,9 +1396,9 @@ export function VaultHomeScreen(): React.JSX.Element {
       {/* Create Note Dialog (NOTES-001) */}
       <InputDialog
         visible={showCreateNote}
-        title="New Note"
-        placeholder="Note title"
-        confirmLabel="Create"
+        title={t('vault.create_note')}
+        placeholder={t('note_editor.title_placeholder')}
+        confirmLabel={t('vault.create_note')}
         onConfirm={handleConfirmCreateNote}
         onDismiss={() => {
           setShowCreateNote(false);

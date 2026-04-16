@@ -14,6 +14,7 @@ import { useListItemAnimation, usePressAnimation } from '@shared/hooks/useAnimat
 import type { MediaItem } from '@services/storage/database';
 import { useDecryptedThumbnail } from '../hooks';
 import { useVaultStore } from '@store/vaultStore';
+import { i18n } from '@shared/i18n';
 import { useThemeColors, type ColorTokens, typography, spacing, layout } from '@shared/theme';
 import { Icon, type IconName } from '@shared/components/Icon';
 
@@ -42,8 +43,8 @@ function formatDate(timestamp: number): string {
   const diffMs = now.getTime() - d.getTime();
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
-  if (diffDays === 0) return 'Today';
-  if (diffDays === 1) return 'Yesterday';
+  if (diffDays === 0) return i18n.t('common.today');
+  if (diffDays === 1) return i18n.t('common.yesterday');
   if (diffDays < 7) return `${diffDays}d ago`;
 
   const month = (d.getMonth() + 1).toString().padStart(2, '0');

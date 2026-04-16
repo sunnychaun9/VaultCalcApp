@@ -30,6 +30,7 @@ import { useSettingsStore } from '@store/settingsStore';
 import { useThemeColors, type ColorTokens, typography, spacing } from '@shared/theme';
 import { Icon } from '@shared/components/Icon';
 import { alert } from '@store/alertStore';
+import { useTranslation } from '@shared/i18n';
 
 /** Setup phases */
 type Phase = 'verify' | 'create' | 'confirm';
@@ -37,26 +38,7 @@ type Phase = 'verify' | 'create' | 'confirm';
 /** PIN rules */
 const PIN_RULES = getPinRules();
 
-/**
- * Phase configuration for display text
- */
-const PHASE_CONFIG: Record<Phase, { title: string; instruction: string; buttonLabel: string }> = {
-  verify: {
-    title: 'Verify PIN',
-    instruction: 'Enter your primary PIN to continue',
-    buttonLabel: 'Verify',
-  },
-  create: {
-    title: 'Decoy PIN',
-    instruction: `Enter a ${PIN_RULES.MIN_LENGTH}-${PIN_RULES.MAX_LENGTH} digit decoy PIN`,
-    buttonLabel: 'Continue',
-  },
-  confirm: {
-    title: 'Confirm Decoy',
-    instruction: 'Re-enter decoy PIN to confirm',
-    buttonLabel: 'Set Decoy PIN',
-  },
-};
+/* Phase config is built inside the component for i18n access */
 
 /**
  * Decoy PIN Setup Screen Component
@@ -74,6 +56,7 @@ export function DecoyPinSetupScreen(): React.JSX.Element {
   const navigation = useNavigation();
   const { onActivity } = useActivityTracker();
 
+  const { t } = useTranslation();
   const decoyVaultConfigured = useSettingsStore(s => s.decoyVaultConfigured);
   const setDecoyVaultConfigured = useSettingsStore(s => s.setDecoyVaultConfigured);
 
@@ -85,6 +68,11 @@ export function DecoyPinSetupScreen(): React.JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
+  const PHASE_CONFIG: Record<Phase, { title: string; instruction: string; buttonLabel: string }> = {
+    verify: { title: t('decoy_pin.step_verify'), instruction: t('decoy_pin.step_verify_subtitle'), buttonLabel: t('decoy_pin.button_verify') },
+    create: { title: t('decoy_pin.step_decoy'), instruction: t('decoy_pin.step_decoy_subtitle'), buttonLabel: t('common.continue') },
+    confirm: { title: t('decoy_pin.step_confirm'), instruction: t('decoy_pin.step_confirm_subtitle'), buttonLabel: t('decoy_pin.title') },
+  };
   const config = PHASE_CONFIG[phase];
 
   /**
@@ -118,7 +106,7 @@ export function DecoyPinSetupScreen(): React.JSX.Element {
 
     // Validate PIN length
     if (currentInput.length < PIN_RULES.MIN_LENGTH) {
-      setError(`Enter at least ${PIN_RULES.MIN_LENGTH} digits`);
+      setError(t('decoy_pin.error_too_short'));
       Vibration.vibrate(50);
       return;
     }
@@ -134,12 +122,12 @@ export function DecoyPinSetupScreen(): React.JSX.Element {
           setPhase('create');
         } else {
           handleFailedAttempt();
-          setError('That\'s not the right PIN');
+          setError(t('decoy_pin.error_incorrect'));
           setCurrentInput('');
           Vibration.vibrate(50);
         }
       } catch {
-        setError('Something went wrong. Try again.');
+        setError(t('decoy_pin.error_verify_generic'));
         setCurrentInput('');
         Vibration.vibrate(50);
       } finally {
@@ -148,7 +136,7 @@ export function DecoyPinSetupScreen(): React.JSX.Element {
     } else if (phase === 'create') {
       // Check that decoy PIN differs from primary
       if (currentInput === verifiedPrimaryPin) {
-        setError('Use a different PIN than your main one');
+        setError(t('decoy_pin.error_same_as_main'));
         setCurrentInput('');
         Vibration.vibrate(50);
         return;
@@ -159,7 +147,7 @@ export function DecoyPinSetupScreen(): React.JSX.Element {
     } else {
       // Confirm phase — check match and save
       if (currentInput !== decoyPin) {
-        setError('Those PINs didn\'t match. Try again.');
+        setError(t('decoy_pin.error_mismatch'));
         setCurrentInput('');
         Vibration.vibrate(50);
         return;
@@ -172,11 +160,11 @@ export function DecoyPinSetupScreen(): React.JSX.Element {
           setDecoyVaultConfigured(true);
           navigation.goBack();
         } else {
-          setError(result.error ?? 'Couldn\'t save. Please try again.');
+          setError(result.error ?? t('decoy_pin.error_save_failed'));
           Vibration.vibrate(50);
         }
       } catch {
-        setError('Something went wrong. Please try again.');
+        setError(t('decoy_pin.error_generic'));
         Vibration.vibrate(50);
       } finally {
         setIsProcessing(false);
@@ -190,12 +178,12 @@ export function DecoyPinSetupScreen(): React.JSX.Element {
   const handleRemoveDecoy = useCallback(() => {
     onActivity();
     alert(
-      'Remove decoy vault?',
-      'The decoy PIN will be deleted. Files inside it will stay but won\'t be accessible until you set up a new decoy.',
+      t('decoy_pin.remove_title'),
+      t('decoy_pin.remove_body'),
       [
-        { text: 'Keep it', style: 'cancel' },
+        { text: t('decoy_pin.remove_keep'), style: 'cancel' },
         {
-          text: 'Remove',
+          text: t('common.remove'),
           style: 'destructive',
           onPress: () => {
             clearDecoyPinCredentials();
@@ -283,7 +271,7 @@ export function DecoyPinSetupScreen(): React.JSX.Element {
             accessibilityRole="button"
             accessibilityLabel="Remove decoy vault"
           >
-            <Text style={styles.removeButtonText}>Remove existing decoy</Text>
+            <Text style={styles.removeButtonText}>{t('decoy_pin.remove_existing')}</Text>
           </Pressable>
         )}
       </View>
@@ -339,7 +327,7 @@ export function DecoyPinSetupScreen(): React.JSX.Element {
               !canContinue && styles.continueButtonTextDisabled,
             ]}
           >
-            {isProcessing ? 'Processing...' : config.buttonLabel}
+            {isProcessing ? t('common.processing') : config.buttonLabel}
           </Text>
         </Pressable>
       </View>

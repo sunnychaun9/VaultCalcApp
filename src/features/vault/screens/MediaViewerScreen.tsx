@@ -58,6 +58,7 @@ import {
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { unlockOrientation, lockPortrait } from '@services/orientation';
 import { formatDateTime } from '@shared/utils/formatters';
+import { useTranslation } from 'react-i18next';
 
 type Props = VaultStackScreenProps<'MediaViewer'>;
 
@@ -146,6 +147,7 @@ function ImagePagerItem({ itemId, width, onSingleTap }: { itemId: string; width:
 }
 
 export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Element {
+  const { t } = useTranslation();
   const { mediaId, mediaIds, originRect, shuffle: initShuffle, repeat: initRepeat } = route.params;
   const themeColors = useThemeColors();
   const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = useWindowDimensions();
@@ -304,7 +306,7 @@ export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Eleme
         const mediaItem = await mediaItems.getById(mediaId);
         if (cancelled) return;
         if (!mediaItem) {
-          setError('Media item not found.');
+          setError(t('media_viewer.media_not_found'));
           setIsLoading(false);
           return;
         }
@@ -313,7 +315,7 @@ export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Eleme
 
         const vaultDirResult = await getVaultDirectory();
         if (!vaultDirResult.success || !vaultDirResult.data) {
-          setError('Could not access vault directory.');
+          setError(t('media_viewer.vault_directory_error'));
           setIsLoading(false);
           return;
         }
@@ -333,7 +335,7 @@ export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Eleme
         }
 
         if (!decryptResult.success) {
-          setError('Failed to decrypt file.');
+          setError(t('media_viewer.decrypt_failed'));
           setIsLoading(false);
           return;
         }
@@ -592,19 +594,19 @@ export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Eleme
     queryClient.invalidateQueries({ queryKey: ['albumMedia', albumId] });
     queryClient.invalidateQueries({ queryKey: ['albums'] });
     setShowMoveToAlbum(false);
-    Alert.alert('Moved', `Video moved to album successfully.`);
+    Alert.alert(t('album_view.moved_title'), t('album_view.moved_video_body'));
   }, [item, queryClient]);
 
   const handleDelete = useCallback(() => {
     setShowMenu(false);
     if (!item) return;
     Alert.alert(
-      'Delete Video',
-      'This will permanently delete this video from your vault. This action cannot be undone.',
+      t('video_actions.delete_video_title'),
+      t('video_actions.delete_video_body'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Delete',
+          text: t('common.delete'),
           style: 'destructive',
           onPress: async () => {
             try {
@@ -616,7 +618,7 @@ export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Eleme
               queryClient.invalidateQueries({ queryKey: ['media'] });
               navigation.goBack();
             } catch {
-              Alert.alert('Error', 'Failed to delete video.');
+              Alert.alert(t('common.error'), t('video_actions.delete_video_error'));
             }
           },
         },
@@ -630,7 +632,7 @@ export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Eleme
       <HeroTransition originRect={originRect}>
         <View style={styles.container}>
           <ActivityIndicator size="large" color={themeColors.accent} />
-          <Text style={styles.loadingText}>Decrypting...</Text>
+          <Text style={styles.loadingText}>{t('common.decrypting')}</Text>
         </View>
       </HeroTransition>
     );
@@ -641,10 +643,10 @@ export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Eleme
     return (
       <View style={styles.container}>
         <Text style={styles.errorIcon}>{'\u26A0'}</Text>
-        <Text style={styles.errorText}>Unable to play this video</Text>
+        <Text style={styles.errorText}>{t('media_viewer.unable_to_play')}</Text>
         <Text style={styles.errorDetail}>{error}</Text>
         <Pressable onPress={handleBack} style={styles.backButtonCenter}>
-          <Text style={styles.backButtonCenterText}>Go Back</Text>
+          <Text style={styles.backButtonCenterText}>{t('common.go_back')}</Text>
         </Pressable>
       </View>
     );
@@ -673,16 +675,16 @@ export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Eleme
         {showResumePrompt && resumePosition !== null && (
           <View style={styles.resumeOverlay}>
             <View style={styles.resumeCard}>
-              <Text style={styles.resumeTitle}>Resume playback?</Text>
+              <Text style={styles.resumeTitle}>{t('media_viewer.resume_title')}</Text>
               <Text style={styles.resumeSubtitle}>
-                Continue from {formatDuration(resumePosition)}
+                {t('media_viewer.resume_subtitle', { time: formatDuration(resumePosition) })}
               </Text>
               <View style={styles.resumeButtons}>
                 <Pressable onPress={handleStartOver} style={styles.resumeBtn}>
-                  <Text style={styles.resumeBtnText}>Start over</Text>
+                  <Text style={styles.resumeBtnText}>{t('media_viewer.start_over')}</Text>
                 </Pressable>
                 <Pressable onPress={handleResume} style={[styles.resumeBtn, styles.resumeBtnPrimary]}>
-                  <Text style={[styles.resumeBtnText, styles.resumeBtnPrimaryText]}>Resume</Text>
+                  <Text style={[styles.resumeBtnText, styles.resumeBtnPrimaryText]}>{t('media_viewer.resume_button')}</Text>
                 </Pressable>
               </View>
             </View>
@@ -693,27 +695,27 @@ export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Eleme
         <Modal visible={showMenu} transparent animationType="fade" onRequestClose={() => setShowMenu(false)}>
           <Pressable style={styles.modalBackdrop} onPress={() => setShowMenu(false)}>
             <View style={styles.menuContainer}>
-              <Text style={styles.menuTitle}>Video Options</Text>
+              <Text style={styles.menuTitle}>{t('media_viewer.video_options')}</Text>
               <Pressable style={styles.menuItem} onPress={handleShowDetails}>
                 <Icon name="file-text" size={20} color={themeColors.textPrimary} />
-                <Text style={styles.menuItemText}>Details</Text>
+                <Text style={styles.menuItemText}>{t('media_viewer.details')}</Text>
               </Pressable>
               <Pressable style={styles.menuItem} onPress={handleShowMoveToAlbum}>
                 <Icon name="folder" size={20} color={themeColors.textPrimary} />
-                <Text style={styles.menuItemText}>Move to Album</Text>
+                <Text style={styles.menuItemText}>{t('vault.move_to_album')}</Text>
               </Pressable>
               <Pressable style={styles.menuItem} onPress={handleShowRename}>
                 <Icon name="pencil" size={20} color={themeColors.textPrimary} />
-                <Text style={styles.menuItemText}>Rename</Text>
+                <Text style={styles.menuItemText}>{t('common.rename')}</Text>
               </Pressable>
               <Pressable style={styles.menuItem} onPress={handleShare}>
                 <Icon name="share" size={20} color={themeColors.textPrimary} />
-                <Text style={styles.menuItemText}>Share</Text>
+                <Text style={styles.menuItemText}>{t('common.share')}</Text>
               </Pressable>
               <View style={styles.menuDivider} />
               <Pressable style={styles.menuItem} onPress={handleDelete}>
                 <Icon name="trash" size={20} color={themeColors.error} />
-                <Text style={[styles.menuItemText, styles.dangerText]}>Delete</Text>
+                <Text style={[styles.menuItemText, styles.dangerText]}>{t('common.delete')}</Text>
               </Pressable>
             </View>
           </Pressable>
@@ -723,32 +725,32 @@ export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Eleme
         <Modal visible={showDetails} transparent animationType="slide" onRequestClose={() => setShowDetails(false)}>
           <Pressable style={styles.modalBackdrop} onPress={() => setShowDetails(false)}>
             <View style={styles.detailsContainer}>
-              <Text style={styles.detailsTitle}>Video Details</Text>
-              <DetailRow label="Name" value={item.originalName} />
-              <DetailRow label="Size" value={formatFileSize(
+              <Text style={styles.detailsTitle}>{t('media_viewer.video_details')}</Text>
+              <DetailRow label={t('properties.name')} value={item.originalName} />
+              <DetailRow label={t('properties.size')} value={formatFileSize(
                 videoDetailInfo?.size ?? item.sizeBytes
               )} />
-              <DetailRow label="Duration" value={
+              <DetailRow label={t('properties.duration')} value={
                 videoDetailInfo?.duration
                   ? formatDuration(videoDetailInfo.duration)
-                  : item.durationMs ? formatDuration(item.durationMs) : 'Unknown'
+                  : item.durationMs ? formatDuration(item.durationMs) : t('common.unknown')
               } />
-              <DetailRow label="Resolution" value={
+              <DetailRow label={t('properties.resolution')} value={
                 videoDetailInfo?.resolution
-                  ?? (item.width && item.height ? `${item.width}x${item.height}` : 'Unknown')
+                  ?? (item.width && item.height ? `${item.width}x${item.height}` : t('common.unknown'))
               } />
               {videoDetailInfo?.bitrate ? (
-                <DetailRow label="Bitrate" value={`${Math.round(videoDetailInfo.bitrate / 1000)} kbps`} />
+                <DetailRow label={t('properties.bitrate')} value={`${Math.round(videoDetailInfo.bitrate / 1000)} kbps`} />
               ) : null}
-              <DetailRow label="Last modified" value={formatDateTime(item.createdAt)} />
+              <DetailRow label={t('properties.last_modified')} value={formatDateTime(item.createdAt)} />
               {item.metadata?.originalUri ? (
-                <DetailRow label="Original path" value={
+                <DetailRow label={t('properties.original_path')} value={
                   decodeURIComponent(String(item.metadata.originalUri).replace(/^content:\/\/[^/]+\//, '/'))
                 } />
               ) : null}
-              <DetailRow label="Current path" value={item.encryptedPath} />
+              <DetailRow label={t('properties.current_path')} value={item.encryptedPath} />
               <Pressable style={styles.detailsCloseBtn} onPress={() => setShowDetails(false)}>
-                <Text style={styles.detailsCloseBtnText}>Close</Text>
+                <Text style={styles.detailsCloseBtnText}>{t('common.close')}</Text>
               </Pressable>
             </View>
           </Pressable>
@@ -758,22 +760,22 @@ export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Eleme
         <Modal visible={showRename} transparent animationType="fade" onRequestClose={() => setShowRename(false)}>
           <Pressable style={styles.modalBackdrop} onPress={() => setShowRename(false)}>
             <View style={styles.renameContainer}>
-              <Text style={styles.renameTitle}>Rename Video</Text>
+              <Text style={styles.renameTitle}>{t('media_viewer.rename_video')}</Text>
               <TextInput
                 style={styles.renameInput}
                 value={renameValue}
                 onChangeText={setRenameValue}
-                placeholder="Enter new name"
+                placeholder={t('vault.rename_placeholder')}
                 placeholderTextColor="#888"
                 autoFocus
                 selectTextOnFocus
               />
               <View style={styles.renameButtons}>
                 <Pressable style={styles.renameCancelBtn} onPress={() => setShowRename(false)}>
-                  <Text style={styles.renameCancelText}>Cancel</Text>
+                  <Text style={styles.renameCancelText}>{t('common.cancel')}</Text>
                 </Pressable>
                 <Pressable style={styles.renameSaveBtn} onPress={handleRename}>
-                  <Text style={styles.renameSaveText}>Save</Text>
+                  <Text style={styles.renameSaveText}>{t('common.save')}</Text>
                 </Pressable>
               </View>
             </View>
@@ -784,9 +786,9 @@ export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Eleme
         <Modal visible={showMoveToAlbum} transparent animationType="slide" onRequestClose={() => setShowMoveToAlbum(false)}>
           <Pressable style={styles.modalBackdrop} onPress={() => setShowMoveToAlbum(false)}>
             <View style={styles.albumPickerContainer}>
-              <Text style={styles.albumPickerTitle}>Move to Album</Text>
+              <Text style={styles.albumPickerTitle}>{t('vault.move_to_album')}</Text>
               {albumList.length === 0 ? (
-                <Text style={styles.albumPickerEmpty}>No albums found. Create an album first.</Text>
+                <Text style={styles.albumPickerEmpty}>{t('video_actions.no_albums')}</Text>
               ) : (
                 <FlatList
                   data={albumList}
@@ -804,7 +806,7 @@ export function MediaViewerScreen({ navigation, route }: Props): React.JSX.Eleme
                 />
               )}
               <Pressable style={styles.detailsCloseBtn} onPress={() => setShowMoveToAlbum(false)}>
-                <Text style={styles.detailsCloseBtnText}>Cancel</Text>
+                <Text style={styles.detailsCloseBtnText}>{t('common.cancel')}</Text>
               </Pressable>
             </View>
           </Pressable>
@@ -925,6 +927,7 @@ function PdfPageItem({
   pageIndex: number;
   renderWidth: number;
 }): React.JSX.Element {
+  const { t } = useTranslation();
   const [pageData, setPageData] = useState<PdfPageResult | null>(null);
   const [pageError, setPageError] = useState(false);
 
@@ -947,7 +950,7 @@ function PdfPageItem({
   if (pageError) {
     return (
       <View style={pdfPageStyles.errorContainer}>
-        <Text style={pdfPageStyles.errorText}>Failed to render page {pageIndex + 1}</Text>
+        <Text style={pdfPageStyles.errorText}>{t('media_viewer.pdf_page_error', { page: pageIndex + 1 })}</Text>
       </View>
     );
   }

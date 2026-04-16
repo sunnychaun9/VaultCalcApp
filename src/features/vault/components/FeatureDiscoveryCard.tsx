@@ -15,6 +15,7 @@ import Animated, {
   withTiming,
   withDelay,
 } from 'react-native-reanimated';
+import { useTranslation } from 'react-i18next';
 import { useThemeColors, type ColorTokens, typography, spacing } from '@shared/theme';
 import { Icon, type IconName } from '@shared/components/Icon';
 import { useSettingsStore } from '@store/settingsStore';
@@ -23,8 +24,8 @@ import { trackEvent } from '@services/analytics';
 interface FeatureTip {
   id: string;
   icon: IconName;
-  title: string;
-  body: string;
+  titleKey: string;
+  bodyKey: string;
   /** Settings key that indicates user has engaged with this feature */
   discoveredWhen: () => boolean;
 }
@@ -33,43 +34,43 @@ const FEATURE_TIPS: FeatureTip[] = [
   {
     id: 'intruder',
     icon: 'camera',
-    title: 'Catch snoopers red-handed',
-    body: 'Enable Intruder Detection in Settings to snap a selfie when someone enters the wrong PIN.',
+    titleKey: 'feature_discovery.intruder_title',
+    bodyKey: 'feature_discovery.intruder_body',
     discoveredWhen: () => useSettingsStore.getState().intruderDetectionEnabled,
   },
   {
     id: 'disguise',
     icon: 'eye-off',
-    title: 'Hide in plain sight',
-    body: 'Change the app icon to look like a Weather or Notes app. Go to Settings > App Icon.',
+    titleKey: 'feature_discovery.disguise_title',
+    bodyKey: 'feature_discovery.disguise_body',
     discoveredWhen: () => useSettingsStore.getState().appIcon !== 'default',
   },
   {
     id: 'backup',
     icon: 'shield-check',
-    title: 'Never lose your vault',
-    body: 'Back up your encrypted files to Google Drive. Your data stays private even in the cloud.',
+    titleKey: 'feature_discovery.backup_title',
+    bodyKey: 'feature_discovery.backup_body',
     discoveredWhen: () => useSettingsStore.getState().googleDriveEmail !== null,
   },
   {
     id: 'biometric',
     icon: 'fingerprint',
-    title: 'Unlock with a touch',
-    body: 'Enable fingerprint or face unlock for faster access. Go to Settings > Security.',
+    titleKey: 'feature_discovery.biometric_title',
+    bodyKey: 'feature_discovery.biometric_body',
     discoveredWhen: () => useSettingsStore.getState().biometricEnabled,
   },
   {
     id: 'panic',
     icon: 'shield',
-    title: 'Panic button',
-    body: 'Shake your phone or press volume down to instantly lock the vault in an emergency.',
+    titleKey: 'feature_discovery.panic_title',
+    bodyKey: 'feature_discovery.panic_body',
     discoveredWhen: () => useSettingsStore.getState().panicButtonEnabled,
   },
   {
     id: 'decoy',
     icon: 'lock',
-    title: 'Double bluff with a decoy vault',
-    body: 'Set up a fake vault with dummy files. If forced to unlock, show the decoy instead.',
+    titleKey: 'feature_discovery.decoy_title',
+    bodyKey: 'feature_discovery.decoy_body',
     discoveredWhen: () => useSettingsStore.getState().decoyVaultConfigured,
   },
 ];
@@ -78,6 +79,7 @@ const FEATURE_TIPS: FeatureTip[] = [
 let sessionTipShown = false;
 
 export function FeatureDiscoveryCard(): React.JSX.Element | null {
+  const { t } = useTranslation();
   const themeColors = useThemeColors();
   const styles = useMemo(() => createStyles(themeColors), [themeColors]);
   const [dismissed, setDismissed] = useState(false);
@@ -133,9 +135,9 @@ export function FeatureDiscoveryCard(): React.JSX.Element | null {
         <Icon name={tip.icon} size={20} color={themeColors.accent} />
       </View>
       <View style={styles.content}>
-        <Text style={styles.label}>Did you know?</Text>
-        <Text style={styles.title}>{tip.title}</Text>
-        <Text style={styles.body}>{tip.body}</Text>
+        <Text style={styles.label}>{t('feature_discovery.did_you_know')}</Text>
+        <Text style={styles.title}>{t(tip.titleKey)}</Text>
+        <Text style={styles.body}>{t(tip.bodyKey)}</Text>
       </View>
       <Pressable onPress={handleDismiss} style={styles.closeButton} hitSlop={12}>
         <Icon name="x" size={16} color={themeColors.textTertiary} />

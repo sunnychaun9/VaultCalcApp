@@ -9,6 +9,7 @@
 import React, { useMemo, useRef, useEffect, useCallback } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import type BottomSheetType from '@gorhom/bottom-sheet';
+import { useTranslation } from 'react-i18next';
 import { useThemeColors, type ColorTokens, typography, spacing } from '@shared/theme';
 import { AppBottomSheet } from '@shared/components/AppBottomSheet';
 
@@ -38,6 +39,7 @@ export function SelectionOverflowMenu({
   onRename,
   onProperties,
 }: SelectionOverflowMenuProps): React.JSX.Element {
+  const { t } = useTranslation();
   const themeColors = useThemeColors();
   const styles = useMemo(() => createStyles(themeColors), [themeColors]);
   const sheetRef = useRef<BottomSheetType>(null);
@@ -58,25 +60,25 @@ export function SelectionOverflowMenu({
   const menuItems: MenuItem[] = useMemo(() => {
     const items: MenuItem[] = [];
     if (onAddToAlbum != null) {
-      items.push({ label: 'Add to Album', onPress: onAddToAlbum });
+      items.push({ label: t('vault.add_to_album'), onPress: onAddToAlbum });
     }
     if (onMoveToAlbum != null) {
-      items.push({ label: 'Move to Album', onPress: onMoveToAlbum });
+      items.push({ label: t('vault.move_to_album'), onPress: onMoveToAlbum });
     }
     if (onPermanentDelete != null) {
-      items.push({ label: 'Permanently Delete', onPress: onPermanentDelete });
+      items.push({ label: t('vault.permanently_delete'), onPress: onPermanentDelete });
     }
     if (onUnhide != null) {
-      items.push({ label: 'Export to Gallery', onPress: onUnhide });
+      items.push({ label: t('vault.export_to_gallery'), onPress: onUnhide });
     }
     if (onRename != null) {
-      items.push({ label: 'Rename', onPress: onRename });
+      items.push({ label: t('common.rename'), onPress: onRename });
     }
     if (onProperties != null) {
-      items.push({ label: 'Properties', onPress: onProperties });
+      items.push({ label: t('vault.properties'), onPress: onProperties });
     }
     return items;
-  }, [onAddToAlbum, onMoveToAlbum, onPermanentDelete, onUnhide, onRename, onProperties]);
+  }, [onAddToAlbum, onMoveToAlbum, onPermanentDelete, onUnhide, onRename, onProperties, t]);
 
   // Dynamic snap based on item count: each item ~52dp + handle(20) + title(52) + bottom padding(24)
   const snapHeight = Math.min(menuItems.length * 52 + 96, 500);
@@ -86,7 +88,7 @@ export function SelectionOverflowMenu({
       ref={sheetRef}
       snapPoints={[snapHeight]}
       onDismiss={onClose}
-      title="Actions"
+      title={t('vault.actions')}
     >
       <View style={styles.menu}>
         {menuItems.map((item, index) => (

@@ -27,6 +27,7 @@ import { useActivityTracker } from '../hooks';
 import { useShakeAnimation, useDotScaleAnimations, useTapHaptic } from '../hooks/useLockAnimations';
 import { typography, spacing } from '@shared/theme';
 import { Icon } from '@shared/components/Icon';
+import { useTranslation } from '@shared/i18n';
 import { BG_TOP, BG_BOTTOM, TEXT_PRIMARY, TEXT_SECONDARY, TEXT_MUTED, CARD_BG, CARD_BORDER } from '../components/LockScreenContainer';
 
 type Phase = 'verify' | 'create' | 'confirm';
@@ -39,15 +40,10 @@ const DOT_FILLED = ACCENT;
 const KEY_BG = 'rgba(51, 65, 85, 0.5)';
 const KEY_BG_PRESSED = 'rgba(71, 85, 105, 0.7)';
 
-const PHASE_CONFIG: Record<Phase, { title: string; instruction: string; buttonLabel: string }> = {
-  verify: { title: 'Current PIN', instruction: 'Enter your current PIN', buttonLabel: 'Verify' },
-  create: { title: 'New PIN', instruction: `Enter a new ${PIN_RULES.MIN_LENGTH}-${PIN_RULES.MAX_LENGTH} digit PIN`, buttonLabel: 'Continue' },
-  confirm: { title: 'Confirm PIN', instruction: 'Re-enter your new PIN to confirm', buttonLabel: 'Change PIN' },
-};
-
 export function ChangePinScreen(): React.JSX.Element {
   const navigation = useNavigation();
   const { onActivity } = useActivityTracker();
+  const { t } = useTranslation();
 
   const [phase, setPhase] = useState<Phase>('verify');
   const [currentInput, setCurrentInput] = useState('');
@@ -56,6 +52,11 @@ export function ChangePinScreen(): React.JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
+  const PHASE_CONFIG: Record<Phase, { title: string; instruction: string; buttonLabel: string }> = {
+    verify: { title: t('change_pin.step_current'), instruction: t('change_pin.step_current_subtitle'), buttonLabel: t('change_pin.button_verify') },
+    create: { title: t('change_pin.step_new'), instruction: t('change_pin.step_new_subtitle'), buttonLabel: t('common.continue') },
+    confirm: { title: t('change_pin.step_confirm'), instruction: t('change_pin.step_confirm_subtitle'), buttonLabel: t('change_pin.title') },
+  };
   const config = PHASE_CONFIG[phase];
   const { shakeValue, triggerShake } = useShakeAnimation();
   const { scales, animateDotIn, resetAll } = useDotScaleAnimations(PIN_RULES.MAX_LENGTH);
@@ -98,7 +99,7 @@ export function ChangePinScreen(): React.JSX.Element {
     onActivity();
 
     if (currentInput.length < PIN_RULES.MIN_LENGTH) {
-      setError(`PIN must be at least ${PIN_RULES.MIN_LENGTH} digits`);
+      setError(t('change_pin.error_too_short'));
       triggerShake();
       return;
     }
@@ -114,13 +115,13 @@ export function ChangePinScreen(): React.JSX.Element {
           setPhase('create');
         } else {
           handleFailedAttempt();
-          setError('Incorrect PIN');
+          setError(t('change_pin.error_incorrect'));
           setCurrentInput('');
           resetAll();
           triggerShake();
         }
       } catch {
-        setError('Verification failed');
+        setError(t('change_pin.error_verify_failed'));
         setCurrentInput('');
         resetAll();
         triggerShake();
@@ -134,7 +135,7 @@ export function ChangePinScreen(): React.JSX.Element {
       setPhase('confirm');
     } else {
       if (currentInput !== newPin) {
-        setError('PINs do not match');
+        setError(t('change_pin.error_mismatch'));
         setCurrentInput('');
         resetAll();
         triggerShake();
@@ -147,11 +148,11 @@ export function ChangePinScreen(): React.JSX.Element {
         if (result.success) {
           navigation.goBack();
         } else {
-          setError(result.error ?? 'Failed to change PIN');
+          setError(result.error ?? t('change_pin.error_save_failed'));
           triggerShake();
         }
       } catch {
-        setError('An error occurred');
+        setError(t('change_pin.error_generic'));
         triggerShake();
       } finally {
         setIsProcessing(false);
@@ -266,7 +267,7 @@ export function ChangePinScreen(): React.JSX.Element {
             ]}
           >
             <Text style={[styles.continueButtonText, !canContinue && styles.continueButtonTextDisabled]}>
-              {isProcessing ? 'Processing...' : config.buttonLabel}
+              {isProcessing ? t('common.processing') : config.buttonLabel}
             </Text>
           </Pressable>
         </View>

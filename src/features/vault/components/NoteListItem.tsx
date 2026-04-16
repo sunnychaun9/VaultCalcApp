@@ -12,6 +12,7 @@ import { View, Text, Pressable, StyleSheet } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useListItemAnimation, usePressAnimation } from '@shared/hooks/useAnimations';
 import type { Note } from '@services/storage/database';
+import { useTranslation } from 'react-i18next';
 import { useThemeColors, type ColorTokens, typography, spacing, layout } from '@shared/theme';
 import { Icon } from '@shared/components/Icon';
 
@@ -39,13 +40,14 @@ export const NoteListItem = React.memo(function NoteListItem({
   onPress,
   onLongPress,
 }: NoteListItemProps): React.JSX.Element {
+  const { t } = useTranslation();
   const themeColors = useThemeColors();
   const styles = useMemo(() => createStyles(themeColors), [themeColors]);
   const entryStyle = useListItemAnimation({ index });
   const { animatedStyle: pressStyle, onPressIn, onPressOut } = usePressAnimation({ scaleDown: 0.98, opacityDown: 0.9 });
 
   const preview = note.isEncrypted
-    ? 'Encrypted'
+    ? t('vault.note_encrypted_preview')
     : note.content.length > 50
       ? note.content.slice(0, 50) + '...'
       : note.content;

@@ -34,6 +34,7 @@ import { useAuthStore } from '@store/authStore';
 import { decryptFileStreaming, getVaultDirectory } from '@services/crypto';
 import { deleteFile } from '@services/media';
 import { Icon, IconButton } from '@shared/components/Icon';
+import { useTranslation } from 'react-i18next';
 
 type Props = VaultStackScreenProps<'AudioPlayer'>;
 
@@ -52,6 +53,7 @@ function formatTime(ms: number): string {
 const SPEEDS = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0];
 
 export function AudioPlayerScreen({ navigation, route }: Props): React.JSX.Element {
+  const { t } = useTranslation();
   const { mediaId, mediaIds = [] } = route.params;
   const { width: screenWidth } = useWindowDimensions();
   const setSuppressAutoLock = useAuthStore(s => s.setSuppressAutoLock);
@@ -386,10 +388,10 @@ export function AudioPlayerScreen({ navigation, route }: Props): React.JSX.Eleme
         {/* Title */}
         <View style={styles.titleContainer}>
           <Text style={styles.titleText} numberOfLines={1}>
-            {item?.originalName ?? 'Loading...'}
+            {item?.originalName ?? t('common.loading')}
           </Text>
           <Text style={styles.subtitleText}>
-            {isLoading ? 'Preparing...' : item ? formatTime(item.durationMs || 0) : ''}
+            {isLoading ? t('audio_player.preparing') : item ? formatTime(item.durationMs || 0) : ''}
           </Text>
         </View>
 
@@ -476,7 +478,7 @@ export function AudioPlayerScreen({ navigation, route }: Props): React.JSX.Eleme
       <Modal visible={showSpeedPicker} transparent animationType="fade" onRequestClose={() => setShowSpeedPicker(false)}>
         <Pressable style={styles.modalBackdrop} onPress={() => setShowSpeedPicker(false)}>
           <View style={styles.speedMenu}>
-            <Text style={styles.speedMenuTitle}>Playback Speed</Text>
+            <Text style={styles.speedMenuTitle}>{t('audio_player.playback_speed')}</Text>
             {SPEEDS.map(s => (
               <Pressable
                 key={s}
@@ -501,7 +503,7 @@ export function AudioPlayerScreen({ navigation, route }: Props): React.JSX.Eleme
               <Pressable onPress={() => setShowPlaylist(false)}>
                 <Icon name="x" size={20} color="#FFFFFF" />
               </Pressable>
-              <Text style={styles.playlistTitle}>Playlist ({audioSiblings.length})</Text>
+              <Text style={styles.playlistTitle}>{t('audio_player.playlist_title', { count: audioSiblings.length })}</Text>
               <View style={{ width: 32 }} />
             </View>
             <FlatList

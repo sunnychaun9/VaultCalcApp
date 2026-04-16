@@ -25,6 +25,7 @@ import { useActivityTracker } from '@features/auth';
 import { useThemeColors, type ColorTokens, typography, spacing } from '@shared/theme';
 import { PremiumSwitch } from '@shared/components/PremiumSwitch';
 import { alert } from '@store/alertStore';
+import { useTranslation } from 'react-i18next';
 
 const { AppLockModule } = NativeModules;
 
@@ -35,6 +36,7 @@ interface AppInfo {
 }
 
 export function AppLockScreen(): React.JSX.Element {
+  const { t } = useTranslation();
   const themeColors = useThemeColors();
   const styles = useMemo(() => createStyles(themeColors), [themeColors]);
   const navigation = useNavigation();
@@ -82,7 +84,7 @@ export function AppLockScreen(): React.JSX.Element {
       setIsServiceEnabled(serviceEnabled as boolean);
       setAppMethods((methods ?? {}) as Record<string, string>);
     } catch (e) {
-      alert('Error', 'Failed to load installed apps');
+      alert(t('common.error'), t('common.error_generic'));
     } finally {
       setIsLoading(false);
     }
@@ -102,12 +104,12 @@ export function AppLockScreen(): React.JSX.Element {
 
     if (value && !isServiceEnabled) {
       alert(
-        'Accessibility Service Required',
-        'App Lock needs the Accessibility Service to detect when locked apps open.\n\nYou will be taken to Accessibility settings. Enable "VaultCalc App Lock".',
+        t('app_lock.accessibility_required_title'),
+        t('app_lock.accessibility_required_body'),
         [
-          { text: 'Cancel', style: 'cancel' },
+          { text: t('common.cancel'), style: 'cancel' },
           {
-            text: 'Open Settings',
+            text: t('app_lock.open_settings'),
             onPress: async () => {
               await AppLockModule.openAccessibilitySettings();
             },
@@ -141,24 +143,24 @@ export function AppLockScreen(): React.JSX.Element {
     onActivity();
     const current = appMethods[packageName] ?? 'pin';
     alert(
-      `Unlock method for ${appName}`,
-      `Currently: ${current === 'pattern' ? 'Pattern' : 'PIN'}`,
+      `${appName}`,
+      `${current === 'pattern' ? t('app_lock.unlock_method_pattern') : t('app_lock.unlock_method_pin')}`,
       [
         {
-          text: 'PIN',
+          text: t('app_lock.unlock_method_pin'),
           onPress: async () => {
             await AppLockModule.setAppUnlockMethod(packageName, 'pin');
             setAppMethods(prev => ({ ...prev, [packageName]: 'pin' }));
           },
         },
         {
-          text: 'Pattern',
+          text: t('app_lock.unlock_method_pattern'),
           onPress: async () => {
             await AppLockModule.setAppUnlockMethod(packageName, 'pattern');
             setAppMethods(prev => ({ ...prev, [packageName]: 'pattern' }));
           },
         },
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
       ],
     );
   }, [onActivity, appMethods]);
@@ -192,7 +194,7 @@ export function AppLockScreen(): React.JSX.Element {
           {isLocked && (
             <Pressable onPress={() => handleToggleMethod(item.packageName, item.appName)}>
               <Text style={styles.methodLabel}>
-                {method === 'pattern' ? 'Pattern' : 'PIN'} {'\u25BE'}
+                {method === 'pattern' ? t('app_lock.unlock_method_pattern') : t('app_lock.unlock_method_pin')} {'\u25BE'}
               </Text>
             </Pressable>
           )}
@@ -214,20 +216,20 @@ export function AppLockScreen(): React.JSX.Element {
       {/* Header */}
       <View style={styles.header}>
         <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Text style={styles.backText}>Back</Text>
+          <Text style={styles.backText}>{t('common.back')}</Text>
         </Pressable>
-        <Text style={styles.title}>App Lock</Text>
+        <Text style={styles.title}>{t('app_lock.title')}</Text>
         <View style={styles.backButton} />
       </View>
 
       {/* Enable toggle */}
       <View style={styles.enableRow}>
         <View style={styles.enableTextContainer}>
-          <Text style={styles.enableLabel}>Enable App Lock</Text>
+          <Text style={styles.enableLabel}>{t('app_lock.enable_label')}</Text>
           <Text style={styles.enableDesc}>
             {isServiceEnabled
-              ? 'Lock apps to require authentication.'
-              : 'Accessibility service not enabled.'}
+              ? t('app_lock.enabled_desc')
+              : t('app_lock.disabled_desc')}
           </Text>
         </View>
         <PremiumSwitch
@@ -245,7 +247,7 @@ export function AppLockScreen(): React.JSX.Element {
           onPress={() => AppLockModule.openAccessibilitySettings()}
         >
           <Text style={styles.serviceWarningText}>
-            Tap to enable Accessibility Service
+            {t('app_lock.enable_accessibility_hint')}
           </Text>
         </Pressable>
       )}
@@ -254,7 +256,7 @@ export function AppLockScreen(): React.JSX.Element {
       <View style={styles.searchContainer}>
         <TextInput
           style={styles.searchInput}
-          placeholder="Search apps..."
+          placeholder={t('app_lock.search_placeholder')}
           placeholderTextColor={themeColors.textTertiary}
           value={searchQuery}
           onChangeText={setSearchQuery}
@@ -280,7 +282,7 @@ export function AppLockScreen(): React.JSX.Element {
 
       <View style={styles.footer}>
         <Text style={styles.footerText}>
-          {lockedApps.size} app{lockedApps.size !== 1 ? 's' : ''} locked
+          {t(lockedApps.size === 1 ? 'app_lock.apps_locked_one' : 'app_lock.apps_locked_other', { count: lockedApps.size })}
         </Text>
       </View>
     </SafeAreaView>

@@ -16,6 +16,7 @@ import {
   KeyboardAvoidingView,
   StyleSheet,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { useThemeColors, colors, type ColorTokens, typography, spacing } from '@shared/theme';
 
 interface InputDialogProps {
@@ -39,6 +40,7 @@ export function InputDialog({
   onDismiss,
   maxLength = 100,
 }: InputDialogProps): React.JSX.Element {
+  const { t } = useTranslation();
   const themeColors = useThemeColors();
   const isDark = themeColors === colors.dark;
   const styles = useMemo(() => createStyles(themeColors, isDark), [themeColors, isDark]);
@@ -85,7 +87,7 @@ export function InputDialog({
           />
           <View style={styles.buttons}>
             <Pressable style={styles.button} onPress={onDismiss}>
-              <Text style={styles.buttonText}>Cancel</Text>
+              <Text style={styles.buttonText}>{t('common.cancel')}</Text>
             </Pressable>
             <Pressable
               style={[styles.button, styles.buttonPrimary]}

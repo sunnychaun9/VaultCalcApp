@@ -31,6 +31,7 @@ import { useThemeColors, type ColorTokens, typography, spacing, layout } from '@
 import { alert } from '@store/alertStore';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 import { ShieldIllustration } from '@shared/illustrations/EmptyStateIllustrations';
+import { useTranslation } from '@shared/i18n';
 
 type NavProp = NativeStackNavigationProp<VaultStackParamList>;
 
@@ -86,9 +87,9 @@ function groupLogs(logs: IntruderLog[]): GroupedSection[] {
   }
 
   const sections: GroupedSection[] = [];
-  if (today.length > 0) sections.push({ title: 'Today', data: today });
-  if (yesterday.length > 0) sections.push({ title: 'Yesterday', data: yesterday });
-  if (older.length > 0) sections.push({ title: 'Older', data: older });
+  if (today.length > 0) sections.push({ title: 'today', data: today });
+  if (yesterday.length > 0) sections.push({ title: 'yesterday', data: yesterday });
+  if (older.length > 0) sections.push({ title: 'older', data: older });
   return sections;
 }
 
@@ -104,6 +105,7 @@ function IntruderCard({
   onPress: (log: IntruderLog) => void;
 }): React.JSX.Element {
   const styles = useMemo(() => createStyles(themeColors), [themeColors]);
+  const { t } = useTranslation();
   const [thumbnailUri, setThumbnailUri] = useState<string | null>(null);
 
   useEffect(() => {
@@ -142,7 +144,7 @@ function IntruderCard({
         ) : (
           <View style={styles.cardImagePlaceholder}>
             <Text style={styles.cardImagePlaceholderText}>
-              {log.photoPath ? '...' : 'No Photo'}
+              {log.photoPath ? '...' : t('intruder_logs.no_photo')}
             </Text>
           </View>
         )}
@@ -155,23 +157,23 @@ function IntruderCard({
       {/* Info area */}
       <View style={styles.cardInfo}>
         <View style={styles.cardInfoRow}>
-          <Text style={styles.cardInfoLabel}>Time</Text>
+          <Text style={styles.cardInfoLabel}>{t('intruder_logs.column_time')}</Text>
           <Text style={styles.cardInfoValue}>{formatTime(log.timestamp)}</Text>
         </View>
         <View style={styles.cardInfoRow}>
-          <Text style={styles.cardInfoLabel}>Location</Text>
+          <Text style={styles.cardInfoLabel}>{t('intruder_logs.column_location')}</Text>
           <Text style={styles.cardInfoValue} numberOfLines={1}>
-            {log.cityName || 'Unknown'}
+            {log.cityName || t('common.unknown')}
           </Text>
         </View>
         <View style={styles.cardInfoRow}>
-          <Text style={styles.cardInfoLabel}>Risk</Text>
+          <Text style={styles.cardInfoLabel}>{t('intruder_logs.column_risk')}</Text>
           <Text style={[styles.cardInfoValue, { color: riskColor }]}>
             {log.riskLevel} {getRiskIndicator(log.riskLevel)}
           </Text>
         </View>
         <View style={styles.cardInfoRow}>
-          <Text style={styles.cardInfoLabel}>Attempts</Text>
+          <Text style={styles.cardInfoLabel}>{t('intruder_logs.column_attempts')}</Text>
           <Text style={styles.cardInfoValue}>{log.failedAttempts}</Text>
         </View>
       </View>
@@ -189,6 +191,7 @@ function StatsHeader({
   themeColors: ColorTokens;
 }): React.JSX.Element {
   const styles = useMemo(() => createStyles(themeColors), [themeColors]);
+  const { t } = useTranslation();
 
   const highRisk = logs.filter(l => l.riskLevel === 'HIGH').length;
   const medRisk = logs.filter(l => l.riskLevel === 'MEDIUM').length;
@@ -198,19 +201,19 @@ function StatsHeader({
     <View style={styles.statsContainer}>
       <View style={styles.statCard}>
         <Text style={styles.statNumber}>{logs.length}</Text>
-        <Text style={styles.statLabel}>Total</Text>
+        <Text style={styles.statLabel}>{t('intruder_logs.stat_total')}</Text>
       </View>
       <View style={styles.statCard}>
         <Text style={styles.statNumber}>{todayCount}</Text>
-        <Text style={styles.statLabel}>Today</Text>
+        <Text style={styles.statLabel}>{t('intruder_logs.stat_today')}</Text>
       </View>
       <View style={styles.statCard}>
         <Text style={[styles.statNumber, { color: '#EF4444' }]}>{highRisk}</Text>
-        <Text style={styles.statLabel}>High Risk</Text>
+        <Text style={styles.statLabel}>{t('intruder_logs.stat_high_risk')}</Text>
       </View>
       <View style={styles.statCard}>
         <Text style={[styles.statNumber, { color: '#EAB308' }]}>{medRisk}</Text>
-        <Text style={styles.statLabel}>Medium</Text>
+        <Text style={styles.statLabel}>{t('intruder_logs.stat_medium')}</Text>
       </View>
     </View>
   );
@@ -219,6 +222,7 @@ function StatsHeader({
 // ── Main Screen ─────────────────────────────────────────────────────────
 
 export function IntruderLogsScreen(): React.JSX.Element {
+  const { t } = useTranslation();
   const themeColors = useThemeColors();
   const styles = useMemo(() => createStyles(themeColors), [themeColors]);
   const navigation = useNavigation<NavProp>();
@@ -244,12 +248,12 @@ export function IntruderLogsScreen(): React.JSX.Element {
   const handleClearAll = useCallback(() => {
     onActivity();
     alert(
-      'Clear All Reports',
-      'Delete all intruder reports and photos? This cannot be undone.',
+      t('intruder_logs.clear_title'),
+      t('intruder_logs.clear_body'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Clear All',
+          text: t('intruder_logs.clear_all'),
           style: 'destructive',
           onPress: async () => {
             for (const log of logs) {
@@ -272,20 +276,26 @@ export function IntruderLogsScreen(): React.JSX.Element {
     <IntruderCard log={item} themeColors={themeColors} onPress={handleCardPress} />
   ), [themeColors, handleCardPress]);
 
+  const sectionTitleMap: Record<string, string> = {
+    today: t('common.today'),
+    yesterday: t('intruder_logs.section_yesterday'),
+    older: t('intruder_logs.section_older'),
+  };
+
   const renderSectionHeader = useCallback(({ section }: {
     section: SectionListData<IntruderLog, GroupedSection>;
   }) => (
-    <Text style={styles.sectionHeader}>{section.title}</Text>
-  ), [styles.sectionHeader]);
+    <Text style={styles.sectionHeader}>{sectionTitleMap[section.title] ?? section.title}</Text>
+  ), [styles.sectionHeader, sectionTitleMap]);
 
   const keyExtractor = useCallback((item: IntruderLog) => item.id, []);
 
   const renderEmpty = useCallback(() => (
     <Animated.View entering={FadeInUp.springify().damping(18).stiffness(160)} style={styles.emptyContainer}>
       <ShieldIllustration size={140} color={themeColors.textTertiary} accent={themeColors.accent} />
-      <Text style={styles.emptyTitle}>No intruders detected</Text>
+      <Text style={styles.emptyTitle}>{t('intruder_logs.empty_title')}</Text>
       <Text style={styles.emptyText}>
-        Your vault is secure. If someone enters the wrong PIN, their photo and attempt details will appear here automatically.
+        {t('intruder_logs.empty_body')}
       </Text>
     </Animated.View>
   ), [styles, themeColors]);
@@ -307,7 +317,7 @@ export function IntruderLogsScreen(): React.JSX.Element {
         >
           <Text style={styles.backButtonText}>&#x2190;</Text>
         </Pressable>
-        <Text style={styles.title}>Intruder Reports</Text>
+        <Text style={styles.title}>{t('intruder_logs.title')}</Text>
         {logs.length > 0 ? (
           <Pressable
             onPress={handleClearAll}
@@ -315,7 +325,7 @@ export function IntruderLogsScreen(): React.JSX.Element {
             accessibilityRole="button"
             accessibilityLabel="Clear all reports"
           >
-            <Text style={styles.clearButtonText}>Clear</Text>
+            <Text style={styles.clearButtonText}>{t('intruder_logs.clear_button')}</Text>
           </Pressable>
         ) : (
           <View style={styles.placeholder} />

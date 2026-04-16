@@ -29,9 +29,11 @@ import { shareMediaItems } from '@services/share';
 import { unhideMediaItems } from '@services/unhide';
 import { deleteMediaItems } from '@services/deletion/deleteService';
 import { alert } from '@store/alertStore';
+import { useTranslation } from 'react-i18next';
 import { MediaGrid, SelectionBar, SelectionOverflowMenu, AddToAlbumModal, RenameModal, PropertiesModal } from '../components';
 
 export function AlbumViewScreen(): React.JSX.Element {
+  const { t } = useTranslation();
   const themeColors = useThemeColors();
   const styles = useMemo(() => createStyles(themeColors), [themeColors]);
   const navigation = useNavigation<NativeStackNavigationProp<VaultStackParamList>>();
@@ -91,12 +93,12 @@ export function AlbumViewScreen(): React.JSX.Element {
     if (ids.length === 0) return;
 
     alert(
-      'Remove from album?',
-      `${ids.length === 1 ? 'This file' : `These ${ids.length} files`} will be removed from "${album?.name ?? 'this album'}" but will stay in your vault.`,
+      t('album_view.remove_from_album_title'),
+      t(ids.length === 1 ? 'album_view.remove_from_album_body_one' : 'album_view.remove_from_album_body_other', { count: ids.length, album: album?.name ?? '' }),
       [
-        { text: 'Keep here', style: 'cancel' },
+        { text: t('album_view.keep_here'), style: 'cancel' },
         {
-          text: 'Remove',
+          text: t('common.remove'),
           style: 'destructive',
           onPress: async () => {
             setIsDeleting(true);
@@ -115,7 +117,7 @@ export function AlbumViewScreen(): React.JSX.Element {
               await queryClient.invalidateQueries({ queryKey: ['albumMediaCounts', isDecoyMode] });
               await queryClient.invalidateQueries({ queryKey: ['albumCoverMedia', isDecoyMode] });
               clearSelection();
-              alert('Removed from album', `${ids.length} ${ids.length === 1 ? 'file' : 'files'} removed. Still safe in your vault.`);
+              alert(t('album_view.removed_title'), t(ids.length === 1 ? 'album_view.removed_body_one' : 'album_view.removed_body_other', { count: ids.length }));
             } finally {
               setIsDeleting(false);
             }
@@ -132,12 +134,12 @@ export function AlbumViewScreen(): React.JSX.Element {
     if (selected.length === 0) return;
 
     alert(
-      'Delete forever?',
-      `${selected.length === 1 ? 'This file' : `These ${selected.length} files`} will be gone permanently.`,
+      t('album_view.delete_forever_title'),
+      t(selected.length === 1 ? 'album_view.delete_forever_body_one' : 'album_view.delete_forever_body_other', { count: selected.length }),
       [
-        { text: 'Keep', style: 'cancel' },
+        { text: t('common.keep'), style: 'cancel' },
         {
-          text: 'Delete',
+          text: t('common.delete'),
           style: 'destructive',
           onPress: async () => {
             setIsDeleting(true);
@@ -163,11 +165,11 @@ export function AlbumViewScreen(): React.JSX.Element {
 
               if (result.failed.length > 0) {
                 alert(
-                  'Almost done',
-                  `${result.deleted} deleted, but ${result.failed.length} couldn't be removed.\n\n${result.failed.map(f => f.name).join(', ')}`,
+                  t('album_view.deleted_partial_title'),
+                  t('album_view.deleted_partial_body', { deleted: result.deleted, failed: result.failed.length }),
                 );
               } else {
-                alert('Gone for good', `${result.deleted} ${result.deleted === 1 ? 'file' : 'files'} permanently deleted.`);
+                alert(t('album_view.deleted_title'), t(result.deleted === 1 ? 'album_view.deleted_body_one' : 'album_view.deleted_body_other', { count: result.deleted }));
               }
             } finally {
               setIsDeleting(false);
@@ -188,13 +190,13 @@ export function AlbumViewScreen(): React.JSX.Element {
     try {
       const result = await shareMediaItems(selected);
       if (result.failed.length > 0 && result.shared > 0) {
-        alert('Partial Share', `${result.shared} shared, ${result.failed.length} failed.`);
+        alert(t('album_view.share_partial_title'), t('album_view.share_partial_body', { shared: result.shared, failed: result.failed.length }));
       } else if (result.failed.length > 0) {
-        alert('Share Failed', `Could not share: ${result.failed[0]?.error ?? 'Unknown error'}`);
+        alert(t('album_view.share_failed_title'), t('album_view.share_failed_body', { error: result.failed[0]?.error ?? t('common.unknown') }));
       }
       clearSelection();
     } catch (e) {
-      alert('Share Error', e instanceof Error ? e.message : String(e));
+      alert(t('album_view.share_error_title'), e instanceof Error ? e.message : String(e));
     } finally {
       setIsSharing(false);
     }
@@ -227,7 +229,7 @@ export function AlbumViewScreen(): React.JSX.Element {
       await queryClient.invalidateQueries({ queryKey: ['albumCoverMedia', isDecoyMode] });
       setShowMoveToAlbum(false);
       clearSelection();
-      alert('Moved', `${added} item(s) moved to "${targetAlbum.name}".`);
+      alert(t('album_view.moved_title'), t('album_view.moved_body', { count: added, album: targetAlbum.name }));
     } finally {
       setIsMoving(false);
     }
@@ -240,25 +242,25 @@ export function AlbumViewScreen(): React.JSX.Element {
     if (selected.length === 0) return;
 
     alert(
-      'Export to Gallery',
-      `Save ${selected.length} item(s) to your device gallery?`,
+      t('album_view.export_title'),
+      t(selected.length === 1 ? 'album_view.export_body_one' : 'album_view.export_body_other', { count: selected.length }),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Export',
+          text: t('common.export'),
           onPress: async () => {
             setSuppressAutoLock(true);
             try {
               const result = await unhideMediaItems(selected);
               if (result.failed.length > 0 && result.saved > 0) {
-                alert('Partial Export', `${result.saved} exported, ${result.failed.length} failed.`);
+                alert(t('album_view.export_partial_title'), t('album_view.export_partial_body', { saved: result.saved, failed: result.failed.length }));
               } else if (result.failed.length > 0) {
-                alert('Export Failed', `Could not export: ${result.failed[0]?.error ?? 'Unknown error'}`);
+                alert(t('album_view.export_failed_title'), t('album_view.export_failed_body', { error: result.failed[0]?.error ?? t('common.unknown') }));
               } else {
-                alert('Exported', `${result.saved} item(s) saved to gallery.`);
+                alert(t('album_view.export_success_title'), t(result.saved === 1 ? 'album_view.export_success_body_one' : 'album_view.export_success_body_other', { count: result.saved }));
               }
             } catch (e) {
-              alert('Export Error', e instanceof Error ? e.message : String(e));
+              alert(t('album_view.export_error_title'), e instanceof Error ? e.message : String(e));
             } finally {
               setSuppressAutoLock(false);
             }
@@ -318,7 +320,7 @@ export function AlbumViewScreen(): React.JSX.Element {
           <Icon name="arrow-left" size={22} color={themeColors.textPrimary} />
         </Pressable>
         <Text style={styles.title} numberOfLines={1}>
-          {isSelectionMode ? `${selectedIds.size} selected` : (album?.name ?? 'Album')}
+          {isSelectionMode ? t('vault.selection_count_other', { count: selectedIds.size }) : (album?.name ?? t('navigation.album_view'))}
         </Text>
         <View style={styles.backButton} />
       </View>
@@ -335,9 +337,9 @@ export function AlbumViewScreen(): React.JSX.Element {
       ) : (
         <Animated.View entering={FadeInUp.springify().damping(18).stiffness(160)} style={styles.emptyContent}>
           <AlbumsIllustration size={140} color={themeColors.textTertiary} accent={themeColors.accent} />
-          <Text style={styles.emptyTitle}>{album?.name ?? 'Album'}</Text>
+          <Text style={styles.emptyTitle}>{album?.name ?? t('navigation.album_view')}</Text>
           <Text style={styles.emptyDescription}>
-            This collection is waiting. Add photos or videos from your vault to fill it.
+            {t('vault.empty_album_view_description')}
           </Text>
         </Animated.View>
       )}

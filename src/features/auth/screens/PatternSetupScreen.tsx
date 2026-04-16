@@ -22,6 +22,7 @@ import { useActivityTracker } from '../hooks';
 import { useShakeAnimation, useSuccessAnimation } from '../hooks/useLockAnimations';
 import { typography, spacing } from '@shared/theme';
 import { Icon } from '@shared/components/Icon';
+import { useTranslation } from '@shared/i18n';
 import { BG_TOP, BG_BOTTOM, TEXT_PRIMARY, TEXT_SECONDARY, TEXT_MUTED, CARD_BG, CARD_BORDER } from '../components/LockScreenContainer';
 
 type SetupPhase = 'draw' | 'confirm';
@@ -30,6 +31,7 @@ const ERROR_COLOR = '#EF4444';
 export function PatternSetupScreen(): React.JSX.Element {
   const navigation = useNavigation<NativeStackNavigationProp<VaultStackParamList>>();
   const { onActivity } = useActivityTracker();
+  const { t } = useTranslation();
   const setUnlockMethod = useSettingsStore(s => s.setUnlockMethod);
 
   const [phase, setPhase] = useState<SetupPhase>('draw');
@@ -56,7 +58,7 @@ export function PatternSetupScreen(): React.JSX.Element {
         const validation = validatePattern(completedPattern);
         if (!validation.valid) {
           setPatternState('error');
-          setError(validation.error ?? 'Invalid pattern');
+          setError(validation.error ?? t('pattern_setup.error_invalid'));
           triggerShake();
           setTimeout(() => {
             setPattern([]);
@@ -80,7 +82,7 @@ export function PatternSetupScreen(): React.JSX.Element {
 
         if (!matches) {
           setPatternState('error');
-          setError('Patterns do not match. Try again.');
+          setError(t('pattern_setup.error_mismatch'));
           triggerShake();
           setTimeout(() => {
             setPattern([]);
@@ -102,12 +104,12 @@ export function PatternSetupScreen(): React.JSX.Element {
             });
           } else {
             setPatternState('error');
-            setError(result.error ?? 'Failed to save pattern');
+            setError(result.error ?? t('pattern_setup.error_save_failed'));
             triggerShake();
           }
         } catch {
           setPatternState('error');
-          setError('An error occurred');
+          setError(t('pattern_setup.error_generic'));
           triggerShake();
         } finally {
           setIsProcessing(false);
@@ -148,12 +150,12 @@ export function PatternSetupScreen(): React.JSX.Element {
               <Icon name="lock" size={48} color="rgba(255,255,255,0.9)" />
             </View>
             <Text style={styles.title}>
-              {phase === 'draw' ? 'Draw Pattern' : 'Confirm Pattern'}
+              {phase === 'draw' ? t('pattern_setup.draw_title') : t('pattern_setup.confirm_title')}
             </Text>
             <Text style={styles.subtitle}>
               {phase === 'draw'
-                ? `Connect at least ${MIN_PATTERN_LENGTH} dots`
-                : 'Draw your pattern again to confirm'}
+                ? t('pattern_setup.draw_subtitle')
+                : t('pattern_setup.confirm_subtitle')}
             </Text>
           </View>
 
@@ -173,7 +175,7 @@ export function PatternSetupScreen(): React.JSX.Element {
 
             {/* Status */}
             <Text style={styles.dotCount}>
-              {pattern.length > 0 ? `${pattern.length} dots selected` : ' '}
+              {pattern.length > 0 ? t('pattern_setup.dots_selected', { count: pattern.length }) : ' '}
             </Text>
             {error && <Text style={styles.errorText}>{error}</Text>}
           </View>
@@ -181,11 +183,11 @@ export function PatternSetupScreen(): React.JSX.Element {
           {/* Footer */}
           <View style={styles.footer}>
             {isProcessing && (
-              <Text style={styles.processingText}>Saving pattern...</Text>
+              <Text style={styles.processingText}>{t('pattern_setup.saving')}</Text>
             )}
             <View style={styles.trustRow}>
               <Icon name="shield" size={16} color="rgba(255,255,255,0.4)" />
-              <Text style={styles.trustText}>Protected with encryption</Text>
+              <Text style={styles.trustText}>{t('pattern_setup.encryption_badge')}</Text>
             </View>
           </View>
           </ScrollView>

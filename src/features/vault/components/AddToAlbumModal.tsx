@@ -18,6 +18,7 @@ import {
 } from 'react-native';
 import type BottomSheetType from '@gorhom/bottom-sheet';
 import type { Album } from '@services/storage/database';
+import { useTranslation } from 'react-i18next';
 import { useThemeColors, type ColorTokens, typography, spacing } from '@shared/theme';
 import { AppBottomSheet } from '@shared/components/AppBottomSheet';
 import { Icon } from '@shared/components/Icon';
@@ -39,6 +40,7 @@ export function AddToAlbumModal({
   onCreateNewAlbum,
   onClose,
 }: AddToAlbumModalProps): React.JSX.Element {
+  const { t } = useTranslation();
   const themeColors = useThemeColors();
   const styles = useMemo(() => createStyles(themeColors), [themeColors]);
   const sheetRef = useRef<BottomSheetType>(null);
@@ -76,14 +78,14 @@ export function AddToAlbumModal({
     <AppBottomSheet
       ref={sheetRef}
       snapPoints={snapPointsMemo}
-      title="Add to Album"
+      title={t('vault.add_to_album')}
       onDismiss={onClose}
       backdropDismiss={!isAdding}
     >
       {isAdding ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="small" color={themeColors.accent} />
-          <Text style={styles.loadingText}>Adding...</Text>
+          <Text style={styles.loadingText}>{t('vault.adding_to_album')}</Text>
         </View>
       ) : (
         <View style={styles.content}>
@@ -97,7 +99,7 @@ export function AddToAlbumModal({
             <View style={styles.newAlbumIcon}>
               <Text style={styles.newAlbumPlus}>+</Text>
             </View>
-            <Text style={styles.newAlbumText}>New Album</Text>
+            <Text style={styles.newAlbumText}>{t('vault.new_album')}</Text>
           </Pressable>
 
           {/* Divider (only if albums exist) */}

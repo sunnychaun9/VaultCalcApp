@@ -27,26 +27,28 @@ import { useActivityTracker } from '../hooks';
 import { useShakeAnimation, useSuccessAnimation } from '../hooks/useLockAnimations';
 import { typography, spacing } from '@shared/theme';
 import { Icon } from '@shared/components/Icon';
+import { useTranslation } from '@shared/i18n';
 import { BG_TOP, BG_BOTTOM, TEXT_PRIMARY, TEXT_SECONDARY, TEXT_MUTED, CARD_BG, CARD_BORDER } from '../components/LockScreenContainer';
 
 type ChangePhase = 'verify' | 'draw' | 'confirm';
 const ERROR_COLOR = '#EF4444';
 
-const titles: Record<ChangePhase, string> = {
-  verify: 'Verify Pattern',
-  draw: 'New Pattern',
-  confirm: 'Confirm Pattern',
-};
-
-const instructions: Record<ChangePhase, string> = {
-  verify: 'Draw your current pattern',
-  draw: `Draw a new pattern (at least ${MIN_PATTERN_LENGTH} dots)`,
-  confirm: 'Draw your new pattern again to confirm',
-};
-
 export function ChangePatternScreen(): React.JSX.Element {
   const navigation = useNavigation<NativeStackNavigationProp<VaultStackParamList>>();
   const { onActivity } = useActivityTracker();
+  const { t } = useTranslation();
+
+  const titles: Record<ChangePhase, string> = {
+    verify: t('change_pattern.step_verify'),
+    draw: t('change_pattern.step_new'),
+    confirm: t('change_pattern.step_confirm'),
+  };
+
+  const instructions: Record<ChangePhase, string> = {
+    verify: t('change_pattern.verify_subtitle'),
+    draw: t('change_pattern.new_subtitle'),
+    confirm: t('change_pattern.confirm_subtitle'),
+  };
 
   const [phase, setPhase] = useState<ChangePhase>('verify');
   const [pattern, setPattern] = useState<number[]>([]);
@@ -83,7 +85,7 @@ export function ChangePatternScreen(): React.JSX.Element {
           }, 600);
         } else {
           setPatternState('error');
-          setError('Incorrect pattern');
+          setError(t('change_pattern.error_incorrect'));
           triggerShake();
           setTimeout(() => { setPattern([]); setPatternState('idle'); }, 1000);
         }
@@ -91,7 +93,7 @@ export function ChangePatternScreen(): React.JSX.Element {
         const validation = validatePattern(completedPattern);
         if (!validation.valid) {
           setPatternState('error');
-          setError(validation.error ?? 'Invalid pattern');
+          setError(validation.error ?? t('change_pattern.error_invalid'));
           triggerShake();
           setTimeout(() => { setPattern([]); setPatternState('idle'); }, 1000);
           return;
@@ -112,7 +114,7 @@ export function ChangePatternScreen(): React.JSX.Element {
 
         if (!matches) {
           setPatternState('error');
-          setError('Patterns do not match');
+          setError(t('change_pattern.error_mismatch'));
           triggerShake();
           setTimeout(() => { setPattern([]); setPatternState('idle'); }, 1000);
           return;
@@ -130,7 +132,7 @@ export function ChangePatternScreen(): React.JSX.Element {
           triggerSuccess(() => navigation.goBack());
         } else {
           setPatternState('error');
-          setError(result.error ?? 'Failed to save pattern');
+          setError(result.error ?? t('change_pattern.error_save_failed'));
           triggerShake();
         }
       }
@@ -195,12 +197,12 @@ export function ChangePatternScreen(): React.JSX.Element {
           <View style={styles.footer}>
             {isProcessing && (
               <Text style={styles.processingText}>
-                {phase === 'verify' ? 'Verifying...' : 'Saving...'}
+                {phase === 'verify' ? t('change_pattern.verifying') : t('common.saving')}
               </Text>
             )}
             <View style={styles.trustRow}>
               <Icon name="shield" size={16} color="rgba(255,255,255,0.4)" />
-              <Text style={styles.trustText}>Protected with encryption</Text>
+              <Text style={styles.trustText}>{t('change_pattern.encryption_badge')}</Text>
             </View>
           </View>
           </ScrollView>
