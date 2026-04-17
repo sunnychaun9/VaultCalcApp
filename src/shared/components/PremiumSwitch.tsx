@@ -13,6 +13,7 @@
 
 import React, { useCallback, useEffect } from 'react';
 import {
+  I18nManager,
   Pressable,
   StyleSheet,
   View,
@@ -88,6 +89,11 @@ export function PremiumSwitch({
     onValueChange(!value);
   }, [disabled, onValueChange, value, thumbScale]);
 
+  // RTL: translateX is NOT auto-mirrored by React Native, and `position:absolute`
+  // with no left/right anchors to the start edge (right side in RTL). So we flip
+  // the sign so the thumb slides inward from the start edge in both directions.
+  const rtlSign = I18nManager.isRTL ? -1 : 1;
+
   // ── Animated styles (all on UI thread) ─────────────────────
   const trackStyle = useAnimatedStyle(() => ({
     backgroundColor: interpolateColor(
@@ -98,7 +104,7 @@ export function PremiumSwitch({
   }));
 
   const thumbStyle = useAnimatedStyle(() => {
-    const translateX = THUMB_MARGIN + progress.value * THUMB_TRAVEL;
+    const translateX = (THUMB_MARGIN + progress.value * THUMB_TRAVEL) * rtlSign;
     return {
       transform: [
         { translateX },
@@ -108,7 +114,7 @@ export function PremiumSwitch({
   });
 
   const glowStyle = useAnimatedStyle(() => {
-    const translateX = THUMB_MARGIN + progress.value * THUMB_TRAVEL;
+    const translateX = (THUMB_MARGIN + progress.value * THUMB_TRAVEL) * rtlSign;
     // Glow fades in during the second half of the transition
     const opacity = progress.value > 0.5 ? (progress.value - 0.5) * 0.7 : 0;
     return {
@@ -177,7 +183,7 @@ const styles = StyleSheet.create({
   thumbHighlight: {
     position: 'absolute',
     top: 2,
-    left: 3,
+    start: 3,
     width: 8,
     height: 4,
     borderRadius: 2,
@@ -188,7 +194,7 @@ const styles = StyleSheet.create({
     width: THUMB_SIZE + 12,
     height: THUMB_SIZE + 12,
     borderRadius: (THUMB_SIZE + 12) / 2,
-    marginLeft: -6,
+    marginStart: -6,
     marginTop: -6,
     top: THUMB_MARGIN,
   },
